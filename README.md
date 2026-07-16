@@ -1,58 +1,142 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Student Concern Reporting System
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A web-based system that lets students at **Camarines Sur Polytechnic Colleges (CSPC)** submit concerns, which are automatically routed to the correct office and handled with strict access control, privacy protection, and a full audit trail.
 
-## About Laravel
+The system balances two goals that are usually in tension: **protecting students** who report sensitive issues, and **maintaining accountability** so that false or malicious reports can be investigated.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+Built as a capstone project with **Laravel 11** and **PHP 8.4**.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+---
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Features
 
-## Learning Laravel
+- **Category-based routing** — concerns are automatically assigned to Faculty/Staff, a Guidance Counselor, or Admin based on their category.
+- **Least-privilege visibility** — a single authorization rule controls who can see each concern; users see only what their role needs.
+- **Referral lifecycle** — a handler can refer a concern to another role; ownership transfers so the new handler can resolve it.
+- **Anonymous reporting** — students can report without their name being shown to handlers; identity is stored securely.
+- **Conflict-of-interest protection** — a concern about a staff member is routed away from that person, and they cannot even view it.
+- **Break-glass identity reveal** — only the Head of School can reveal an anonymous reporter, with a required reason, and every reveal is permanently logged.
+- **Secure evidence attachments** — optional files (JPG/PNG/PDF), stored privately with randomized names, access-controlled like the concern itself.
+- **Guided reporting** — a description guide helps students write clear, useful reports.
+- **Analytics dashboard** — institution-wide trend counts, decoupled from record access.
+- **Audit trail** — every significant action is logged with who, what, and when.
+- **Public confidentiality policy page** — publishes the privacy guarantees to students and staff.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+---
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## Tech Stack
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+| Layer | Technology |
+|-------|-----------|
+| Framework | Laravel 11 (PHP 8.4) |
+| Database | SQLite |
+| Frontend | Blade templates + CSS |
+| Testing | PHPUnit (83 automated tests) |
 
-## Agentic Development
+---
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+## Requirements
+
+- PHP 8.3 or higher
+- [Composer](https://getcomposer.org/)
+
+---
+
+## Setup
+
+Clone the repository and move into the folder:
 
 ```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+git clone https://github.com/grim-reaper-bit/student-concern-reporting-system.git
+cd student-concern-reporting-system
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Install dependencies:
 
-## Contributing
+```bash
+composer install
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Create your environment file and generate an application key:
 
-## Code of Conduct
+```bash
+copy .env.example .env      # on Windows
+# cp .env.example .env      # on macOS/Linux
+php artisan key:generate
+```
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Create the SQLite database file:
 
-## Security Vulnerabilities
+```bash
+# Windows (PowerShell)
+New-Item database\database.sqlite -ItemType File
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+# macOS/Linux
+touch database/database.sqlite
+```
+
+Run the migrations and seed the demo data:
+
+```bash
+php artisan migrate --seed
+```
+
+Start the development server:
+
+```bash
+php artisan serve
+```
+
+Then open the URL shown in the terminal (usually `http://127.0.0.1:8000`).
+
+---
+
+## Demo Accounts
+
+All demo accounts use the password: **`password`**
+
+| Email | Role |
+|-------|------|
+| student@cspc.edu | Student |
+| student2@cspc.edu | Student |
+| staff@cspc.edu | Faculty / Staff |
+| counselor@cspc.edu | Guidance Counselor |
+| depthead@cspc.edu | Department Head |
+| admin@cspc.edu | Admin |
+| head@cspc.edu | Head of School |
+
+---
+
+## Running the Tests
+
+The system includes an automated test suite covering routing, authorization, privacy, conflict-of-interest, break-glass reveals, file-upload security, and hostile security scenarios (IDOR, privilege escalation, XSS, brute force).
+
+```bash
+php artisan test
+```
+
+Expected result: **83 passing tests.**
+
+---
+
+## Security Highlights
+
+- Least-privilege access enforced by a single shared authorization rule
+- Anonymous reporting with logged, restricted identity reveals
+- Reported staff hard-excluded from concerns about themselves
+- File uploads whitelisted by type, size- and count-capped, privately stored, and access-controlled on download
+- Server-side validation on all input, CSRF protection on all forms, hashed passwords, and rate-limited login
+
+---
+
+## Notes
+
+- `APP_DEBUG` is enabled for development. For a production deployment it should be set to `false`.
+- The project uses SQLite for simplicity. For production, a server database such as MySQL or PostgreSQL is recommended.
+- Uploaded evidence files and the database file are intentionally excluded from version control.
+
+---
 
 ## License
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+This project was developed as an academic capstone project for Camarines Sur Polytechnic Colleges.
