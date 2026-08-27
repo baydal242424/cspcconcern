@@ -13,7 +13,7 @@
         <h1>Concern #{{ $concern->id }}</h1>
         <div>
             <span class="status-badge status-{{ str_replace(' ', '_', $concern->status) }}">
-                {{ ucfirst(str_replace('_', ' ', $concern->status)) }}@if ($concern->status === 'referred' && $concern->referred_to) → {{ $concern->referred_to }}@endif
+                {{ $concern->status_label }}@if ($concern->status === 'referred' && $concern->referred_to) → {{ $concern->referred_to }}@endif
             </span>
             <span class="urgency-badge urgency-{{ strtolower($concern->urgency ?? 'pending') }}">
                 {{ $concern->urgency ?? 'Pending triage' }}
@@ -215,11 +215,81 @@
         </div>
     @endif
 
+    @if ($concern->investigation_notes)
+        <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
+        <div>
+            <h2 class="section-title">Investigation Notes</h2>
+            <p style="line-height: 1.6; color: #555;">{{ $concern->investigation_notes }}</p>
+        </div>
+    @endif
+
     @if ($concern->resolution_notes)
         <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
         <div>
             <h2 class="section-title">Resolution Notes</h2>
             <p style="line-height: 1.6; color: #555;">{{ $concern->resolution_notes }}</p>
+        </div>
+    @endif
+
+    {{-- A concern closed without action gives the reporter no outcome, so the
+         reason stands in for one and is deliberately prominent rather than
+         tucked in with the staff notes above. --}}
+    @if ($concern->status === 'closed_no_action' && $concern->closure_reason)
+        <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
+        <div style="background:var(--warn-bg); border:1px solid #f3dca0; border-radius:12px; padding:1.1rem 1.25rem;">
+            <h2 class="section-title" style="margin-bottom:.5rem; color:var(--warn-ink);">Closed without action</h2>
+            <p style="line-height:1.6; color:#6b4a00;">{{ $concern->closure_reason }}</p>
+            @if ($concern->closed_at)
+                <p style="color:var(--muted); font-size:.82rem; margin-top:.6rem;">
+                    Closed {{ $concern->closed_at->format('M d, Y · g:i A') }}. If you disagree with this outcome, you may raise it with the Students Affairs and Services Office.
+                </p>
+            @endif
+        </div>
+    @endif
+
+    {{-- Reporter feedback: shown to everyone once left; the "leave feedback"
+         form is only offered to the reporter, only after resolution, and
+         only once (storeFeedback() enforces the same rules server-side). --}}
+    @if ($concern->feedback)
+        <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
+        <div>
+            <h2 class="section-title">Reporter Feedback</h2>
+            <p style="font-size:1.1rem; margin-bottom:0.4rem;">
+                @for ($i = 1; $i <= 5; $i++)
+                    <span style="color: {{ $i <= $concern->feedback->rating ? '#f5b301' : '#e2e7ef' }};">★</span>
+                @endfor
+                <span style="color:#64748b; font-size:0.85rem; margin-left:0.3rem;">{{ $concern->feedback->rating }}/5</span>
+            </p>
+            @if ($concern->feedback->comment)
+                <p style="line-height: 1.6; color: #555;">{{ $concern->feedback->comment }}</p>
+            @endif
+        </div>
+    @elseif ($concern->status === 'resolved' && Auth::id() === $concern->user_id)
+        <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
+        <div>
+            <h2 class="section-title">Rate How This Was Handled</h2>
+            <form action="{{ route('concerns.feedback', $concern) }}" method="POST">
+                @csrf
+                <div class="form-group">
+                    <label for="rating">Rating</label>
+                    <select name="rating" id="rating" required>
+                        <option value="">-- Select a rating --</option>
+                        <option value="5">★★★★★ (5) Excellent</option>
+                        <option value="4">★★★★ (4) Good</option>
+                        <option value="3">★★★ (3) Okay</option>
+                        <option value="2">★★ (2) Poor</option>
+                        <option value="1">★ (1) Very poor</option>
+                    </select>
+                    @error('rating')
+                        <div style="color:#dc3545; font-size:0.85rem; margin-top:0.25rem;">{{ $message }}</div>
+                    @enderror
+                </div>
+                <div class="form-group">
+                    <label for="comment">Comment (optional)</label>
+                    <textarea name="comment" id="comment" placeholder="Anything you'd like to add about how this was handled...">{{ old('comment') }}</textarea>
+                </div>
+                <button type="submit" class="btn btn-primary">Submit Feedback</button>
+            </form>
         </div>
     @endif
 
@@ -253,10 +323,29 @@
                         <option value="in_progress" {{ $concern->status === 'in_progress' ? 'selected' : '' }}>In Progress</option>
                         <option value="resolved" {{ $concern->status === 'resolved' ? 'selected' : '' }}>Resolved</option>
                         <option value="referred" {{ $concern->status === 'referred' ? 'selected' : '' }}>Referred</option>
+                        <option value="closed_no_action" {{ $concern->status === 'closed_no_action' ? 'selected' : '' }}>Closed — no action needed</option>
                     </select>
                 </div>
 
-                <div class="form-group" id="refer-to-group" style="{{ $concern->status === 'referred' ? '' : 'display:none;' }}">
+                {{-- Shown only when closing without action. Required, and the
+                     student reads it verbatim, so it is not an internal note. --}}
+                <div class="form-group" id="closure-group" @if ($concern->status !== 'closed_no_action') style="display:none;" @endif>
+                    <label for="closure_reason">Reason for closing without action *</label>
+                    <textarea name="closure_reason" id="closure_reason" rows="3"
+                              style="min-height:auto;"
+                              placeholder="Explain why no action is being taken. The student will see this.">{{ old('closure_reason', $concern->closure_reason) }}</textarea>
+                    <div style="color:var(--muted); font-size:0.82rem; margin-top:0.25rem;">
+                        At least 20 characters. This is shown to the student and recorded permanently in the timeline.
+                    </div>
+                    @error('closure_reason')
+                        <div style="color:#dc3545; font-size:0.85rem; margin-top:0.25rem;">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                {{-- The style attribute is emitted whole rather than built inside
+                     one, so editors parse it as plain CSS. The script below
+                     toggles display on change. --}}
+                <div class="form-group" id="refer-to-group" @if ($concern->status !== 'referred') style="display:none;" @endif>
                     <label for="referred_to">Refer to</label>
                     <select name="referred_to" id="referred_to">
                         <option value="">-- Select destination --</option>
@@ -264,23 +353,124 @@
                         <option value="Admin" {{ $concern->referred_to === 'Admin' ? 'selected' : '' }}>Admin</option>
                         <option value="Department Head" {{ $concern->referred_to === 'Department Head' ? 'selected' : '' }}>Department Head</option>
                         <option value="Faculty/Staff" {{ $concern->referred_to === 'Faculty/Staff' ? 'selected' : '' }}>Faculty/Staff</option>
+                        <option value="Gender and Development" {{ $concern->referred_to === "Gender and Development" ? "selected" : "" }}>Gender and Development (GAD)</option>
+                        <option value="General Services" {{ $concern->referred_to === "General Services" ? "selected" : "" }}>General Services (Facilities)</option>
+                        <option value="Registrar" {{ $concern->referred_to === "Registrar" ? "selected" : "" }}>Registrar (Records &amp; Enrolment)</option>
                     </select>
                     @error('referred_to')
                         <div style="color:#dc3545; font-size:0.85rem; margin-top:0.25rem;">{{ $message }}</div>
                     @enderror
                 </div>
 
+                {{-- Hand the concern to a NAMED colleague instead of letting the
+                     system pick someone in that office. Rendered only when
+                     there is somebody to pick: the controller has already
+                     dropped the subject of the concern, the current handler,
+                     yourself and banned accounts, so an office with nobody left
+                     is absent from $referralCandidates and this whole group
+                     stays out of the page rather than offering an empty list.
+                     The script below reveals it only for offices that have
+                     people, so "Refer to" alone still works on its own. --}}
+                @if ($referralCandidates->isNotEmpty())
+                    <div class="form-group" id="refer-person-group" style="display:none;">
+                        <label for="referred_to_user_id">Refer to a specific person <span style="font-weight:400; color:var(--muted);">(optional)</span></label>
+                        <select name="referred_to_user_id" id="referred_to_user_id">
+                            <option value="">-- Anyone in that office --</option>
+                            @foreach ($referralCandidates as $officeName => $people)
+                                @foreach ($people as $person)
+                                    <option value="{{ $person->id }}" data-role="{{ $officeName }}"
+                                        {{ (string) old('referred_to_user_id') === (string) $person->id ? 'selected' : '' }}>
+                                        {{ $person->name }}@if ($person->department) — {{ $person->department }}@endif
+                                    </option>
+                                @endforeach
+                            @endforeach
+                        </select>
+                        <div style="color:var(--muted); font-size:0.82rem; margin-top:0.25rem;">
+                            Leave this on "Anyone in that office" and the concern goes to a
+                            handler in the reporter's own college where there is one.
+                        </div>
+                        @error('referred_to_user_id')
+                            <div style="color:#dc3545; font-size:0.85rem; margin-top:0.25rem;">{{ $message }}</div>
+                        @enderror
+                    </div>
+                @endif
+
                 <script>
                     (function () {
                         var statusEl = document.getElementById('status');
                         var referGroup = document.getElementById('refer-to-group');
-                        if (statusEl && referGroup) {
-                            statusEl.addEventListener('change', function () {
-                                referGroup.style.display = (this.value === 'referred') ? 'block' : 'none';
-                            });
+                        var closureGroup = document.getElementById('closure-group');
+                        var officeEl = document.getElementById('referred_to');
+                        var personGroup = document.getElementById('refer-person-group');
+                        var personEl = document.getElementById('referred_to_user_id');
+
+                        if (!statusEl) {
+                            return;
                         }
+
+                        // Show only the people who belong to the office that is
+                        // currently selected, and keep the group hidden when
+                        // that office has none -- an empty picker is worse than
+                        // no picker. Non-matching options are disabled as well
+                        // as hidden so a stale selection can never be posted.
+                        function syncPeople() {
+                            if (!personGroup || !personEl || !officeEl) {
+                                return;
+                            }
+
+                            var office = officeEl.value;
+                            var matches = 0;
+
+                            Array.prototype.forEach.call(personEl.options, function (option) {
+                                if (!option.value) {
+                                    return; // the "-- Anyone in that office --" placeholder
+                                }
+
+                                var belongs = option.getAttribute('data-role') === office;
+                                option.hidden = !belongs;
+                                option.disabled = !belongs;
+
+                                if (belongs) {
+                                    matches++;
+                                } else if (option.selected) {
+                                    personEl.value = '';
+                                }
+                            });
+
+                            var show = statusEl.value === 'referred' && matches > 0;
+                            personGroup.style.display = show ? 'block' : 'none';
+
+                            if (!show) {
+                                personEl.value = '';
+                            }
+                        }
+
+                        function sync() {
+                            if (referGroup) {
+                                referGroup.style.display = (statusEl.value === 'referred') ? 'block' : 'none';
+                            }
+                            if (closureGroup) {
+                                closureGroup.style.display = (statusEl.value === 'closed_no_action') ? 'block' : 'none';
+                            }
+                            syncPeople();
+                        }
+
+                        statusEl.addEventListener('change', sync);
+                        if (officeEl) {
+                            officeEl.addEventListener('change', syncPeople);
+                        }
+
+                        // Run once on load so a form that came back with old
+                        // input (a validation error) opens on the same fields
+                        // the user was last looking at.
+                        sync();
                     })();
                 </script>
+
+                <div class="form-group">
+                    <label for="investigation_notes">Investigation Notes</label>
+                    <textarea name="investigation_notes" id="investigation_notes" placeholder="What did you find while looking into this? (visible once saved)">{{ $concern->investigation_notes }}</textarea>
+                </div>
 
                 <div class="form-group">
                     <label for="resolution_notes">Resolution Notes</label>
@@ -297,7 +487,6 @@
         <a href="{{ route('concerns.index') }}" class="btn btn-muted">Back to List</a>
 
         @if (Auth::user()->id === $concern->user_id && $concern->status === 'submitted')
-            <a href="{{ route('concerns.edit', $concern) }}" class="btn btn-secondary">Edit Concern</a>
             <button type="button" id="delete-arm-btn" class="btn btn-ghost-danger"
                 onclick="document.getElementById('delete-confirm').style.display='block'; this.style.display='none';">
                 Delete Concern

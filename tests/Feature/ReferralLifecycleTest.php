@@ -18,9 +18,9 @@ class ReferralLifecycleTest extends TestCase
     private function academicAssignedToStaff(): Concern
     {
         return Concern::create([
-            'user_id'=>$this->u('student@cspc.edu')->id,'category'=>'Academic',
+            'user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
             'department'=>'College of Computer Studies','description'=>'x','urgency'=>null,
-            'status'=>'submitted','is_anonymous'=>false,'assigned_to'=>$this->u('staff@cspc.edu')->id,
+            'status'=>'submitted','is_anonymous'=>false,'assigned_to'=>$this->u('staff@cspc.edu.ph')->id,
         ]);
     }
 
@@ -28,14 +28,14 @@ class ReferralLifecycleTest extends TestCase
     public function test_staff_can_refer_without_unauthorized(): void
     {
         $c = $this->academicAssignedToStaff();
-        $resp = $this->actingAs($this->u('staff@cspc.edu'))->patch("/concerns/{$c->id}", [
+        $resp = $this->actingAs($this->u('staff@cspc.edu.ph'))->patch("/concerns/{$c->id}", [
             'status'=>'referred','referred_to'=>'Guidance Counselor','urgency'=>'Low',
         ]);
         fwrite(STDERR, "\n  [refer] staff refer response: ".$resp->getStatusCode()." (expect 302, not 403)\n");
         $this->assertNotEquals(403, $resp->getStatusCode());
         $c->refresh();
         $this->assertEquals('referred', $c->status);
-        $this->assertEquals($this->u('counselor@cspc.edu')->id, $c->assigned_to);
+        $this->assertEquals($this->u('counselor@cspc.edu.ph')->id, $c->assigned_to);
     }
 
     /** Counselor resolves; ISSUE 4a: resolved concern is locked from further edits */
@@ -43,17 +43,17 @@ class ReferralLifecycleTest extends TestCase
     {
         $c = $this->academicAssignedToStaff();
         // refer to counselor
-        $this->actingAs($this->u('staff@cspc.edu'))->patch("/concerns/{$c->id}", [
+        $this->actingAs($this->u('staff@cspc.edu.ph'))->patch("/concerns/{$c->id}", [
             'status'=>'referred','referred_to'=>'Guidance Counselor','urgency'=>'Low',
         ]);
         // counselor resolves
-        $this->actingAs($this->u('counselor@cspc.edu'))->patch("/concerns/{$c->id}", [
+        $this->actingAs($this->u('counselor@cspc.edu.ph'))->patch("/concerns/{$c->id}", [
             'status'=>'resolved','urgency'=>'Low','resolution_notes'=>'done',
         ]);
         $c->refresh();
         $this->assertEquals('resolved', $c->status);
         // any further edit attempt must be blocked
-        $resp = $this->actingAs($this->u('counselor@cspc.edu'))->patch("/concerns/{$c->id}", [
+        $resp = $this->actingAs($this->u('counselor@cspc.edu.ph'))->patch("/concerns/{$c->id}", [
             'status'=>'in_progress','urgency'=>'High',
         ]);
         fwrite(STDERR, "  [locked] edit-after-resolve status: ".$resp->getStatusCode()." (expect 302 redirect + error)\n");
@@ -66,10 +66,10 @@ class ReferralLifecycleTest extends TestCase
     public function test_counselor_keeps_handled_concern_as_history(): void
     {
         $c = $this->academicAssignedToStaff();
-        $this->actingAs($this->u('staff@cspc.edu'))->patch("/concerns/{$c->id}", [
+        $this->actingAs($this->u('staff@cspc.edu.ph'))->patch("/concerns/{$c->id}", [
             'status'=>'referred','referred_to'=>'Guidance Counselor','urgency'=>'Low',
         ]);
-        $counselor = $this->u('counselor@cspc.edu');
+        $counselor = $this->u('counselor@cspc.edu.ph');
         // while open: visible
         $openVisible = Concern::whereKey($c->id)->visibleTo($counselor)->exists();
         // resolve
@@ -89,11 +89,11 @@ class ReferralLifecycleTest extends TestCase
     public function test_counselor_keeps_own_domain_after_resolve(): void
     {
         $c = Concern::create([
-            'user_id'=>$this->u('student@cspc.edu')->id,'category'=>'Mental Health / Personal',
+            'user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Mental Health / Personal',
             'department'=>'Guidance Office','description'=>'x','urgency'=>'Low',
-            'status'=>'resolved','is_anonymous'=>false,'assigned_to'=>$this->u('counselor@cspc.edu')->id,
+            'status'=>'resolved','is_anonymous'=>false,'assigned_to'=>$this->u('counselor@cspc.edu.ph')->id,
         ]);
-        $visible = Concern::whereKey($c->id)->visibleTo($this->u('counselor@cspc.edu'))->exists();
+        $visible = Concern::whereKey($c->id)->visibleTo($this->u('counselor@cspc.edu.ph'))->exists();
         fwrite(STDERR, "  [domain] counselor sees own resolved Mental Health case: ".($visible?'YES':'NO')."\n");
         $this->assertTrue($visible, 'Counselor should always see their own-domain cases');
     }

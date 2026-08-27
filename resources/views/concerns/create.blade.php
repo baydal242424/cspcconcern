@@ -18,6 +18,7 @@
                 <option value="Mental Health / Personal">Mental Health / Personal</option>
                 <option value="Bullying / Harassment">Bullying / Harassment</option>
                 <option value="Administrative">Administrative</option>
+                <option value="Facilities / Equipment">Facilities / Equipment</option>
                 <option value="Physical / Safety">Physical / Safety</option>
                 <option value="Others">Others</option>
             </select>
@@ -26,25 +27,18 @@
             @enderror
         </div>
 
+        {{-- The department is no longer asked for: it is the reporter's own
+             college, already on their account from registration. --}}
         <div class="form-group">
-            <label for="department">Department *</label>
-            <select name="department" id="department" required>
-                <option value="">-- Select a department --</option>
-                <option value="College of Engineering and Architecture">College of Engineering and Architecture</option>
-                <option value="College of Computer Studies">College of Computer Studies</option>
-                <option value="College of Health Sciences">College of Health Sciences</option>
-                <option value="College of Tourism, Hospitality and Business Management">College of Tourism, Hospitality and Business Management</option>
-                <option value="College of Technological and Development Education">College of Technological and Development Education</option>
-                <option value="Guidance Office">Guidance Office</option>
-                <option value="SASO">SASO</option>
-            </select>
+            @if (Auth::user()->department)
+                <p style="font-size:0.85rem; color:#60708a; margin:0;">
+                    Filed under <strong>{{ Auth::user()->department }}</strong>.
+                </p>
+            @endif
             <p id="department-helper" style="font-size: 0.9rem; color: #60708a; font-style: italic; margin-top: 0.5rem; display:none;"></p>
             <div id="confidentiality-box" style="display:none; background:#fff3cd; border:1px solid #ffe69c; color:#856404; padding:0.9rem; border-radius:6px; margin-top:1rem; font-size:0.9rem;">
                 Your concern will be handled confidentially.
             </div>
-            @error('department')
-                <div style="color: #dc3545; font-size: 0.85rem; margin-top: 0.25rem;">{{ $message }}</div>
-            @enderror
         </div>
 
         <div class="form-group">
@@ -72,7 +66,7 @@
                         <li><strong>How did it affect you?</strong> Optional, but it helps staff understand the urgency.</li>
                         <li><strong>What would help?</strong> The outcome you're hoping for.</li>
                     </ul>
-                    <p style="margin-top:0.5rem; color:#64748b;">Take your time. If a concern is sensitive, share only what you feel safe sharing &mdash; you can also submit anonymously below.</p>
+                    <p style="margin-top:0.5rem; color:#64748b;">Take your time. If a concern is sensitive, share only what you feel safe sharing. Your report is submitted under your name and is visible only to the staff member handling it.</p>
                 </div>
             </details>
             <textarea name="description" id="description" rows="6"
@@ -88,24 +82,48 @@
             @enderror
         </div>
 
+        {{-- Two ways to name the person a concern is about. Both write to the
+             same about_staff_id field, and only one can be active at a time:
+             the inactive select is disabled, so the browser never submits it
+             (and nothing is submitted at all when JavaScript is off). --}}
         <div class="form-group">
             <label>
-                <input type="checkbox" id="about_toggle" onchange="document.getElementById('about_wrap').style.display=this.checked?'block':'none'; if(!this.checked){document.getElementById('about_staff_id').value='';}">
-                <span style="font-weight: normal; margin-left: 0.5rem;">This concern is about a specific staff member</span>
+                <input type="checkbox" id="about_instructor_toggle" class="about-toggle" data-target="about_instructor_wrap" data-select="about_instructor_id">
+                <span style="font-weight: normal; margin-left: 0.5rem;">This concern is about a specific instructor</span>
             </label>
-            <div id="about_wrap" style="display:none; margin-top:0.6rem;">
-                <label for="about_staff_id" style="font-size:0.9rem;">Who is this concern about?</label>
-                <select name="about_staff_id" id="about_staff_id">
-                    <option value="">-- Select the staff member --</option>
-                    @foreach ($staffMembers as $member)
-                        <option value="{{ $member->id }}" {{ old('about_staff_id') == $member->id ? 'selected' : '' }}>{{ $member->name }}</option>
+            <div id="about_instructor_wrap" style="display:none; margin-top:0.6rem;">
+                <label for="about_instructor_id" style="font-size:0.9rem;">Which instructor is this concern about?</label>
+                <select name="about_staff_id" id="about_instructor_id" disabled>
+                    <option value="">-- Select the instructor --</option>
+                    @foreach ($instructorsByCollege as $college => $members)
+                        <optgroup label="{{ $college }}">
+                            @foreach ($members as $member)
+                                <option value="{{ $member->id }}" {{ old('about_staff_id') == $member->id ? 'selected' : '' }}>{{ $member->name }}</option>
+                            @endforeach
+                        </optgroup>
                     @endforeach
                 </select>
                 <p style="font-size: 0.82rem; color: #666; margin-top: 0.4rem;">To avoid a conflict of interest, this concern will <strong>not</strong> be assigned to the person named here. It will be routed to a higher authority instead.</p>
-                @error('about_staff_id')
-                    <div style="color: #dc3545; font-size: 0.85rem; margin-top: 0.25rem;">{{ $message }}</div>
-                @enderror
             </div>
+
+            <label style="display:block; margin-top:0.7rem;">
+                <input type="checkbox" id="about_staff_toggle" class="about-toggle" data-target="about_staff_wrap" data-select="about_staff_id">
+                <span style="font-weight: normal; margin-left: 0.5rem;">This concern is about an office or administrator</span>
+            </label>
+            <div id="about_staff_wrap" style="display:none; margin-top:0.6rem;">
+                <label for="about_staff_id" style="font-size:0.9rem;">Who is this concern about?</label>
+                <select name="about_staff_id" id="about_staff_id" disabled>
+                    <option value="">-- Select the staff member --</option>
+                    @foreach ($otherStaff as $member)
+                        <option value="{{ $member->id }}" {{ old('about_staff_id') == $member->id ? 'selected' : '' }}>{{ $member->name }} — {{ optional($member->role)->name }}</option>
+                    @endforeach
+                </select>
+                <p style="font-size: 0.82rem; color: #666; margin-top: 0.4rem;">To avoid a conflict of interest, this concern will <strong>not</strong> be assigned to the person named here. It will be routed to a higher authority instead.</p>
+            </div>
+
+            @error('about_staff_id')
+                <div style="color: #dc3545; font-size: 0.85rem; margin-top: 0.25rem;">{{ $message }}</div>
+            @enderror
         </div>
 
         <div class="form-group">
@@ -122,20 +140,46 @@
             @endforeach
         </div>
 
-        <div class="form-group">
-            <label>
-                <input type="checkbox" name="is_anonymous" value="1">
-                <span style="font-weight: normal; margin-left: 0.5rem;">Submit anonymously</span>
-            </label>
-            <p style="font-size: 0.85rem; color: #666; margin-top: 0.5rem;">If checked, your name is hidden from the staff handling your concern. Your identity is still recorded securely and can only be revealed by the Head of School through a logged action, and only when necessary (for example, a safety risk or a suspected false report). <a href="{{ route('policy') }}" target="_blank" style="color:#2f5bea;">Read the Privacy &amp; Confidentiality Policy</a>.</p>
-        </div>
-
         <div style="display: flex; gap: 1rem;">
             <button type="submit" class="btn btn-primary">Send ✈</button>
             <a href="{{ route('concerns.index') }}" class="btn btn-muted">Cancel</a>
         </div>
 
         <script>
+            // "About a specific instructor" and "about an office or
+            // administrator" are two views of the same about_staff_id field,
+            // so ticking one unticks the other. The hidden select is disabled
+            // so only the visible one is ever submitted.
+            (function () {
+                const toggles = Array.from(document.querySelectorAll('.about-toggle'));
+
+                function apply(changed) {
+                    toggles.forEach(function (toggle) {
+                        if (changed && toggle !== changed && changed.checked) {
+                            toggle.checked = false;
+                        }
+
+                        const wrap = document.getElementById(toggle.dataset.target);
+                        const select = document.getElementById(toggle.dataset.select);
+
+                        wrap.style.display = toggle.checked ? 'block' : 'none';
+                        select.disabled = !toggle.checked;
+                        if (!toggle.checked) select.value = '';
+                    });
+                }
+
+                toggles.forEach(function (toggle) {
+                    toggle.addEventListener('change', function () { apply(this); });
+                });
+
+                // Re-open the right one after a failed submit repopulates old().
+                toggles.forEach(function (toggle) {
+                    const select = document.getElementById(toggle.dataset.select);
+                    if (select.value) toggle.checked = true;
+                });
+                apply(null);
+            })();
+
             (function() {
                 const categoryEl = document.getElementById('category');
                 const helperEl = document.getElementById('department-helper');
@@ -150,9 +194,24 @@
                     'Academic': 'Faculty/Staff',
                     'Mental Health / Personal': 'the Guidance Office',
                     'Bullying / Harassment': 'the Guidance Office',
-                    'Administrative': 'the Admin Office',
+                    'Administrative': 'the Registrar (Student Registration and Records)',
+                    'Facilities / Equipment': 'the General Services Unit',
                     'Physical / Safety': 'Faculty/Staff',
                     'Others': 'Faculty/Staff'
+                };
+
+                // One-line plain-English scope for each category. Without this
+                // students guessed, and the same broken lab PC arrived as
+                // "Administrative", "Academic" or "Others" depending on who
+                // filed it -- three different handlers for one problem.
+                const scopeByCategory = {
+                    'Academic': 'Grades, subjects, class schedules, instructors, teaching concerns.',
+                    'Mental Health / Personal': 'Stress, anxiety, family or personal difficulties, anything you need support with.',
+                    'Bullying / Harassment': 'Bullying, threats, harassment, or discrimination by anyone on campus.',
+                    'Administrative': 'Enrollment, records, ID, clearance, fees, and other office processes.',
+                    'Facilities / Equipment': 'Broken computers or lab equipment, no water or electricity, aircon, lights, chairs, internet, damaged rooms.',
+                    'Physical / Safety': 'Accidents, injuries, hazards, or anything that puts people at risk.',
+                    'Others': 'Anything that does not fit the categories above.'
                 };
 
                 function updateHelpers() {
@@ -160,7 +219,11 @@
                     const target = routingByCategory[cat] || null;
 
                     if (target) {
-                        helperEl.textContent = 'Based on your category, this will be routed to ' + target + '.';
+                        // Scope first, then destination -- the student needs to
+                        // confirm they picked the right category before the
+                        // routing note means anything to them.
+                        helperEl.textContent = scopeByCategory[cat]
+                            + ' This will be routed to ' + target + '.';
                         helperEl.style.display = 'block';
                     } else {
                         helperEl.style.display = 'none';

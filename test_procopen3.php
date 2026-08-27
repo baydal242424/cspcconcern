@@ -1,0 +1,1 @@
+<?php $p = proc_open(["php","-v"], [1 => ["pipe","w"], 2 => ["pipe","w"]], $pipes); var_dump($p); sleep(1); if ($p) { $status = proc_get_status($p); var_dump($status); echo stream_get_contents($pipes[1]); echo stream_get_contents($pipes[2]); }

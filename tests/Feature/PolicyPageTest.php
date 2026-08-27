@@ -14,10 +14,15 @@ class PolicyPageTest extends TestCase {
         $this->line("[policy] guest -> ".$r->getStatusCode()." (want 200)");
         $r->assertOk();
         $r->assertSee('Data Privacy');
-        $r->assertSee('Break-Glass');
+        // Section 5 used to be "Break-Glass" (revealing an anonymous reporter).
+        // Anonymous submission was removed from the policy because the system
+        // never actually offered it -- ConcernController::store() always sets
+        // is_anonymous = false. Section 5 is now the Audit Trail.
+        $r->assertSee('Audit Trail');
+        $r->assertDontSee('submit a concern anonymously');
     }
     public function test_policy_visible_when_logged_in(): void {
-        $r=$this->actingAs(User::where('email','student@cspc.edu')->first())->get('/policy');
+        $r=$this->actingAs(User::where('email','student@my.cspc.edu.ph')->first())->get('/policy');
         $r->assertOk();
         $r->assertSee('Evidence Attachments');
         $this->line("[policy] student view -> 200, shows evidence + roles sections");

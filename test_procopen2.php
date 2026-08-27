@@ -1,0 +1,1 @@
+<?php $cmd = "php -S 127.0.0.1:8055 -t " . escapeshellarg(__DIR__ . "\public"); echo "Command: $cmd" . PHP_EOL; $p = proc_open($cmd, [1 => ["pipe","w"], 2 => ["pipe","w"]], $pipes); var_dump($p); sleep(1); if ($p) { $status = proc_get_status($p); var_dump($status); }

@@ -47,7 +47,7 @@
                         </td>
                         <td>
                             <span class="status-badge status-{{ str_replace(' ', '_', $concern->status) }}">
-                                {{ ucfirst(str_replace('_', ' ', $concern->status)) }}
+                                {{ $concern->status_label }}
                             </span>
                             @if ($concern->status === 'referred' && $concern->referred_to)
                                 <div style="font-size:0.72rem; color:#64748b; margin-top:0.25rem;">→ {{ $concern->referred_to }}</div>
@@ -57,7 +57,6 @@
                         <td style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
                             <a href="{{ route('concerns.show', $concern) }}" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">View</a>
                             @if (Auth::user()->id === $concern->user_id && $concern->status === 'submitted')
-                                <a href="{{ route('concerns.edit', $concern) }}" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">Edit</a>
                                 <form action="{{ route('concerns.destroy', $concern) }}" method="POST" style="display:inline-block; margin:0;">
                                     @csrf
                                     @method('DELETE')

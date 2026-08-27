@@ -38,6 +38,55 @@ class RoleSeeder extends Seeder
                 'name' => 'Head of School',
                 'description' => 'Highest authority; can read concerns and perform logged identity reveals (break-glass) for accountability',
             ],
+            [
+                // Referral target only -- no category routes here automatically.
+                // A harassment concern still reaches the Guidance Counselor
+                // first, who assesses it and refers it on if it falls under
+                // CMO No. 3 s. 2022 (sexual harassment), which the Student
+                // Handbook singles out as the one offence CSPC claims
+                // jurisdiction over even off campus.
+                'name' => 'Gender and Development',
+                'description' => 'Center for Gender and Development; receives referred gender-related and sexual harassment cases (CMO No. 3 s. 2022)',
+            ],
+            [
+                // The General Services Unit is CSPC's maintenance front door:
+                // per cspc.edu.ph it performs "routine maintenance on all the
+                // buildings, grounds, facilities and other equipment", with
+                // sub-units for preventive maintenance, the electrical system,
+                // and air-conditioning and water systems.
+                //
+                // Facilities / Equipment concerns route here instead of to
+                // Admin, which had no maintenance function at all. Computer
+                // faults are ICTRaM's (the ICT Unit's repair arm) rather than
+                // GSU's, but GSU is the office students already report a
+                // broken anything to, so it takes them and passes them on --
+                // one real destination beats asking a student to guess which
+                // of two offices owns their broken thing.
+                'name' => 'General Services',
+                'description' => 'General Services Unit; handles facilities, equipment and maintenance concerns',
+            ],
+            [
+                // The Student Registration and Records Office. Per cspc.edu.ph
+                // it is "the main unit in charge of student enrollment;
+                // maintenance and preservation of student's scholastic
+                // records; academic advising, and student graduation", and it
+                // handles ID validation, grading sheets, credentials and
+                // certifications.
+                //
+                // Administrative concerns route here instead of to Admin.
+                // "Admin" in this system means the system's administrators,
+                // not the admin OFFICE -- they manage accounts, not student
+                // records, so a lost-ID or enrolment problem was reaching
+                // people with no way to act on it.
+                //
+                // Caveat: the Administrative category also covers FEES, which
+                // belong to the Cash Unit (cashier@cspc.edu.ph), not the
+                // Registrar. Those arrive here and get referred on. Splitting
+                // the category was the alternative and was judged not worth
+                // the extra step it puts on every student.
+                'name' => 'Registrar',
+                'description' => 'Student Registration and Records Office; handles enrolment, records, credentials and other administrative concerns',
+            ],
         ];
 
         foreach ($roles as $role) {

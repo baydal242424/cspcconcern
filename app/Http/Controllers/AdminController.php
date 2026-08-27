@@ -2,86 +2,135 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Referral;
+use App\Models\Role;
 use App\Models\User;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 /**
- * Admin approval of self-registered accounts. Non-Student registrations
- * start as status='pending' (see AuthController::register) and can't log
- * in until approved here.
+ * Admin view of every registered account: who they are, whether they're
+ * currently online (see User::isOnline, backed by UpdateLastSeen), and the
+ * ability to ban an account suspected of being fake or filing fraudulent
+ * reports. A ban takes effect immediately, even mid-session (see
+ * UpdateLastSeen middleware) -- it doesn't just block the next login.
  */
 class AdminController extends Controller
 {
     /**
-     * List accounts awaiting approval.
+     * List every registered account.
      */
     public function index()
     {
         $this->authorizeAdmin();
 
-        $pendingUsers = User::where('status', 'pending')
-            ->with('role')
-            ->latest()
+        $users = User::with(['role', 'bannedBy'])
+            ->orderByDesc('last_seen_at')
+            ->orderByDesc('created_at')
             ->get();
 
-        return view('admin.pending-users', ['pendingUsers' => $pendingUsers]);
+        return view('admin.users', ['users' => $users, 'roles' => Role::orderBy('name')->get()]);
     }
 
     /**
-     * Approve a pending account.
+     * Ban an account: blocks login and signs out any active session.
      */
-    public function approve(User $user)
+    public function ban(Request $request, User $user)
     {
         $this->authorizeAdmin();
-        $this->ensurePending($user);
+
+        if ($user->id === Auth::id()) {
+            abort(422, 'You cannot ban your own account.');
+        }
+
+        $validated = $request->validate([
+            'reason' => 'nullable|string|max:255',
+        ]);
+
+        $user->update([
+            'status' => 'banned',
+            'banned_by' => Auth::id(),
+            'banned_at' => now(),
+            'ban_reason' => $validated['reason'] ?? null,
+        ]);
+
+        return back()->with('success', "{$user->name}'s account has been banned.");
+    }
+
+    /**
+     * Lift a ban and restore normal access.
+     */
+    public function unban(User $user)
+    {
+        $this->authorizeAdmin();
 
         $user->update([
             'status' => 'approved',
-            'approved_by' => Auth::id(),
-            'approved_at' => now(),
+            'banned_by' => null,
+            'banned_at' => null,
+            'ban_reason' => null,
         ]);
 
-        return back()->with('success', "{$user->name}'s account has been approved.");
+        return back()->with('success', "{$user->name}'s account has been unbanned.");
     }
 
     /**
-     * Reject a pending account.
+     * Change an account's role (e.g. a student moving to a staff position).
      */
-    public function reject(User $user)
+    public function updateRole(Request $request, User $user)
     {
         $this->authorizeAdmin();
-        $this->ensurePending($user);
 
-        $user->update([
-            'status' => 'rejected',
-            'approved_by' => Auth::id(),
-            'approved_at' => now(),
+        if ($user->id === Auth::id()) {
+            abort(422, 'You cannot change your own role.');
+        }
+
+        $validated = $request->validate([
+            'role_id' => 'required|exists:roles,id',
         ]);
 
-        return back()->with('success', "{$user->name}'s account has been rejected.");
+        $user->update(['role_id' => $validated['role_id']]);
+
+        return back()->with('success', "{$user->name}'s role has been updated.");
     }
 
     /**
-     * Approval decisions only apply to accounts that are still pending.
-     * Without this guard, "reject" could disable any ACTIVE account --
-     * including the Head of School or another Admin -- via a direct POST.
+     * Permanently delete an account. Referrals restrict deletion of either
+     * party, so any referral this user sent or received is removed first;
+     * everything else (their own concerns, attachments, audit entries,
+     * notifications) cascades at the database level.
      */
-    private function ensurePending(User $user): void
+    public function destroy(User $user)
     {
-        if ($user->status !== 'pending') {
-            abort(422, 'This account is not pending approval.');
+        $this->authorizeAdmin();
+
+        if ($user->id === Auth::id()) {
+            abort(422, 'You cannot delete your own account.');
         }
+
+        $name = $user->name;
+
+        DB::transaction(function () use ($user) {
+            Referral::where('referred_by', $user->id)
+                ->orWhere('referred_to', $user->id)
+                ->delete();
+
+            $user->delete();
+        });
+
+        return back()->with('success', "{$name}'s account and submitted concerns have been permanently deleted.");
     }
 
     /**
-     * Only Admins may manage account approvals.
+     * Only Admins may manage accounts.
      */
     private function authorizeAdmin(): void
     {
         $user = Auth::user();
 
         if (! $user->role || $user->role->name !== 'Admin') {
-            abort(403, 'Only an Admin can manage account approvals.');
+            abort(403, 'Only an Admin can manage accounts.');
         }
     }
 }

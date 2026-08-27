@@ -1,0 +1,12 @@
+# This directory is the Laravel APPLICATION root, not a web root. Only public/
+# is ever meant to be served. Because the project sits inside XAMPP's htdocs,
+# Apache would otherwise hand out .env (app key + OAuth secret),
+# database/database.sqlite, and everything under storage/ to any visitor.
+# Deny the whole directory; public/.htaccess re-grants access to itself.
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>

@@ -12,9 +12,9 @@ class RefFixesTest extends TestCase {
 
     /** Referral to Department Head now transfers to a real user who can resolve */
     public function test_dept_head_referral_can_be_resolved(): void {
-        $counselor=$this->u('counselor@cspc.edu');
-        $depthead=$this->u('depthead@cspc.edu');
-        $c=Concern::create(['user_id'=>$this->u('student@cspc.edu')->id,'category'=>'Bullying / Harassment',
+        $counselor=$this->u('counselor@cspc.edu.ph');
+        $depthead=$this->u('ccs@cspc.edu.ph');
+        $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Bullying / Harassment',
             'department'=>'Guidance Office','description'=>'x','urgency'=>'Medium','status'=>'submitted',
             'is_anonymous'=>true,'assigned_to'=>$counselor->id]);
         // counselor refers to Department Head
@@ -31,8 +31,8 @@ class RefFixesTest extends TestCase {
 
     /** Reveal reason validation: junk/short is rejected, proper reason passes */
     public function test_reveal_reason_validation(): void {
-        $head=$this->u('head@cspc.edu');
-        $c=Concern::create(['user_id'=>$this->u('student@cspc.edu')->id,'category'=>'Bullying / Harassment',
+        $head=$this->u('head@cspc.edu.ph');
+        $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Bullying / Harassment',
             'department'=>'Guidance Office','description'=>'x','urgency'=>null,'status'=>'submitted','is_anonymous'=>true]);
         // too short
         $r1=$this->actingAs($head)->post("/concerns/{$c->id}/reveal-identity",['identity_reveal_reason'=>'dsadasda']);
@@ -54,8 +54,8 @@ class RefFixesTest extends TestCase {
     public function test_referral_to_empty_role_rejected(): void {
         // delete all Department Heads to simulate an empty role
         User::whereHas('role',fn($q)=>$q->where('name','Department Head'))->delete();
-        $staff=$this->u('staff@cspc.edu');
-        $c=Concern::create(['user_id'=>$this->u('student@cspc.edu')->id,'category'=>'Academic',
+        $staff=$this->u('staff@cspc.edu.ph');
+        $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
             'department'=>'College of Computer Studies','description'=>'x','urgency'=>'Low','status'=>'submitted',
             'is_anonymous'=>false,'assigned_to'=>$staff->id]);
         $r=$this->actingAs($staff)->patch("/concerns/{$c->id}",['status'=>'referred','referred_to'=>'Department Head','urgency'=>'Low']);

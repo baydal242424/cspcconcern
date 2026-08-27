@@ -1,8 +1,7 @@
 {{-- July 2026 UI cleanup: clearer copy ("Forgot your password?", "Keep me
      signed in" -- the toggle is Laravel's remember-me), autocomplete
      attributes for password managers, demo panel now local-env only, the
-     Mission text moved to the register page, and the floating-dots
-     animation on the brand panel (.fx below). Form fields and routes are
+     Mission text moved to the register page. Form fields and routes are
      untouched. --}}
 <!DOCTYPE html>
 <html lang="en">
@@ -30,24 +29,6 @@
             -webkit-mask-image:radial-gradient(700px 500px at 50% 45%,#000,transparent 75%);
             mask-image:radial-gradient(700px 500px at 50% 45%,#000,transparent 75%);opacity:.7}
         .brand>*{position:relative;z-index:1}
-        /* Ambient aurora: three blurred glows drifting on slow, offset loops.
-           Decorative only -- they sit behind the content and never move fast
-           enough to pull the eye away from the sign-in form. */
-        /* Rising lights: crisp dots drifting slowly upward, echoing the panel's
-           static dot-grid texture. Staggered negative delays mean the scene is
-           already "mid-flight" on page load instead of starting empty. */
-        .fx{position:absolute;inset:0;overflow:hidden;z-index:0;pointer-events:none}
-        .fx span{position:absolute;bottom:-12px;border-radius:50%;opacity:0;
-            background:#9fc1ff;box-shadow:0 0 10px 2px rgba(122,163,255,.75);
-            animation:rise linear infinite}
-        .fx span.gold{background:var(--gold);box-shadow:0 0 12px 2px rgba(244,196,48,.6)}
-        @keyframes rise{
-            0%{transform:translateY(0) translateX(0);opacity:0}
-            8%{opacity:.85}
-            85%{opacity:.5}
-            100%{transform:translateY(-108vh) translateX(40px);opacity:0}
-        }
-        @media (prefers-reduced-motion:reduce){.fx{display:none}}
         .bhead{display:flex;align-items:center;gap:1rem}
         .bhead img{width:74px;height:74px;border-radius:14px;object-fit:contain;background:#fff;padding:6px;
             box-shadow:0 8px 22px -8px rgba(0,0,0,.6)}
@@ -112,34 +93,19 @@
         .demo{margin-top:1.1rem;padding-top:1rem;border-top:1px solid var(--line)}
         .demo h3{font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);
             margin-bottom:.5rem;text-align:center}
-        .demo-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.4rem}
-        .demo-account{background:#fff;border:1px solid var(--line);padding:.4rem .45rem;border-radius:9px;
-            font-size:.68rem;cursor:pointer;transition:.15s;line-height:1.25;text-align:left}
-        .demo-account:hover{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand50)}
-        .demo-account b{display:block;color:var(--navy);font-size:.7rem;margin-bottom:.02rem}
-        .demo-account span{color:var(--muted);font-size:.6rem;word-break:break-all}
+        .demo-select{width:100%;padding:.6rem .7rem;border:1.5px solid var(--line);border-radius:10px;
+            font-size:.82rem;font-family:inherit;background:#fff;color:var(--ink);cursor:pointer;transition:.15s}
+        .demo-select:hover{border-color:var(--brand)}
+        .demo-select:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 4px var(--brand50)}
+        .demo-hint{font-size:.68rem;color:var(--muted);margin-top:.4rem;text-align:center}
         .foot{text-align:center;color:var(--muted);font-size:.8rem;margin-top:1.1rem}
         @media(max-width:900px){.wrap{grid-template-columns:1fr}.brand{display:none}.formside{padding:1.25rem}}
-        @media(max-width:480px){.demo-grid{grid-template-columns:1fr 1fr}.card{padding:1.5rem 1.25rem}}
+        @media(max-width:480px){.card{padding:1.5rem 1.25rem}}
     </style>
 </head>
 <body>
     <div class="wrap">
         <aside class="brand">
-            <div class="fx" aria-hidden="true">
-                <span style="left:6%;  width:4px; height:4px; animation-duration:18s; animation-delay:-3s"></span>
-                <span style="left:14%; width:3px; height:3px; animation-duration:24s; animation-delay:-14s"></span>
-                <span style="left:23%; width:5px; height:5px; animation-duration:16s; animation-delay:-7s" class="gold"></span>
-                <span style="left:31%; width:3px; height:3px; animation-duration:26s; animation-delay:-20s"></span>
-                <span style="left:39%; width:4px; height:4px; animation-duration:20s; animation-delay:-1s"></span>
-                <span style="left:47%; width:6px; height:6px; animation-duration:15s; animation-delay:-10s"></span>
-                <span style="left:55%; width:3px; height:3px; animation-duration:25s; animation-delay:-17s" class="gold"></span>
-                <span style="left:63%; width:4px; height:4px; animation-duration:19s; animation-delay:-5s"></span>
-                <span style="left:71%; width:5px; height:5px; animation-duration:17s; animation-delay:-12s"></span>
-                <span style="left:79%; width:3px; height:3px; animation-duration:23s; animation-delay:-8s"></span>
-                <span style="left:87%; width:4px; height:4px; animation-duration:21s; animation-delay:-15s" class="gold"></span>
-                <span style="left:94%; width:5px; height:5px; animation-duration:18s; animation-delay:-2s"></span>
-            </div>
             <div>
                 <div class="bhead">
                     <img src="{{ asset('images/cspc-logo.webp') }}" alt="CSPC Logo">
@@ -156,7 +122,7 @@
 
             <div class="hero">
                 <h1>Your concern,<br>heard and handled.</h1>
-                <p>Submit academic, personal, or safety concerns to the right office — securely and, if you choose, anonymously.</p>
+                <p>Submit academic, personal, facility, or safety concerns to the right office — securely, and seen only by the staff handling them.</p>
             </div>
 
             {{-- Mission statement lives on the register page; keeping only the
@@ -185,37 +151,10 @@
                     </div>
                 @endif
 
-                <form action="{{ route('login.post') }}" method="POST">
-                    @csrf
-                    <div class="fg">
-                        <label for="email">Email address</label>
-                        <div class="iw">
-                            <input type="email" id="email" name="email" value="{{ old('email') }}"
-                                   placeholder="you@cspc.edu" autocomplete="email" required autofocus>
-                        </div>
-                    </div>
-                    <div class="fg">
-                        <label for="password">Password</label>
-                        <div class="iw">
-                            <input type="password" id="password" name="password" placeholder="••••••••"
-                                   autocomplete="current-password" required>
-                            <button type="button" class="toggle"
-                                onclick="const p=document.getElementById('password');p.type=p.type==='password'?'text':'password';this.textContent=p.type==='password'?'Hide':'Show'">Show</button>
-                        </div>
-                    </div>
-                    <a href="{{ route('password.request') }}" class="forgot">Forgot your password?</a>
-                    <button type="submit" class="btn">Sign in</button>
-                    <label class="remember">
-                        <span>Keep me signed in</span>
-                        <span class="switch">
-                            <input type="checkbox" name="remember" value="1" {{ old('remember') ? 'checked' : '' }}>
-                            <span class="slider"></span>
-                        </span>
-                    </label>
-                </form>
-
-                <div class="divider">or</div>
-                <div class="social-lab">Log in using your account on:</div>
+                {{-- CSPC Mail is the ONLY way in. No password form, so there
+                     are no passwords to guess, leak, reuse or reset, and every
+                     account is provably tied to a real CSPC mailbox. --}}
+                <div class="social-lab">Sign in with your CSPC account</div>
                 <a href="{{ route('auth.google.redirect') }}" class="btn-google">
                     <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
                         <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.91c1.7-1.57 2.69-3.88 2.69-6.62z"/>
@@ -226,43 +165,17 @@
                     CSPC Mail
                 </a>
 
-                <p class="foot" style="margin-top:1.1rem">
-                    Don't have an account? <a href="{{ route('register') }}" style="color:var(--brand);font-weight:600;text-decoration:none">Register here</a>
+                {{-- There is no registration form. A student's first CSPC Mail
+                     sign-in creates their account, and /complete-profile then
+                     collects the student details. --}}
+                {{-- Says which address to use, because the domain is what
+                     decides whether the new account is a student or an
+                     employee (see AuthController::DOMAIN_ROLES). --}}
+                <p class="foot" style="margin-top:1.1rem; line-height:1.55">
+                    Your account is created automatically on first sign-in.<br>
+                    <b>Students</b> &mdash; use your <b>@my.cspc.edu.ph</b> address.<br>
+                    <b>Faculty &amp; staff</b> &mdash; use your <b>@cspc.edu.ph</b> address.
                 </p>
-
-                {{-- Demo shortcuts are a local-development convenience only;
-                     they never render outside APP_ENV=local. --}}
-                @if (app()->environment('local'))
-                <div class="demo">
-                    <h3>Demo accounts · password: <b>password</b></h3>
-                    <div class="demo-grid">
-                        <button type="button" class="demo-account"
-                            onclick="document.getElementById('email').value='student@cspc.edu';document.getElementById('password').value='password'">
-                            <b>Student</b><span>student@cspc.edu</span>
-                        </button>
-                        <button type="button" class="demo-account"
-                            onclick="document.getElementById('email').value='staff@cspc.edu';document.getElementById('password').value='password'">
-                            <b>Staff</b><span>staff@cspc.edu</span>
-                        </button>
-                        <button type="button" class="demo-account"
-                            onclick="document.getElementById('email').value='counselor@cspc.edu';document.getElementById('password').value='password'">
-                            <b>Counselor</b><span>counselor@cspc.edu</span>
-                        </button>
-                        <button type="button" class="demo-account"
-                            onclick="document.getElementById('email').value='admin@cspc.edu';document.getElementById('password').value='password'">
-                            <b>Admin</b><span>admin@cspc.edu</span>
-                        </button>
-                        <button type="button" class="demo-account"
-                            onclick="document.getElementById('email').value='depthead@cspc.edu';document.getElementById('password').value='password'">
-                            <b>Department Head</b><span>depthead@cspc.edu</span>
-                        </button>
-                        <button type="button" class="demo-account"
-                            onclick="document.getElementById('email').value='head@cspc.edu';document.getElementById('password').value='password'">
-                            <b>Head of School</b><span>head@cspc.edu</span>
-                        </button>
-                    </div>
-                </div>
-                @endif
 
                 <div class="foot">© {{ date('Y') }} Camarines Sur Polytechnic Colleges. All rights reserved.</div>
             </div>

@@ -18,13 +18,13 @@ class AnalyticsPrivacyTest extends TestCase
     /** ANALYTICS: resolved concerns stay counted (numbers don't shrink) */
     public function test_analytics_count_includes_resolved(): void
     {
-        $student = $this->u('student@cspc.edu');
+        $student = $this->u('student@my.cspc.edu.ph');
         // 3 academic concerns, all resolved
         for ($i=0; $i<3; $i++) {
             Concern::create(['user_id'=>$student->id,'category'=>'Academic','department'=>'College of Computer Studies',
                 'description'=>'x','urgency'=>'Low','status'=>'resolved','is_anonymous'=>false]);
         }
-        $admin = $this->u('admin@cspc.edu');
+        $admin = $this->u('admin@cspc.edu.ph');
         $resp = $this->actingAs($admin)->get('/dashboard');
         $resp->assertOk();
         // all-time Academic total should be 3 even though all resolved
@@ -36,8 +36,8 @@ class AnalyticsPrivacyTest extends TestCase
     /** PRIVACY: anonymous concern shows 'Anonymous' to a staff viewer on dashboard */
     public function test_dashboard_recent_hides_anonymous_from_staff(): void
     {
-        $staff = $this->u('staff@cspc.edu');
-        Concern::create(['user_id'=>$this->u('student@cspc.edu')->id,'category'=>'Academic',
+        $staff = $this->u('staff@cspc.edu.ph');
+        Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
             'department'=>'College of Computer Studies','description'=>'x','urgency'=>null,
             'status'=>'submitted','is_anonymous'=>true,'assigned_to'=>$staff->id]);
         $resp = $this->actingAs($staff)->get('/dashboard');
@@ -51,7 +51,7 @@ class AnalyticsPrivacyTest extends TestCase
     /** PRIVACY: the owner DOES see their own name on an anonymous concern */
     public function test_owner_sees_own_name_on_anonymous(): void
     {
-        $student = $this->u('student@cspc.edu');
+        $student = $this->u('student@my.cspc.edu.ph');
         Concern::create(['user_id'=>$student->id,'category'=>'Academic',
             'department'=>'College of Computer Studies','description'=>'x','urgency'=>null,
             'status'=>'submitted','is_anonymous'=>true]);
@@ -65,23 +65,27 @@ class AnalyticsPrivacyTest extends TestCase
     /** FLASH: referring shows 'Referred successfully to X' */
     public function test_referral_flash_message(): void
     {
-        $staff = $this->u('staff@cspc.edu');
-        $c = Concern::create(['user_id'=>$this->u('student@cspc.edu')->id,'category'=>'Academic',
+        $staff = $this->u('staff@cspc.edu.ph');
+        $c = Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
             'department'=>'College of Computer Studies','description'=>'x','urgency'=>null,
             'status'=>'submitted','is_anonymous'=>false,'assigned_to'=>$staff->id]);
         $resp = $this->actingAs($staff)->patch("/concerns/{$c->id}", [
             'status'=>'referred','referred_to'=>'Guidance Counselor','urgency'=>'Low',
         ]);
         $resp->assertRedirect();
-        $this->assertStringContainsString('Referred successfully to Guidance Counselor', session('success'));
+        // The message names the person who actually received it, not just the
+        // destination role -- with several deans, "Department Head" alone hid
+        // which one got the case.
+        $this->assertStringContainsString('Referred successfully to Dr. Maria Reyes', session('success'));
+        $this->assertStringContainsString('Guidance Counselor', session('success'));
         fwrite(STDERR, "  [flash] refer msg: '".session('success')."'\n");
     }
 
     /** FLASH: updating status (not referred) shows 'Concern updated successfully' */
     public function test_update_flash_message(): void
     {
-        $staff = $this->u('staff@cspc.edu');
-        $c = Concern::create(['user_id'=>$this->u('student@cspc.edu')->id,'category'=>'Academic',
+        $staff = $this->u('staff@cspc.edu.ph');
+        $c = Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
             'department'=>'College of Computer Studies','description'=>'x','urgency'=>null,
             'status'=>'submitted','is_anonymous'=>false,'assigned_to'=>$staff->id]);
         $resp = $this->actingAs($staff)->patch("/concerns/{$c->id}", [

@@ -97,13 +97,18 @@ All demo accounts use the password: **`password`**
 
 | Email | Role |
 |-------|------|
-| student@cspc.edu | Student |
-| student2@cspc.edu | Student |
-| staff@cspc.edu | Faculty / Staff |
-| counselor@cspc.edu | Guidance Counselor |
-| depthead@cspc.edu | Department Head |
-| admin@cspc.edu | Admin |
-| head@cspc.edu | Head of School |
+| student@my.cspc.edu.ph | Student |
+| student2@my.cspc.edu.ph | Student |
+| staff@my.cspc.edu.ph | Faculty / Staff |
+| counselor@my.cspc.edu.ph | Guidance Counselor |
+| rosel.onesa@cspc.edu.ph | Department Head — College of Computer Studies |
+| martin.valeras@cspc.edu.ph | Department Head — College of Engineering and Architecture |
+| maria.iglesia@cspc.edu.ph | Department Head — College of Tourism, Hospitality and Business Management |
+| kenny.tagum@cspc.edu.ph | Department Head — College of Health Sciences |
+| patrick.paulino@cspc.edu.ph | Department Head — College of Technological and Development Education |
+| marlon.pontillas@cspc.edu.ph | Department Head — College of Arts and Sciences |
+| admin@my.cspc.edu.ph | Admin |
+| head@my.cspc.edu.ph | Head of School |
 
 ---
 

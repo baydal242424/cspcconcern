@@ -7,7 +7,7 @@
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
         <div>
             <h1>Trending Dashboard</h1>
-            <p style="color: #666; margin-top: 0.5rem;">Welcome back, {{ Auth::user()->name }}. This view highlights the most active concern trends in your area.</p>
+            <p style="color: #666; margin-top: 0.5rem;">Welcome back, {{ Auth::user()->name }}. Institution-wide analytics &mdash; visible to Admin only.</p>
         </div>
         <a href="{{ route('concerns.index') }}" class="btn btn-primary">View Concerns</a>
     </div>
@@ -16,25 +16,43 @@
         <div class="card" style="padding: 1.5rem;">
             <h3 style="margin-bottom: 1rem;">Total Concerns (All Time)</h3>
             <div style="font-size: 2.4rem; font-weight: 700;">{{ $totalConcerns }}</div>
-            <p style="color: #666; margin-top: 0.5rem;">Every concern ever recorded &mdash; institution-wide for staff, your own submissions for students.</p>
+            <p style="color: #666; margin-top: 0.5rem;">Every concern ever recorded, institution-wide.</p>
         </div>
         <div class="card" style="padding: 1.5rem;">
             <h3 style="margin-bottom: 1rem;">Trending in Last 30 Days</h3>
-            <div style="font-size: 2.4rem; font-weight: 700;">{{ $recentTrendCount }}</div>
-            <p style="color: #666; margin-top: 0.5rem;">Concerns created in the last 30 days.</p>
+            <div style="font-size: 2.4rem; font-weight: 700; display:flex; align-items:baseline; gap:0.6rem;">
+                {{ $recentTrendCount }}
+                @if ($trendChangePercent != 0)
+                    <span style="font-size: 1rem; font-weight: 700; color: {{ $trendChangePercent > 0 ? '#b42318' : '#0f6b34' }};">
+                        {{ $trendChangePercent > 0 ? '▲' : '▼' }} {{ abs($trendChangePercent) }}%
+                    </span>
+                @else
+                    <span style="font-size: 1rem; font-weight: 600; color: #94a3b8;">no change</span>
+                @endif
+            </div>
+            <p style="color: #666; margin-top: 0.5rem;">vs. {{ $previousTrendCount }} in the prior 30 days.</p>
         </div>
     </div>
 
     <div class="grid-2" style="gap: 1.5rem; margin-top: 2rem;">
         <div class="card" style="padding: 1.5rem;">
             <h3 style="margin-bottom: 0.25rem;">Trending Categories</h3>
-            <p style="color:#94a3b8; font-size:0.8rem; margin-bottom: 1rem;">Last 30 days</p>
+            <p style="color:#94a3b8; font-size:0.8rem; margin-bottom: 1rem;">Last 30 days vs. the 30 days before that</p>
             @if(count($trendingCategories) > 0)
                 <ol style="padding-left: 1.2rem; color: #333;">
-                    @foreach ($trendingCategories as $category => $count)
-                        <li style="margin-bottom: 0.75rem; display: flex; justify-content: space-between;">
+                    @foreach ($trendingCategories as $category => $data)
+                        <li style="margin-bottom: 0.75rem; display: flex; justify-content: space-between; align-items:center;">
                             <span>{{ $category }}</span>
-                            <strong>{{ $count }}</strong>
+                            <span style="display:flex; align-items:center; gap:0.4rem;">
+                                @if ($data['direction'] > 0)
+                                    <span title="Rising vs. previous 30 days" style="color:#b42318;">▲</span>
+                                @elseif ($data['direction'] < 0)
+                                    <span title="Falling vs. previous 30 days" style="color:#0f6b34;">▼</span>
+                                @else
+                                    <span title="No change vs. previous 30 days" style="color:#94a3b8;">—</span>
+                                @endif
+                                <strong>{{ $data['count'] }}</strong>
+                            </span>
                         </li>
                     @endforeach
                 </ol>
@@ -58,6 +76,17 @@
                 <p style="color: #666;">No department trends in the last 30 days.</p>
             @endif
         </div>
+    </div>
+
+    <div class="card" style="padding: 1.5rem; margin-top: 2rem;">
+        <h3 style="margin-bottom: 0.25rem;">Reporter Satisfaction</h3>
+        <p style="color:#94a3b8; font-size:0.8rem; margin-bottom: 1rem;">Average rating left on resolved concerns</p>
+        @if ($feedbackCount > 0)
+            <div style="font-size: 2.4rem; font-weight: 700;">{{ $averageRating }} <span style="font-size:1.1rem; color:#94a3b8; font-weight:600;">/ 5</span></div>
+            <p style="color: #666; margin-top: 0.5rem;">Based on {{ $feedbackCount }} {{ Str::plural('rating', $feedbackCount) }}.</p>
+        @else
+            <p style="color: #666;">No feedback submitted yet.</p>
+        @endif
     </div>
 
     {{-- All-time totals for annual analysis. This NEVER shrinks: resolved
@@ -89,9 +118,9 @@
         <div class="card" style="padding: 1.5rem;">
             <h3 style="margin-bottom: 1rem;">Status Breakdown</h3>
             <ul style="list-style: none; padding-left: 0;">
-                @foreach (['submitted', 'in_progress', 'resolved', 'referred'] as $status)
+                @foreach (['submitted', 'in_progress', 'referred', 'resolved', 'closed_no_action'] as $status)
                     <li style="margin-bottom: 0.75rem; display: flex; justify-content: space-between;">
-                        <span>{{ ucfirst(str_replace('_', ' ', $status)) }}</span>
+                        <span>{{ \App\Models\Concern::label($status) }}</span>
                         <strong>{{ $statusCounts[$status] ?? 0 }}</strong>
                     </li>
                 @endforeach
@@ -131,7 +160,7 @@
                             <td>#{{ $concern->id }}</td>
                             <td>{{ $concern->category }}</td>
                             <td>{{ $concern->urgency }}</td>
-                            <td>{{ ucfirst(str_replace('_', ' ', $concern->status)) }}</td>
+                            <td>{{ $concern->status_label }}</td>
                             <td>
                                 @if ($concern->is_anonymous)
                                     @if (Auth::id() === $concern->user_id)

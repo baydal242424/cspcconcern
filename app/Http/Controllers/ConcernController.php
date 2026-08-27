@@ -3,10 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Concern;
-use App\Models\Notification;
 use App\Models\AuditLog;
 use App\Models\User;
 use App\Models\Attachment;
+use App\Models\Feedback;
+use App\Services\ConcernNotificationService;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -35,7 +36,44 @@ class ConcernController extends Controller
         'Guidance Counselor',
         'Admin',
         'Head of School',
+        // Every role a concern can be filed ABOUT must be listed here, not
+        // just the ones that HANDLE concerns. These three were added as
+        // routing destinations and left out of this list, which meant a
+        // student reporting the Registrar, General Services or GAD was told
+        // "The selected person is not a staff member" -- so the conflict-of-
+        // interest flag never got set, and scopeVisibleTo() then handed that
+        // office its own complaint. Keep this in step with the roles in
+        // User::EMPLOYEE_ROLES.
+        'Gender and Development',
+        'General Services',
+        'Registrar',
     ];
+
+    /**
+     * The offices a staff member may hand a concern on to. Single source of
+     * truth: update()'s validation, the "Refer to" dropdown and the people
+     * picker all read this list, so a destination can never be offered in the
+     * UI without being accepted by the server (or the reverse).
+     */
+    public const REFERRAL_ROLES = [
+        'Guidance Counselor',
+        'Admin',
+        'Department Head',
+        'Faculty/Staff',
+        'Gender and Development',
+        'General Services',
+        'Registrar',
+    ];
+
+    /**
+     * Who gets told what when a concern moves. Laravel resolves this from the
+     * container automatically, so tests can swap in a fake to assert on the
+     * notifications without sending mail.
+     */
+    public function __construct(
+        private ConcernNotificationService $notifications,
+    ) {
+    }
 
     /**
      * Display a listing of concerns for the current user or department.
@@ -55,7 +93,11 @@ class ConcernController extends Controller
 
         $concerns = Concern::visibleTo($user)
             ->when(! $showResolved, function ($q) {
-                $q->where('status', '!=', 'resolved');
+                // Hides finished cases of BOTH kinds -- resolved and closed
+                // without action. A closed concern is just as done as a
+                // resolved one, so leaving it in the active list would keep
+                // dead cases in front of staff forever.
+                $q->whereNotIn('status', Concern::TERMINAL_STATUSES);
             })
             ->with('user', 'assignedUser')
             ->latest()
@@ -72,11 +114,23 @@ class ConcernController extends Controller
     {
         // Staff-type users the student can name as the subject of a
         // conflict-of-interest concern (so it is routed away from them).
-        $staffMembers = User::whereHas('role', function ($q) {
+        // Split into two pickers: students looking for "my teacher" should not
+        // have to scan past deans, counsellors and admins to find them.
+        $staffMembers = User::with('role')->whereHas('role', function ($q) {
             $q->whereIn('name', self::STAFF_ROLES);
-        })->orderBy('name')->get(['id', 'name']);
+        })->orderBy('name')->get(['id', 'name', 'department', 'role_id']);
 
-        return view('concerns.create', compact('staffMembers'));
+        [$instructors, $otherStaff] = $staffMembers->partition(
+            fn (User $u) => optional($u->role)->name === 'Faculty/Staff'
+        );
+
+        return view('concerns.create', [
+            // Grouped by college so a long list stays navigable. Instructors
+            // from every college are offered, not just the student's own --
+            // general-education subjects are taught across colleges.
+            'instructorsByCollege' => $instructors->groupBy(fn (User $u) => $u->department ?: 'Other'),
+            'otherStaff' => $otherStaff,
+        ]);
     }
 
     /**
@@ -88,20 +142,14 @@ class ConcernController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'category' => 'required|in:Academic,Mental Health / Personal,Bullying / Harassment,Administrative,Physical / Safety,Others',
-            'department' => ['required', 'string', \Illuminate\Validation\Rule::in([
-                'College of Engineering and Architecture',
-                'College of Computer Studies',
-                'College of Health Sciences',
-                'College of Tourism, Hospitality and Business Management',
-                'College of Technological and Development Education',
-                'Guidance Office',
-                'SASO',
-            ])],
+            'category' => 'required|in:Academic,Mental Health / Personal,Bullying / Harassment,Administrative,Facilities / Equipment,Physical / Safety,Others',
+            // 'department' is NOT accepted from the form: it is the reporter's
+            // own college, taken from their account below. Students told us
+            // twice which college they belong to otherwise -- once at
+            // registration and again on every concern.
             // Length limits are enforced server-side too -- the form's
             // minlength/maxlength are advisory only.
             'description' => 'required|string|min:20|max:2000',
-            'is_anonymous' => 'boolean',
             // Optional conflict-of-interest flag: the staff member this concern
             // is about. Must be a real user holding a staff-type role.
             'about_staff_id' => ['nullable', 'integer', \Illuminate\Validation\Rule::exists('users', 'id'),
@@ -124,10 +172,21 @@ class ConcernController extends Controller
         ]);
 
         $validated['user_id'] = Auth::id();
-        $validated['urgency'] = null; // assigned by staff during triage
-        // Normalize the checkbox explicitly (absent => false), matching how
-        // the student edit path handles it.
-        $validated['is_anonymous'] = $request->boolean('is_anonymous');
+        // The concern belongs to the reporter's college. routeConcern() matches
+        // this against users.department to pick a handler from that college, so
+        // it must come from the account, never from user input.
+        $validated['department'] = Auth::user()->department;
+        // Urgency is assigned automatically from the category and description
+        // at submission time -- students never set it, and staff no longer
+        // have to triage a blank "Pending triage" queue by hand. Staff can
+        // still correct it afterward from the concern page if the automatic
+        // read is wrong (see determineUrgency()).
+        $validated['urgency'] = $this->determineUrgency($validated['category'], $validated['description']);
+        // Anonymous submission is no longer offered on the form -- new
+        // concerns are never anonymous. Existing anonymous concerns (and
+        // the Head of School's identity-reveal feature for them) are
+        // untouched.
+        $validated['is_anonymous'] = false;
 
         // 'attachments' is not a column on concerns -- handle it separately.
         $uploadedFiles = $request->file('attachments', []);
@@ -153,7 +212,7 @@ class ConcernController extends Controller
             }
         }
 
-        // Auto-route concern based on department (with category fallback)
+        // Category picks the handling role; the college narrows it to a person.
         $this->routeConcern($concern);
 
         // Create notification for relevant department
@@ -165,6 +224,14 @@ class ConcernController extends Controller
             'concern_id' => $concern->id,
             'action' => 'concern_submitted',
             'description' => 'Student submitted a new concern',
+            'ip_address' => $request->ip(),
+        ]);
+
+        AuditLog::create([
+            'user_id' => Auth::id(),
+            'concern_id' => $concern->id,
+            'action' => 'urgency_assigned',
+            'description' => "Urgency auto-assigned as {$concern->urgency}",
             'ip_address' => $request->ip(),
         ]);
 
@@ -184,7 +251,17 @@ class ConcernController extends Controller
         }
 
         $concern->load('user', 'assignedUser', 'auditLogs.user', 'attachments');
-        return view('concerns.show', compact('concern'));
+
+        // Named people the viewer may hand this concern to, grouped by office.
+        // Empty for a student (they never see the update form) and empty for
+        // any office with nobody eligible -- the view uses that to decide
+        // whether to render the "Refer to a specific person" dropdown at all,
+        // so staff are never shown a picker with nothing pickable in it.
+        $referralCandidates = $user->isEmployee()
+            ? $this->referralCandidates($concern, $user)
+            : collect();
+
+        return view('concerns.show', compact('concern', 'referralCandidates'));
     }
 
     /**
@@ -207,34 +284,6 @@ class ConcernController extends Controller
     }
 
     /**
-     * Show the form for editing the specified concern.
-     */
-    public function edit(Concern $concern)
-    {
-        /** @var User $user */
-        $user = Auth::user();
-
-        if (! $user->role) {
-            abort(403, 'Your account has no role assigned.');
-        }
-
-        // Only the reporter may use the details edit form, and only before
-        // staff begin processing. (Admins previously had access here, but the
-        // form posts reporter-only fields that the staff update path rejects,
-        // and it exposed confidential case content outside scopeVisibleTo.
-        // Staff act on concerns via the status form on the show page instead.)
-        if ($user->id !== $concern->user_id) {
-            abort(403, 'Only the reporter can edit a concern\'s details.');
-        }
-
-        if ($concern->status !== 'submitted') {
-            abort(403, 'Only submitted concerns can be edited by the owner.');
-        }
-
-        return view('concerns.edit', compact('concern'));
-    }
-
-    /**
      * Update the specified concern in storage.
      */
     public function update(Request $request, Concern $concern)
@@ -246,44 +295,14 @@ class ConcernController extends Controller
             abort(403, 'Your account has no role assigned.');
         }
 
-        // ---- Student editing their own un-processed concern ----
-        // Students may edit category/department/description/anonymity only.
-        // They may NOT set urgency/severity.
+        // ---- Reporters cannot edit a submitted concern ----
+        // A concern is a report of something that happened, so it is final once
+        // filed -- letting the reporter rewrite the category, department or
+        // description after submission would change what staff are responding
+        // to mid-investigation and break the audit trail. Students who need a
+        // correction submit a new concern instead.
         if ($user->id === $concern->user_id) {
-            if ($concern->status !== 'submitted') {
-                abort(403, 'Only submitted concerns can be edited by the owner.');
-            }
-
-            $validated = $request->validate([
-                'category' => 'required|in:Academic,Mental Health / Personal,Bullying / Harassment,Administrative,Physical / Safety,Others',
-                'department' => ['required', 'string', \Illuminate\Validation\Rule::in([
-                'College of Engineering and Architecture',
-                'College of Computer Studies',
-                'College of Health Sciences',
-                'College of Tourism, Hospitality and Business Management',
-                'College of Technological and Development Education',
-                'Guidance Office',
-                'SASO',
-            ])],
-                'description' => 'required|string|min:20|max:2000',
-                'is_anonymous' => 'boolean',
-            ]);
-
-            $validated['is_anonymous'] = $request->has('is_anonymous');
-            $concern->update($validated);
-
-            // Re-route if the student changed the department or category before it is processed.
-            $this->routeConcern($concern);
-
-            AuditLog::create([
-                'user_id' => Auth::id(),
-                'concern_id' => $concern->id,
-                'action' => 'concern_edited',
-                'description' => 'Student updated concern details before processing',
-                'ip_address' => $request->ip(),
-            ]);
-
-            return redirect()->route('concerns.show', $concern)->with('success', 'Concern updated successfully');
+            abort(403, 'A submitted concern can no longer be edited. Please submit a new concern instead.');
         }
 
         // ---- Staff triage / status update ----
@@ -310,16 +329,31 @@ class ConcernController extends Controller
                 ->with('error', 'This concern is no longer assigned to you, so you can no longer update it.');
         }
 
-        // A resolved concern is closed and cannot be edited further.
-        if ($concern->status === 'resolved') {
+        // A finished concern -- resolved, or closed without action -- cannot be
+        // edited further. Reopening one would let an outcome the reporter has
+        // already been told about be rewritten after the fact.
+        if (in_array($concern->status, Concern::TERMINAL_STATUSES, true)) {
+            $what = $concern->status === 'resolved' ? 'resolved' : 'closed';
+
             return redirect()->route('concerns.show', $concern)
-                ->with('error', 'This concern is already resolved and can no longer be edited.');
+                ->with('error', "This concern is already {$what} and can no longer be edited.");
         }
 
         $validated = $request->validate([
-            'status' => 'required|in:submitted,in_progress,resolved,referred',
+            'status' => 'required|in:submitted,in_progress,resolved,referred,closed_no_action',
+            // Required only when closing without action -- checked below rather
+            // than with required_if so the message can explain WHY it is
+            // needed. The handbook expects a case that ends without action to
+            // be documented, and the reporter is shown this text.
+            'closure_reason' => 'nullable|string|min:20|max:1000',
             'urgency' => 'nullable|in:Low,Medium,High,Critical',
-            'referred_to' => 'nullable|in:Guidance Counselor,Admin,Department Head,Faculty/Staff',
+            'referred_to' => 'nullable|in:'.implode(',', self::REFERRAL_ROLES),
+            // Optional: refer to a NAMED person in that office rather than
+            // letting findHandler() pick. Only ever set from the people
+            // dropdown, and re-checked against the candidate list below --
+            // "exists" alone would let a crafted post hand the case to anyone.
+            'referred_to_user_id' => 'nullable|integer|exists:users,id',
+            'investigation_notes' => 'nullable|string',
             'resolution_notes' => 'nullable|string',
         ]);
 
@@ -330,10 +364,29 @@ class ConcernController extends Controller
                 ->withInput();
         }
 
+        // Closing a concern without acting on it is the one outcome where the
+        // student gets nothing done for them, so the reason is mandatory: it
+        // is what they are shown instead of a resolution, and it is the
+        // documentation the handbook expects for an invalid complaint.
+        if ($validated['status'] === 'closed_no_action' && blank($validated['closure_reason'] ?? null)) {
+            return redirect()->back()
+                ->withErrors(['closure_reason' => 'Please explain why this concern is being closed without action. The student will see this.'])
+                ->withInput();
+        }
+
+        // The reason belongs only to a closure -- carrying it over to another
+        // status would leave a stale explanation attached to an active case.
+        if ($validated['status'] !== 'closed_no_action') {
+            $validated['closure_reason'] = null;
+        }
+
         // Guard against a pointless "refer to where it already is": if the
         // destination role already owns this concern (the current assignee holds
         // that role), block it so the timeline isn't cluttered with no-ops.
-        if ($validated['status'] === 'referred' && ! empty($validated['referred_to'])) {
+        // Naming a person is exempt: handing a case from one Department Head
+        // to a different Department Head is a real hand-off, not a no-op.
+        if ($validated['status'] === 'referred' && ! empty($validated['referred_to'])
+            && empty($validated['referred_to_user_id'])) {
             $currentOwnerRole = optional(optional($concern->assignedUser)->role)->name;
             if ($currentOwnerRole === $validated['referred_to']) {
                 return redirect()->back()
@@ -349,38 +402,64 @@ class ConcernController extends Controller
 
         // When referring, transfer ownership to a user holding the destination
         // role so that person can actually act on (and resolve) the concern.
+        // findHandler() picks someone from the reporter's own college first, so
+        // "refer to Department Head" reaches the dean of THAT college rather
+        // than whichever dean happens to have the lowest id. It also applies
+        // the same conflict-of-interest exclusion as routeConcern(), so a
+        // manual referral can never assign the case to its own subject.
+        $referralRecipient = null;
+
         if ($validated['status'] === 'referred' && ! empty($validated['referred_to'])) {
-            $targetQuery = User::whereHas('role', function ($q) use ($validated) {
-                $q->where('name', $validated['referred_to']);
-            });
+            if (! empty($validated['referred_to_user_id'])) {
+                // A named recipient. Re-derive the candidate list server-side
+                // and look the id up in it: that re-applies every rule the
+                // dropdown was built from (right office, not the subject of
+                // the concern, not the referrer, not banned), so a forged id
+                // in the form cannot route a case to someone ineligible.
+                $referralRecipient = $this->referralCandidates($concern, $user)
+                    ->get($validated['referred_to'], collect())
+                    ->firstWhere('id', (int) $validated['referred_to_user_id']);
 
-            // Conflict of interest: never hand the concern to the very person
-            // it is about -- the same exclusion routeConcern() applies. Without
-            // this, a manual referral could assign the case to its own subject.
-            if ($concern->about_staff_id) {
-                $targetQuery->where('id', '!=', $concern->about_staff_id);
+                if (! $referralRecipient) {
+                    return redirect()->back()
+                        ->withErrors(['referred_to_user_id' => 'That person can no longer receive this referral. Please pick someone else, or leave it to the office.'])
+                        ->withInput();
+                }
+            } else {
+                $referralRecipient = $this->findHandler($validated['referred_to'], $concern);
             }
-
-            $targetUser = $targetQuery->first();
 
             // If there is no one in the destination role, the referral cannot
             // be completed -- reject it rather than silently stranding the
             // concern with no valid handler.
-            if (! $targetUser) {
+            if (! $referralRecipient) {
                 return redirect()->back()
                     ->withErrors(['referred_to' => 'There is currently no ' . $validated['referred_to'] . ' available to receive this referral. Please choose another destination.'])
                     ->withInput();
             }
 
-            $validated['assigned_to'] = $targetUser->id;
+            $validated['assigned_to'] = $referralRecipient->id;
         }
+
+        // Not a column on `concerns` -- it only chooses WHO the referral goes
+        // to, and that choice is already recorded in assigned_to. Leaving it
+        // in would blow up the mass update below.
+        unset($validated['referred_to_user_id']);
 
         $oldStatus = $concern->status;
         $oldUrgency = $concern->urgency;
         $oldNotes = $concern->resolution_notes;
+        $oldInvestigationNotes = $concern->investigation_notes;
 
         if ($validated['status'] === 'resolved') {
             $validated['resolved_at'] = now();
+        }
+
+        // Stamped separately from resolved_at on purpose: a concern that ended
+        // without action was never resolved, and reusing resolved_at would
+        // make it count as one in the dashboard's resolution figures.
+        if ($validated['status'] === 'closed_no_action') {
+            $validated['closed_at'] = now();
         }
 
         $concern->update($validated);
@@ -389,6 +468,8 @@ class ConcernController extends Controller
         $isReferral = $validated['status'] === 'referred' && ! empty($validated['referred_to']);
         $notesChanged = array_key_exists('resolution_notes', $validated)
             && $validated['resolution_notes'] !== $oldNotes;
+        $investigationNotesChanged = array_key_exists('investigation_notes', $validated)
+            && $validated['investigation_notes'] !== $oldInvestigationNotes;
 
         // Log the status change with a human-readable description. A referral
         // is always logged (re-referring elsewhere keeps status 'referred' but
@@ -396,9 +477,22 @@ class ConcernController extends Controller
         // timeline isn't cluttered with "changed from X to X" noise.
         if ($statusChanged || $isReferral) {
             if ($isReferral) {
+                // Name the actual recipient -- "Referred to Department Head"
+                // alone hid which dean received it.
                 $logDescription = "Referred to {$validated['referred_to']}";
+
+                if ($referralRecipient) {
+                    $logDescription .= " ({$referralRecipient->name}"
+                        .($referralRecipient->department ? ", {$referralRecipient->department}" : '').')';
+                }
             } elseif ($validated['status'] === 'resolved') {
                 $logDescription = 'Marked as resolved';
+            } elseif ($validated['status'] === 'closed_no_action') {
+                // The reason goes in the audit entry, not just the column:
+                // closing a student's report without acting on it is the
+                // decision most likely to be questioned later, so it has to be
+                // non-repudiable on the timeline.
+                $logDescription = 'Closed without action. Reason: '.$validated['closure_reason'];
             } else {
                 $logDescription = "Status changed from {$oldStatus} to {$validated['status']}";
             }
@@ -423,6 +517,16 @@ class ConcernController extends Controller
             ]);
         }
 
+        if ($investigationNotesChanged) {
+            AuditLog::create([
+                'user_id' => Auth::id(),
+                'concern_id' => $concern->id,
+                'action' => 'investigation_updated',
+                'description' => 'Investigation notes updated',
+                'ip_address' => $request->ip(),
+            ]);
+        }
+
         // Log the triage/urgency assignment separately when it changes
         if (array_key_exists('urgency', $validated) && $validated['urgency'] !== $oldUrgency) {
             AuditLog::create([
@@ -435,23 +539,20 @@ class ConcernController extends Controller
         }
 
         // Notify the student only when the status actually changed (or the
-        // concern was handed off), and use a human-readable label rather than
-        // the raw machine value ("in_progress").
+        // concern was handed off). The wording, the in-app row and the email
+        // to their CSPC address are all handled by the notification service.
         if ($statusChanged || $isReferral) {
-            $statusLabel = ucfirst(str_replace('_', ' ', $validated['status']));
-
-            Notification::create([
-                'user_id' => $concern->user_id,
-                'type' => 'status_update',
-                'concern_id' => $concern->id,
-                'title' => 'Concern Status Updated',
-                'message' => "Your concern status has been updated to {$statusLabel}",
-            ]);
+            $this->notifications->statusChanged($concern, $validated['status']);
         }
 
         // Build a context-aware success message.
         if ($validated['status'] === 'referred' && ! empty($validated['referred_to'])) {
-            $message = 'Referred successfully to ' . $validated['referred_to'] . '.';
+            $message = $referralRecipient
+                ? 'Referred successfully to '.$referralRecipient->name
+                    .' ('.$validated['referred_to'].($referralRecipient->department ? ' — '.$referralRecipient->department : '').').'
+                : 'Referred successfully to '.$validated['referred_to'].'.';
+        } elseif ($validated['status'] === 'closed_no_action') {
+            $message = 'Concern closed without action. The student has been notified and your reason is on the record.';
         } else {
             $message = 'Concern updated successfully.';
         }
@@ -524,6 +625,52 @@ class ConcernController extends Controller
     }
 
     /**
+     * The reporter rates how their resolved concern was handled -- a 1-5
+     * rating plus an optional comment. Only the reporter may leave it, only
+     * once the concern is resolved, and only once per concern (the unique
+     * index on feedbacks.concern_id backs this up at the DB level too).
+     */
+    public function storeFeedback(Request $request, Concern $concern)
+    {
+        /** @var User $user */
+        $user = Auth::user();
+
+        if ($user->id !== $concern->user_id) {
+            abort(403, 'Only the reporter can leave feedback on this concern.');
+        }
+
+        if ($concern->status !== 'resolved') {
+            return redirect()->route('concerns.show', $concern)
+                ->with('error', 'Feedback can only be left once a concern is resolved.');
+        }
+
+        if ($concern->feedback) {
+            return redirect()->route('concerns.show', $concern)
+                ->with('error', 'You have already left feedback on this concern.');
+        }
+
+        $validated = $request->validate([
+            'rating' => 'required|integer|min:1|max:5',
+            'comment' => 'nullable|string|max:1000',
+        ]);
+
+        $validated['concern_id'] = $concern->id;
+        $validated['user_id'] = $user->id;
+
+        Feedback::create($validated);
+
+        AuditLog::create([
+            'user_id' => $user->id,
+            'concern_id' => $concern->id,
+            'action' => 'feedback_submitted',
+            'description' => "Reporter rated the resolution {$validated['rating']}/5",
+            'ip_address' => $request->ip(),
+        ]);
+
+        return redirect()->route('concerns.show', $concern)->with('success', 'Thanks for your feedback!');
+    }
+
+    /**
      * Securely serve an evidence attachment. Authorization is enforced FIRST
      * using the exact same rule as viewing the concern -- so an attachment can
      * only be downloaded by someone allowed to see the concern it belongs to.
@@ -545,11 +692,16 @@ class ConcernController extends Controller
         }
 
         // Files live on the private disk; stream from there. Never expose path.
-        if (! Storage::disk('local')->exists($attachment->stored_path)) {
+        // Storage::disk() is typed as the Filesystem contract, which does not
+        // declare download() -- the concrete adapter does.
+        /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+        $disk = Storage::disk('local');
+
+        if (! $disk->exists($attachment->stored_path)) {
             abort(404);
         }
 
-        return Storage::disk('local')->download(
+        return $disk->download(
             $attachment->stored_path,
             $attachment->original_name
         );
@@ -604,47 +756,128 @@ class ConcernController extends Controller
     }
 
     /**
+     * Automatically classify a concern's urgency from its category and
+     * description -- no staff judgment call required before it has a
+     * severity. Alarming language in the description can escalate the
+     * category's normal baseline, but it never gets downgraded below it.
+     */
+    private function determineUrgency(string $category, string $description): string
+    {
+        $text = strtolower($description);
+
+        // Immediate danger to life or physical safety -- always Critical,
+        // regardless of category.
+        $criticalTerms = [
+            'suicide', 'suicidal', 'kill myself', 'self-harm', 'self harm',
+            'weapon', 'gun', 'knife', 'bomb', 'rape', 'raped',
+            'overdose', 'kill him', 'kill her', 'kill them', 'about to die',
+        ];
+        foreach ($criticalTerms as $term) {
+            if (str_contains($text, $term)) {
+                return 'Critical';
+            }
+        }
+
+        // Serious but not life-threatening -- harassment, active threats,
+        // injury, or anything already unfolding.
+        $highTerms = [
+            'harass', 'threat', 'threatened', 'bully', 'bullying', 'abuse',
+            'abused', 'emergency', 'injury', 'injured', 'accident', 'fire',
+            'unsafe', 'in danger', 'assault', 'assaulted',
+        ];
+        foreach ($highTerms as $term) {
+            if (str_contains($text, $term)) {
+                return 'High';
+            }
+        }
+
+        // No alarming language found -- fall back to the category's normal
+        // baseline severity.
+        return match ($category) {
+            'Physical / Safety' => 'High',
+            'Mental Health / Personal', 'Bullying / Harassment' => 'Medium',
+            // Academic, Administrative, Facilities / Equipment, Others.
+            // A broken PC is genuinely Low; a genuinely dangerous facility
+            // fault still escalates on its own through the keyword scan above
+            // ('unsafe', 'fire', 'accident', 'injury'), so exposed wiring or a
+            // blocked fire exit does not sit here at Low.
+            default => 'Low',
+        };
+    }
+
+    /**
      * Automatically route the concern to the appropriate department/user.
+     *
+     * Two steps, in this order:
+     *  1. CATEGORY decides the ROLE that handles it. This is absolute -- a
+     *     Mental Health concern always reaches a counselor and never a
+     *     teacher, whichever college the student belongs to.
+     *  2. DEPARTMENT decides WHICH person in that role. A handler belonging to
+     *     the concern's own college is preferred, so a BSIT academic complaint
+     *     reaches a Computer Studies instructor rather than whoever happens to
+     *     have the lowest user id. When that college has nobody in the role
+     *     (or the concern names an institution-wide office such as the
+     *     Guidance Office), it falls back to any holder of the role, which is
+     *     the original behaviour.
      */
     private function routeConcern(Concern $concern)
     {
-        // Routing is decided ENTIRELY by category. The department/college the
-        // student selects is informational only and never overrides this map.
-        // This guarantees, e.g., that a Mental Health concern always reaches the
-        // counselor and a Physical/Safety concern always reaches Faculty/Staff,
-        // regardless of which college the student belongs to.
         $categoryRouting = [
             'Academic'                 => 'Faculty/Staff',
             'Mental Health / Personal' => 'Guidance Counselor',
             'Bullying / Harassment'    => 'Guidance Counselor',
-            'Administrative'           => 'Admin',
+            // Enrolment, records, ID, clearance -- the Student Registration
+            // and Records Office. Was 'Admin', which meant the system's
+            // administrators, not the admin OFFICE: they manage accounts, not
+            // student records, so these arrived at people with no way to act
+            // on them. Fees actually belong to the Cash Unit and get referred
+            // on from here (see the Registrar role in RoleSeeder).
+            'Administrative'           => 'Registrar',
+            // Facilities/equipment problems (a dead lab PC, no water in the CR,
+            // a broken aircon) have no human subject and no academic content.
+            // They go to the General Services Unit, which per cspc.edu.ph
+            // performs "routine maintenance on all the buildings, grounds,
+            // facilities and other equipment" and is staffed for preventive
+            // maintenance, the electrical system, and air-conditioning and
+            // water systems.
+            //
+            // This used to be 'Admin'. That was wrong twice over: Admin has no
+            // maintenance function, and with the demo accounts removed the
+            // only Admins left are the system's own administrators -- so a
+            // broken computer was landing on the student who built the app.
+            //
+            // Computer faults are strictly ICTRaM's (the ICT Unit's repair
+            // arm), not GSU's. They still come here on purpose: GSU is the
+            // office students already report a broken anything to, and one
+            // real destination beats making a student decide which of two
+            // maintenance offices owns their problem.
+            'Facilities / Equipment'   => 'General Services',
             'Physical / Safety'        => 'Faculty/Staff',
             'Others'                   => 'Faculty/Staff',
         ];
 
         $targetRoleName = $categoryRouting[$concern->category] ?? 'Faculty/Staff';
 
-        // Find a user in the target role, but NEVER assign the concern to the
-        // very person it is about (conflict of interest). If the only/first
-        // candidate is the reported person, escalate to a higher authority.
-        $query = User::whereHas('role', function ($q) use ($targetRoleName) {
-            $q->where('name', $targetRoleName);
-        });
-
-        if ($concern->about_staff_id) {
-            $query->where('id', '!=', $concern->about_staff_id);
-        }
-
-        $targetUser = $query->first();
+        $targetUser = $this->findHandler($targetRoleName, $concern);
 
         // Conflict-of-interest escalation: if we couldn't find an untainted
         // handler in the target role (e.g. the reported person was the only
-        // one), escalate up the chain: Department Head -> Head of School.
+        // one), escalate up the chain. The escalation is department-aware
+        // too, so a Computer Studies case reaches the CCS dean before any
+        // other dean.
+        //
+        // Admin is the last resort, not a peer of the others: several roles
+        // now have exactly ONE holder (Registrar, General Services, Guidance),
+        // so a concern filed ABOUT that person leaves their role with nobody
+        // eligible. The chain used to stop at Head of School -- a role with no
+        // holder in production -- after which the concern was created with
+        // assigned_to NULL and was visible to nobody but its reporter. An
+        // unassigned complaint about an office is exactly the one that must
+        // not disappear, so it lands on a system administrator who can refer
+        // it by hand.
         if (! $targetUser && $concern->about_staff_id) {
-            foreach (['Department Head', 'Head of School'] as $escalationRole) {
-                $escalated = User::whereHas('role', function ($q) use ($escalationRole) {
-                    $q->where('name', $escalationRole);
-                })->where('id', '!=', $concern->about_staff_id)->first();
+            foreach (['Department Head', 'Head of School', 'Admin'] as $escalationRole) {
+                $escalated = $this->findHandler($escalationRole, $concern);
 
                 if ($escalated) {
                     $targetUser = $escalated;
@@ -655,26 +888,99 @@ class ConcernController extends Controller
 
         if ($targetUser) {
             $concern->update(['assigned_to' => $targetUser->id]);
+
+            return;
         }
+
+        // Nothing matched at all -- not the category's role, and not the
+        // escalation chain. The concern still exists and the reporter can see
+        // it, but no handler can, so it would sit unread with nothing
+        // reporting the failure. Log it loudly: this means a role has no
+        // holder, which is a configuration problem an Admin has to fix at
+        // /admin/users.
+        \Illuminate\Support\Facades\Log::warning('Concern could not be routed to any handler', [
+            'concern_id' => $concern->id,
+            'category' => $concern->category,
+            'target_role' => $targetRoleName,
+            'department' => $concern->department,
+            'about_staff_id' => $concern->about_staff_id,
+        ]);
     }
 
     /**
-     * Notify the assigned department/user of a new concern.
+     * Pick a user in the given role to own this concern: someone from the
+     * concern's own department first, otherwise anyone in the role. The person
+     * the concern is about is never eligible (conflict of interest).
+     */
+    /**
+     * Everyone the given user may refer this concern TO, grouped by office
+     * (role name => Collection of users).
      *
-     * Urgency is null until triaged, so the message reflects that.
+     * A referral is a hand-off to a person, so the list is filtered down to
+     * people who can actually take it:
+     *
+     *  - the subject of the concern is excluded, so a complaint about someone
+     *    can never be referred to that same someone (the same conflict-of-
+     *    interest wall findHandler() and routeConcern() enforce);
+     *  - the referrer is excluded, because referring to yourself is a no-op;
+     *  - the current assignee is excluded for the same reason;
+     *  - banned accounts are excluded -- they are signed out on their next
+     *    request, so a case handed to one would simply stall.
+     *
+     * Offices left with nobody are dropped entirely rather than returned as an
+     * empty list, so `isset($candidates[$role])` is a straight answer to "is
+     * there anyone in there to pick?".
+     */
+    private function referralCandidates(Concern $concern, User $user)
+    {
+        return User::query()
+            ->whereHas('role', fn ($q) => $q->whereIn('name', self::REFERRAL_ROLES))
+            ->where('id', '!=', $user->id)
+            ->when($concern->about_staff_id, fn ($q) => $q->where('id', '!=', $concern->about_staff_id))
+            ->when($concern->assigned_to, fn ($q) => $q->where('id', '!=', $concern->assigned_to))
+            ->where('status', '!=', 'banned')
+            ->with('role')
+            // Colleagues from the reporter's own college first: a referral to
+            // "Department Head" most often means the dean of THAT college, and
+            // the same ordering findHandler() uses for the automatic pick.
+            ->orderByRaw('CASE WHEN department = ? THEN 0 ELSE 1 END', [$concern->department])
+            ->orderBy('name')
+            ->get()
+            ->groupBy(fn (User $candidate) => $candidate->role->name);
+    }
+
+    private function findHandler(string $roleName, Concern $concern): ?User
+    {
+        $candidates = User::whereHas('role', function ($q) use ($roleName) {
+            $q->where('name', $roleName);
+        });
+
+        if ($concern->about_staff_id) {
+            $candidates->where('id', '!=', $concern->about_staff_id);
+        }
+
+        // Same college first. Cloned so the fallback below still sees the
+        // unfiltered candidate list.
+        if ($concern->department) {
+            $sameDepartment = (clone $candidates)
+                ->where('department', $concern->department)
+                ->first();
+
+            if ($sameDepartment) {
+                return $sameDepartment;
+            }
+        }
+
+        return $candidates->first();
+    }
+
+    /**
+     * Notify the staff member a new concern was just routed to -- in-app and
+     * by email. Delegated to the notification service so the wording and the
+     * delivery rules live in one place.
      */
     private function notifyDepartment(Concern $concern)
     {
-        if ($concern->assigned_to) {
-            $severity = $concern->urgency ?? 'untriaged';
-
-            Notification::create([
-                'user_id' => $concern->assigned_to,
-                'type' => 'new_concern',
-                'concern_id' => $concern->id,
-                'title' => 'New Concern Assigned',
-                'message' => "A new {$severity} {$concern->category} concern has been assigned to you and needs triage",
-            ]);
-        }
+        $this->notifications->assigned($concern);
     }
 }

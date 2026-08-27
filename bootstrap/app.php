@@ -11,7 +11,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->alias([
+            'track.last_seen' => \App\Http\Middleware\UpdateLastSeen::class,
+            'profile.complete' => \App\Http\Middleware\EnsureStudentProfileComplete::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

@@ -8,20 +8,61 @@ use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Password;
+use Illuminate\Validation\Rule;
 use Laravel\Socialite\Facades\Socialite;
 
 /**
- * Every way in and out of the app: email/password login, the Google
- * "CSPC Mail" sign-in, self-registration, and the forgot/reset password
- * flow. Both login paths run through rejectIfNotApproved(), so a pending
- * or rejected account can never sign in. Note that Google sign-in never
- * creates accounts -- it only matches existing ones by email.
+ * Every way in and out of the app.
+ *
+ * CSPC Mail (Google) is the ONLY way in -- for students and for staff alike.
+ * There is no password form, no registration form, and no password-reset
+ * flow. That is a deliberate simplification, not a missing feature:
+ *
+ *  - Nothing to guess, phish, reuse or leak. The app holds no password
+ *    anybody can sign in with (accounts carry a random unusable hash purely
+ *    to satisfy the column).
+ *  - Every account is provably tied to a real CSPC mailbox, so nobody can
+ *    file concerns under a classmate's identity.
+ *  - Offboarding is automatic: CSPC disabling a Google account revokes
+ *    access here at the same moment, with nothing to clean up by hand.
+ *
+ * A first CSPC Mail sign-in auto-provisions the account, with the DOMAIN
+ * deciding the starting role (see DOMAIN_ROLES): my.cspc.edu.ph is a
+ * student, cspc.edu.ph is an employee. Any other domain is turned away at
+ * the callback. Students then complete their details on /complete-profile
+ * before they can file anything; employees skip that, since college and
+ * course are student fields.
+ *
+ * The domain cannot tell a dean from an instructor, so employees start on
+ * the lowest staff role and an Admin promotes them. Signing in establishes
+ * who you are, never what you are allowed to do.
+ *
+ * Sign-in runs through rejectIfNotApproved(), so a pending, rejected or
+ * banned account can never get in.
  */
 class AuthController extends Controller
 {
-    /** Email domains accepted for registration. */
-    private const CSPC_EMAIL_DOMAINS = ['cspc.edu', 'my.cspc.edu.ph'];
+    /**
+     * The CSPC domains that may sign in, mapped to the role a brand-new
+     * account from that domain starts with.
+     *
+     * CSPC issues my.cspc.edu.ph to students and cspc.edu.ph to employees, so
+     * the domain reliably answers "student or staff?" -- but it cannot answer
+     * "which kind of staff?", because a dean, a counselor and an instructor
+     * all share cspc.edu.ph. So an employee starts on the LOWEST staff role
+     * and an Admin promotes them from there (/admin/users, or the user:role
+     * command). Sign-in establishes identity; a human still decides authority.
+     *
+     * This applies only when the account is first created. An existing
+     * account keeps whatever role it has, so a promotion is never undone by
+     * signing in again.
+     *
+     * @var array<string, string>
+     */
+    private const DOMAIN_ROLES = [
+        'my.cspc.edu.ph' => 'Student',
+        'cspc.edu.ph' => 'Faculty/Staff',
+    ];
 
     /**
      * Show the login form.
@@ -31,34 +72,8 @@ class AuthController extends Controller
         if (Auth::check()) {
             return redirect()->route('concerns.index');
         }
+
         return view('auth.login');
-    }
-
-    /**
-     * Handle login request.
-     */
-    public function login(Request $request)
-    {
-        // No minimum length at LOGIN time -- the stored hash decides. A length
-        // rule here would lock out accounts created under older, shorter
-        // password policies without improving security.
-        $credentials = $request->validate([
-            'email' => 'required|email',
-            'password' => 'required|string',
-        ]);
-
-        if (Auth::attempt($credentials, $request->boolean('remember'))) {
-            if ($blocked = $this->rejectIfNotApproved(Auth::user())) {
-                return $blocked;
-            }
-
-            $request->session()->regenerate();
-            return redirect()->route('concerns.index')->with('success', 'Logged in successfully!');
-        }
-
-        return back()->withErrors([
-            'email' => 'The provided credentials do not match our records.',
-        ])->onlyInput('email');
     }
 
     /**
@@ -77,12 +92,19 @@ class AuthController extends Controller
      */
     public function redirectToGoogle()
     {
-        return Socialite::driver('google')->redirect();
+        // Without prompt=select_account Google silently reuses the browser's
+        // only signed-in session, so a student on a shared machine gets logged
+        // in as whoever used it last with no chance to pick their CSPC address.
+        return Socialite::driver('google')
+            ->with(['prompt' => 'select_account'])
+            ->redirect();
     }
 
     /**
-     * Handle the callback from Google. Only pre-provisioned accounts
-     * (matched by email) may sign in this way — there is no self-registration.
+     * Handle the callback from Google. Accounts are matched by email; a
+     * first-time sign-in from an official CSPC address is auto-provisioned
+     * as an approved Student on the spot, so no manual registration step
+     * is needed.
      */
     public function handleGoogleCallback()
     {
@@ -105,16 +127,43 @@ class AuthController extends Controller
             ]);
         }
 
-        $user = User::where('email', $googleUser->getEmail())->first();
+        $email = $googleUser->getEmail();
+        $user = User::where('email', $email)->first();
 
         if (! $user) {
-            return redirect()->route('login')->withErrors([
-                'email' => 'No CSPC account found for this Google account. Contact the admin to get access.',
+            $domain = strtolower(substr(strrchr($email, '@'), 1));
+
+            if (! array_key_exists($domain, self::DOMAIN_ROLES)) {
+                return redirect()->route('login')->withErrors([
+                    'email' => 'Please sign in with your official CSPC email address (@my.cspc.edu.ph or @cspc.edu.ph).',
+                ]);
+            }
+
+            // The domain decides the starting role: my.cspc.edu.ph is a
+            // student, cspc.edu.ph is an employee. See DOMAIN_ROLES.
+            $roleName = self::DOMAIN_ROLES[$domain];
+
+            $user = User::create([
+                'name' => $googleUser->getName() ?: $googleUser->getNickname() ?: $email,
+                'email' => $email,
+                'password' => Hash::make(str()->random(40)),
+                'role_id' => Role::where('name', $roleName)->value('id'),
+                'google_id' => $googleUser->getId(),
+                'status' => 'approved',
+                // Signing in through Google IS proof this person controls the
+                // mailbox, so the address is confirmed on the spot.
+                'email_verified_at' => now(),
             ]);
         }
 
         if (! $user->google_id) {
             $user->forceFill(['google_id' => $googleUser->getId()])->save();
+        }
+
+        // Same reasoning for an older account (e.g. a seeded staff member)
+        // signing in through Google for the first time.
+        if (! $user->hasVerifiedEmail()) {
+            $user->forceFill(['email_verified_at' => now()])->save();
         }
 
         Auth::login($user, true);
@@ -129,6 +178,53 @@ class AuthController extends Controller
     }
 
     /**
+     * Show the one-time "tell us your college and course" form. Only students
+     * who skipped registration (CSPC Mail sign-in) ever land here.
+     */
+    public function showCompleteProfile()
+    {
+        /** @var User $user */
+        $user = Auth::user();
+
+        if (! $user->needsProfileCompletion()) {
+            return redirect()->route('concerns.index');
+        }
+
+        return view('auth.complete-profile', ['collegeCourses' => User::COURSES_BY_COLLEGE]);
+    }
+
+    /**
+     * Save the missing student details. Same rules as registration, so a
+     * Google-provisioned account ends up indistinguishable from a
+     * self-registered one.
+     */
+    public function completeProfile(Request $request)
+    {
+        /** @var User $user */
+        $user = Auth::user();
+
+        $validated = $request->validate([
+            'student_id' => 'required|string|max:50',
+            'department' => ['required', 'string', Rule::in(array_keys(User::COURSES_BY_COLLEGE))],
+            'course' => ['required', 'string', Rule::in(User::allCourses()),
+                function ($attribute, $value, $fail) use ($request) {
+                    $offered = User::COURSES_BY_COLLEGE[$request->input('department')] ?? [];
+                    if (! in_array($value, $offered, true)) {
+                        $fail('The selected course is not offered by that college.');
+                    }
+                },
+            ],
+            // No year level or section: this form runs once, and both change
+            // every school year, so the stored value would be wrong for most
+            // of a student's time here. Nothing routes on them.
+        ]);
+
+        $user->update($validated);
+
+        return redirect()->route('concerns.index')->with('success', 'Thanks! Your student details are saved.');
+    }
+
+    /**
      * If the account isn't approved yet, log it back out and bounce to the
      * login page with an explanatory error. Returns null when the account is fine.
      */
@@ -140,120 +236,13 @@ class AuthController extends Controller
 
         Auth::logout();
 
-        $message = $user->status === 'pending'
-            ? 'Your account is pending admin approval. Please check back later.'
-            : 'Your account access was not approved. Contact the admin for details.';
+        $message = match ($user->status) {
+            'pending' => 'Your account is pending admin approval. Please check back later.',
+            'banned' => 'Your account has been banned. Contact the admin for details.',
+            default => 'Your account access was not approved. Contact the admin for details.',
+        };
 
         return redirect()->route('login')->withErrors(['email' => $message]);
     }
 
-    /**
-     * Show the registration form.
-     */
-    public function showRegister()
-    {
-        if (Auth::check()) {
-            return redirect()->route('concerns.index');
-        }
-
-        return view('auth.register', ['roles' => Role::orderBy('name')->get()]);
-    }
-
-    /**
-     * Handle a self-registration request. Students are approved immediately;
-     * every other role starts 'pending' and needs an Admin's sign-off (see AdminController)
-     * since those roles can access or handle concern reports.
-     */
-    public function register(Request $request)
-    {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => [
-                'required', 'email', 'max:255', 'unique:users,email',
-                function ($attribute, $value, $fail) {
-                    $domain = strtolower(substr(strrchr($value, '@'), 1));
-                    if (! in_array($domain, self::CSPC_EMAIL_DOMAINS, true)) {
-                        $fail('Please register with your official CSPC email address (@cspc.edu or @my.cspc.edu.ph).');
-                    }
-                },
-            ],
-            'password' => 'required|string|min:8|confirmed',
-            'role_id' => 'required|exists:roles,id',
-            'department' => 'nullable|string|max:255',
-        ]);
-
-        $role = Role::find($validated['role_id']);
-        $isStudent = $role && $role->name === 'Student';
-
-        User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
-            'role_id' => $validated['role_id'],
-            'department' => $validated['department'] ?? null,
-            'status' => $isStudent ? 'approved' : 'pending',
-        ]);
-
-        $message = $isStudent
-            ? 'Registration complete! You can now sign in.'
-            : 'Registration submitted! Your account is pending admin approval — you\'ll be able to sign in once it\'s reviewed.';
-
-        return redirect()->route('login')->with('success', $message);
-    }
-
-    /**
-     * Show the forgot-password request form.
-     */
-    public function showForgotPassword()
-    {
-        return view('auth.forgot-password');
-    }
-
-    /**
-     * Send a password reset link to the given email.
-     */
-    public function sendResetLink(Request $request)
-    {
-        $request->validate(['email' => 'required|email']);
-
-        $status = Password::sendResetLink($request->only('email'));
-
-        return $status === Password::RESET_LINK_SENT
-            ? back()->with('success', __($status))
-            : back()->withErrors(['email' => __($status)]);
-    }
-
-    /**
-     * Show the reset-password form.
-     */
-    public function showResetPassword(Request $request, string $token)
-    {
-        return view('auth.reset-password', [
-            'token' => $token,
-            'email' => $request->query('email'),
-        ]);
-    }
-
-    /**
-     * Reset the user's password.
-     */
-    public function resetPassword(Request $request)
-    {
-        $request->validate([
-            'token' => 'required',
-            'email' => 'required|email',
-            'password' => 'required|string|min:8|confirmed',
-        ]);
-
-        $status = Password::reset(
-            $request->only('email', 'password', 'password_confirmation', 'token'),
-            function (User $user, string $password) {
-                $user->forceFill(['password' => Hash::make($password)])->save();
-            }
-        );
-
-        return $status === Password::PASSWORD_RESET
-            ? redirect()->route('login')->with('success', 'Password reset successfully! You can now sign in.')
-            : back()->withErrors(['email' => __($status)]);
-    }
 }

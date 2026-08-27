@@ -12,8 +12,8 @@ class ReportedStaffExclusionTest extends TestCase {
 
     /** The reported staff CANNOT see or open a concern about themselves */
     public function test_reported_staff_cannot_see_concern_about_them(): void {
-        $staff=$this->u('staff@cspc.edu');
-        $c=Concern::create(['user_id'=>$this->u('student@cspc.edu')->id,'category'=>'Academic',
+        $staff=$this->u('staff@cspc.edu.ph');
+        $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
             'department'=>'College of Computer Studies','description'=>'about juan','urgency'=>null,
             'status'=>'submitted','is_anonymous'=>true,'about_staff_id'=>$staff->id]);
         $seesInList = Concern::whereKey($c->id)->visibleTo($staff)->exists();
@@ -34,9 +34,9 @@ class ReportedStaffExclusionTest extends TestCase {
     public function test_other_staff_unaffected(): void {
         // make a second faculty user
         $role=\App\Models\Role::where('name','Faculty/Staff')->first();
-        $other=User::create(['name'=>'Prof. Other','email'=>'other@cspc.edu','password'=>bcrypt('x'),'role_id'=>$role->id]);
-        $reported=$this->u('staff@cspc.edu');
-        $c=Concern::create(['user_id'=>$this->u('student@cspc.edu')->id,'category'=>'Academic',
+        $other=User::create(['name'=>'Prof. Other','email'=>'other@my.cspc.edu.ph','password'=>bcrypt('x'),'role_id'=>$role->id]);
+        $reported=$this->u('staff@cspc.edu.ph');
+        $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
             'department'=>'College of Computer Studies','description'=>'about juan','urgency'=>null,
             'status'=>'submitted','is_anonymous'=>true,'about_staff_id'=>$reported->id,'assigned_to'=>$other->id]);
         $sees = Concern::whereKey($c->id)->visibleTo($other)->exists();
@@ -46,19 +46,19 @@ class ReportedStaffExclusionTest extends TestCase {
 
     /** Head of School still sees it (they adjudicate conflicts) */
     public function test_head_still_sees_conflict_concern(): void {
-        $staff=$this->u('staff@cspc.edu');
-        $c=Concern::create(['user_id'=>$this->u('student@cspc.edu')->id,'category'=>'Academic',
+        $staff=$this->u('staff@cspc.edu.ph');
+        $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
             'department'=>'College of Computer Studies','description'=>'about juan','urgency'=>null,
             'status'=>'submitted','is_anonymous'=>true,'about_staff_id'=>$staff->id]);
-        $sees=Concern::whereKey($c->id)->visibleTo($this->u('head@cspc.edu'))->exists();
+        $sees=Concern::whereKey($c->id)->visibleTo($this->u('head@cspc.edu.ph'))->exists();
         $this->line("[coi] Head of School sees conflict concern: ".($sees?'yes (good)':'NO'));
         $this->assertTrue($sees);
     }
 
     /** The student who submitted still sees their own concern */
     public function test_student_still_sees_own(): void {
-        $staff=$this->u('staff@cspc.edu');
-        $student=$this->u('student@cspc.edu');
+        $staff=$this->u('staff@cspc.edu.ph');
+        $student=$this->u('student@my.cspc.edu.ph');
         $c=Concern::create(['user_id'=>$student->id,'category'=>'Academic',
             'department'=>'College of Computer Studies','description'=>'about juan','urgency'=>null,
             'status'=>'submitted','is_anonymous'=>true,'about_staff_id'=>$staff->id]);

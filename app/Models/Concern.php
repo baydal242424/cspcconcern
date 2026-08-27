@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $department
  * @property string $urgency
  * @property string $description
+ * @property string|null $investigation_notes
  * @property string|null $status
  * @property bool $is_anonymous
  * @property int|null $assigned_to
@@ -40,12 +41,87 @@ class Concern extends Model
     // its evidence metadata are preserved (see the add_soft_deletes migration).
     use SoftDeletes;
 
+    /**
+     * Non-academic units a concern can be filed against. The colleges are NOT
+     * listed here -- they come from User::COURSES_BY_COLLEGE so the concern
+     * form and the registration form can never drift apart. That matters:
+     * routeConcern() matches a concern's department against users.department,
+     * and a college spelled differently in the two lists would never match.
+     *
+     * @var list<string>
+     */
+    public const SUPPORT_OFFICES = [
+        'Guidance Office',
+        'SASO',
+    ];
+
+    /**
+     * Every unit a concern can be filed against: all six CSPC colleges,
+     * then the support offices.
+     *
+     * @return list<string>
+     */
+    public static function departments(): array
+    {
+        return array_merge(array_keys(User::COURSES_BY_COLLEGE), self::SUPPORT_OFFICES);
+    }
+
+    /**
+     * The statuses that END a concern's life. Nothing more happens to a
+     * concern in one of these: it drops out of the active list, staff can no
+     * longer edit it, and it stops counting as an open case in visibility.
+     *
+     *  - resolved          : acted on, and the reporter can now rate it.
+     *  - closed_no_action  : assessed and found not to be a valid complaint
+     *                        (Student Handbook Ch. 9 §A.2). Requires a written
+     *                        reason, which the reporter is shown.
+     *
+     * Kept as a list so "is this case still open?" is answered in one place --
+     * it used to be spelled `status != 'resolved'` in six separate queries,
+     * every one of which would have silently treated a closed concern as open.
+     *
+     * @var list<string>
+     */
+    public const TERMINAL_STATUSES = ['resolved', 'closed_no_action'];
+
+    /**
+     * How each status is written for a human. The views used to derive this
+     * with ucfirst(str_replace('_',' ',...)), which is fine for "in_progress"
+     * but renders 'closed_no_action' as the clumsy "Closed no action".
+     *
+     * @var array<string, string>
+     */
+    public const STATUS_LABELS = [
+        'submitted' => 'Submitted',
+        'in_progress' => 'In Progress',
+        'referred' => 'Referred',
+        'resolved' => 'Resolved',
+        'closed_no_action' => 'Closed',
+    ];
+
+    /**
+     * Human label for a raw status value, falling back to the old derivation
+     * so an unmapped status never renders as an empty cell.
+     */
+    public static function label(?string $status): string
+    {
+        return self::STATUS_LABELS[$status]
+            ?? ucfirst(str_replace('_', ' ', (string) $status));
+    }
+
+    /** Convenience for views: {{ $concern->status_label }}. */
+    public function getStatusLabelAttribute(): string
+    {
+        return self::label($this->status);
+    }
+
     protected $fillable = [
         'user_id',
         'category',
         'department',
         'urgency',
         'description',
+        'investigation_notes',
         'status',
         'is_anonymous',
         'assigned_to',
@@ -55,11 +131,14 @@ class Concern extends Model
         'identity_revealed_by',
         'identity_reveal_reason',
         'resolved_at',
+        'closed_at',
+        'closure_reason',
         'resolution_notes',
     ];
 
     protected $casts = [
         'resolved_at' => 'datetime',
+        'closed_at' => 'datetime',
         'identity_revealed_at' => 'datetime',
         'is_anonymous' => 'boolean',
     ];
@@ -137,6 +216,15 @@ class Concern extends Model
     }
 
     /**
+     * The reporter's rating/comment on how this concern was resolved.
+     * Null until the reporter leaves one -- only possible once resolved.
+     */
+    public function feedback()
+    {
+        return $this->hasOne(Feedback::class);
+    }
+
+    /**
      * Scope a query to only the concerns a given user is permitted to see.
      *
      * This is the SINGLE SOURCE OF TRUTH for concern visibility. Both the
@@ -150,9 +238,10 @@ class Concern extends Model
      *  - Department Head    : same as Faculty/Staff.
      *  - Guidance Counselor : Mental Health & Bullying concerns, plus anything
      *                         referred to "Guidance Counselor".
-     *  - Admin              : Administrative concerns, plus anything referred
-     *                         to "Admin". (Admin does NOT see confidential
-     *                         counselor cases by default.)
+     *  - Admin              : Administrative and Facilities / Equipment
+     *                         concerns, plus anything referred to "Admin".
+     *                         (Admin does NOT see confidential counselor
+     *                         cases by default.)
      */
     public function scopeVisibleTo($query, User $user)
     {
@@ -205,28 +294,94 @@ class Concern extends Model
                   // Currently referred to her (open case she must act on).
                   ->orWhere(function ($sub) {
                       $sub->where('referred_to', 'Guidance Counselor')
-                          ->where('status', '!=', 'resolved');
+                          ->whereNotIn('status', self::TERMINAL_STATUSES);
                   })
                   // Currently assigned to her (open case she must act on).
                   ->orWhere(function ($sub) use ($user) {
                       $sub->where('assigned_to', $user->id)
-                          ->where('status', '!=', 'resolved');
+                          ->whereNotIn('status', self::TERMINAL_STATUSES);
                   })
                   // Anything she has personally handled (history / reference).
                   ->orWhere($involved);
             });
         }
 
-        if ($role === 'Admin') {
+        // Gender and Development. Deliberately has NO category of its own:
+        // unlike every other staff role below, GAD sees only what has been
+        // explicitly referred or assigned to it, plus its own handling
+        // history. A harassment concern still reaches the Guidance Counselor
+        // first, who assesses it and refers it on if it is a CMO No. 3
+        // sexual-harassment case. Giving GAD blanket access to the Bullying /
+        // Harassment category instead would widen who can read those reports
+        // by default, which is the opposite of what a referral gate is for.
+        if ($role === 'Gender and Development') {
             return $query->where(function ($q) use ($user, $involved) {
-                $q->where('category', 'Administrative')
+                $q->where(function ($sub) {
+                    $sub->where('referred_to', 'Gender and Development')
+                        ->whereNotIn('status', self::TERMINAL_STATUSES);
+                })
+                  ->orWhere(function ($sub) use ($user) {
+                      $sub->where('assigned_to', $user->id)
+                          ->whereNotIn('status', self::TERMINAL_STATUSES);
+                  })
+                  ->orWhere($involved);
+            });
+        }
+
+        // General Services. Facilities / Equipment is its natural domain, the
+        // way Administrative is Admin's -- routeConcern() sends every one of
+        // them here, so the office must be able to see them without waiting
+        // for a referral.
+        if ($role === 'General Services') {
+            return $query->where(function ($q) use ($user, $involved) {
+                $q->where('category', 'Facilities / Equipment')
                   ->orWhere(function ($sub) {
-                      $sub->where('referred_to', 'Admin')
-                          ->where('status', '!=', 'resolved');
+                      $sub->where('referred_to', 'General Services')
+                          ->whereNotIn('status', self::TERMINAL_STATUSES);
                   })
                   ->orWhere(function ($sub) use ($user) {
                       $sub->where('assigned_to', $user->id)
-                          ->where('status', '!=', 'resolved');
+                          ->whereNotIn('status', self::TERMINAL_STATUSES);
+                  })
+                  ->orWhere($involved);
+            });
+        }
+
+        // The Registrar. Administrative is its natural domain -- enrolment,
+        // records, credentials -- and routeConcern() sends every one here.
+        if ($role === 'Registrar') {
+            return $query->where(function ($q) use ($user, $involved) {
+                $q->where('category', 'Administrative')
+                  ->orWhere(function ($sub) {
+                      $sub->where('referred_to', 'Registrar')
+                          ->whereNotIn('status', self::TERMINAL_STATUSES);
+                  })
+                  ->orWhere(function ($sub) use ($user) {
+                      $sub->where('assigned_to', $user->id)
+                          ->whereNotIn('status', self::TERMINAL_STATUSES);
+                  })
+                  ->orWhere($involved);
+            });
+        }
+
+        // Admin now has NO category of its own. Administrative went to the
+        // Registrar and Facilities / Equipment to General Services -- the
+        // offices that can actually act on them. That is deliberate: "Admin"
+        // here means the people who administer the SYSTEM (accounts, roles,
+        // bans, the dashboard), and giving them a standing window into
+        // students' concerns is exactly the privilege least-privilege is meant
+        // to withhold. They still see anything explicitly referred or assigned
+        // to them, plus their own handling history.
+        if ($role === 'Admin') {
+            return $query->where(function ($q) use ($user, $involved) {
+                $q->whereRaw('1 = 0')
+                  ->orWhere(function ($sub) {
+                      $sub->where('referred_to', 'Admin')
+                          ->whereNotIn('status', self::TERMINAL_STATUSES);
+                  })
+                  ->orWhere(function ($sub) use ($user) {
+                      $sub->where('assigned_to', $user->id)
+                          ->whereNotIn('status', self::TERMINAL_STATUSES);
                   })
                   ->orWhere($involved);
             });
@@ -238,7 +393,7 @@ class Concern extends Model
                 $q->where('assigned_to', $user->id)
                   ->orWhere(function ($sub) use ($role) {
                       $sub->where('referred_to', $role)
-                          ->where('status', '!=', 'resolved');
+                          ->whereNotIn('status', self::TERMINAL_STATUSES);
                   })
                   ->orWhere(function ($sub) {
                       $sub->where('status', 'submitted')

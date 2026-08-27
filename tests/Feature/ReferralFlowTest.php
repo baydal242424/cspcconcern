@@ -17,12 +17,12 @@ class ReferralFlowTest extends TestCase
 
     public function test_referral_transfers_ownership_and_counselor_can_resolve(): void
     {
-        $staff = $this->u('staff@cspc.edu');
-        $counselor = $this->u('counselor@cspc.edu');
+        $staff = $this->u('staff@cspc.edu.ph');
+        $counselor = $this->u('counselor@cspc.edu.ph');
 
         // staff has an academic concern assigned
         $c = Concern::create([
-            'user_id'=>$this->u('student@cspc.edu')->id,'category'=>'Academic',
+            'user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
             'department'=>'College of Computer Studies','description'=>'x','urgency'=>'Low',
             'status'=>'submitted','is_anonymous'=>false,'assigned_to'=>$staff->id,
         ]);
@@ -47,14 +47,14 @@ class ReferralFlowTest extends TestCase
 
     public function test_show_page_displays_referral_destination(): void
     {
-        $staff = $this->u('staff@cspc.edu');
+        $staff = $this->u('staff@cspc.edu.ph');
         $c = Concern::create([
-            'user_id'=>$this->u('student@cspc.edu')->id,'category'=>'Academic',
+            'user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
             'department'=>'College of Computer Studies','description'=>'x','urgency'=>'Low',
             'status'=>'referred','referred_to'=>'Guidance Counselor','is_anonymous'=>false,
-            'assigned_to'=>$this->u('counselor@cspc.edu')->id,
+            'assigned_to'=>$this->u('counselor@cspc.edu.ph')->id,
         ]);
-        $this->actingAs($this->u('counselor@cspc.edu'))->get("/concerns/{$c->id}")
+        $this->actingAs($this->u('counselor@cspc.edu.ph'))->get("/concerns/{$c->id}")
             ->assertOk()
             ->assertSee('Guidance Counselor');
         fwrite(STDERR, "  [display] show page shows 'Referred To: Guidance Counselor': YES\n");

@@ -66,6 +66,60 @@
             border:1px solid rgba(255,255,255,.14); border-radius:999px; white-space:nowrap;
         }
 
+        /* ---- Notification bell ---- */
+        /* The bell sits INSIDE .navbar-nav, which styles every <span> as a
+           pill (padding, border, white-space:nowrap) and hides them outright
+           below 768px. Those rules leak into the dropdown: they turned the
+           unread dot into a wide pill and stopped the message text wrapping,
+           so the panel overflowed sideways. Reset every span in here first,
+           then re-declare the few that need real styling. Each selector is
+           prefixed with .navbar-nav so it outranks both the base rule and its
+           mobile override. */
+        .navbar-nav .bell-wrap span{
+            display:inline; padding:0; margin:0; border:none; border-radius:0;
+            white-space:normal; font-size:inherit; color:inherit; line-height:inherit;
+        }
+        .navbar-nav .bell-wrap{position:relative; display:inline-flex}
+        .navbar-nav .bell-btn{background:none; border:none; cursor:pointer; color:#c7d2e8; position:relative;
+            padding:.5rem .6rem; border-radius:9px; display:inline-flex; align-items:center; transition:.18s}
+        .navbar-nav .bell-btn:hover{color:#fff; background:rgba(255,255,255,.08)}
+        .navbar-nav .bell-badge{position:absolute; top:.15rem; right:.1rem; min-width:17px; height:17px;
+            padding:0 4px; background:#ef4458; color:#fff; border-radius:999px; font-size:.65rem;
+            font-weight:700; display:flex; align-items:center; justify-content:center; line-height:1;
+            border:2px solid var(--navy-800)}
+        .navbar-nav .bell-panel{position:absolute; top:calc(100% + .5rem); right:0; z-index:60;
+            width:340px; max-width:calc(100vw - 2rem);
+            background:var(--surface); border:1px solid var(--line); border-radius:14px;
+            box-shadow:0 18px 44px -12px rgba(16,30,66,.34); overflow:hidden}
+        .navbar-nav .bell-head{display:flex; align-items:center; justify-content:space-between; gap:.5rem;
+            padding:.8rem 1rem; border-bottom:1px solid var(--line); background:#f7f9fd; color:var(--ink)}
+        .navbar-nav .bell-head strong{font-size:.9rem; color:var(--navy-900)}
+        .navbar-nav .bell-head form{display:block; margin:0}
+        .navbar-nav .bell-linkbtn{background:none; border:none; padding:0; cursor:pointer; font-family:inherit;
+            font-size:.78rem; font-weight:600; color:var(--brand)}
+        .navbar-nav .bell-linkbtn:hover{background:none; text-decoration:underline}
+        /* Scrolls vertically only -- overflow-x:hidden stops a long unbroken
+           word from producing the sideways scrollbar this panel had. */
+        .navbar-nav .bell-list{max-height:380px; overflow-y:auto; overflow-x:hidden}
+        .navbar-nav .bell-list form{display:block; margin:0}
+        .navbar-nav .bell-item{width:100%; display:flex; gap:.6rem; align-items:flex-start; text-align:left;
+            background:none; border:none; border-bottom:1px solid var(--line); cursor:pointer;
+            padding:.8rem 1rem; font-family:inherit; border-radius:0; transition:background .15s}
+        .navbar-nav .bell-item:hover{background:#f6f9ff}
+        .navbar-nav .bell-item.unread{background:#f2f6ff}
+        .navbar-nav .bell-dot{display:block; width:7px; height:7px; border-radius:50%;
+            background:transparent; margin-top:.42rem; flex:0 0 7px}
+        .navbar-nav .bell-item.unread .bell-dot{background:var(--brand)}
+        /* min-width:0 lets the flex child shrink below its content width,
+           which is what allows the text below to wrap instead of overflowing. */
+        .navbar-nav .bell-item-body{display:flex; flex-direction:column; gap:.12rem; min-width:0; flex:1}
+        .navbar-nav .bell-title{display:block; font-size:.85rem; font-weight:650; color:var(--navy-900)}
+        .navbar-nav .bell-msg{display:block; font-size:.82rem; color:var(--muted); line-height:1.4;
+            white-space:normal; overflow-wrap:anywhere}
+        .navbar-nav .bell-time{display:block; font-size:.72rem; color:#94a3b8; margin-top:.15rem}
+        .navbar-nav .bell-empty{padding:1.6rem 1rem; text-align:center; color:var(--muted);
+            font-size:.85rem; line-height:1.5}
+
         .container{max-width:1140px; margin:2.25rem auto; padding:0 1.25rem; animation:rise .4s ease both}
         @keyframes rise{from{opacity:0; transform:translateY(8px)}to{opacity:1; transform:none}}
 
@@ -123,7 +177,15 @@
         .status-submitted{background:var(--warn-bg); color:var(--warn-ink); border-color:#f3dca0}
         .status-in_progress{background:var(--info-bg); color:var(--info-ink); border-color:#bcd2ff}
         .status-resolved{background:var(--ok-bg); color:var(--ok-ink); border-color:#bfe8cd}
+        /* Closed without action: deliberately NOT green. It is a finished
+           case but not a successful one, and colouring it like a resolution
+           would misread at a glance. */
+        .status-closed_no_action{background:#eef1f6; color:#5b6577; border-color:#dfe4ec}
         .status-referred{background:#ece9ff; color:#5b3bd6; border-color:#d6cdfb}
+        .status-approved{background:var(--ok-bg); color:var(--ok-ink); border-color:#bfe8cd}
+        .status-pending{background:var(--warn-bg); color:var(--warn-ink); border-color:#f3dca0}
+        .status-banned{background:var(--danger-bg); color:var(--danger-ink); border-color:#f6c9cf}
+        .status-rejected{background:var(--danger-bg); color:var(--danger-ink); border-color:#f6c9cf}
         .urgency-low{background:#e6f0ff; color:#1d4ed8}
         .urgency-medium{background:#fff3d6; color:#8a5a00}
         .urgency-high{background:#ffe2e2; color:#b42318}
@@ -193,12 +255,15 @@
         </div>
         <div class="navbar-nav">
             @if (Auth::check())
-                <a href="{{ route('dashboard') }}" class="{{ request()->routeIs('dashboard') ? 'active' : '' }}">Dashboard</a>
+                @if (optional(Auth::user()->role)->name === 'Admin')
+                    <a href="{{ route('dashboard') }}" class="{{ request()->routeIs('dashboard') ? 'active' : '' }}">Dashboard</a>
+                @endif
                 <a href="{{ route('concerns.index') }}" class="{{ request()->routeIs('concerns.*') ? 'active' : '' }}">Concerns</a>
                 @if (optional(Auth::user()->role)->name === 'Admin')
-                    <a href="{{ route('admin.pending-users') }}" class="{{ request()->routeIs('admin.pending-users') ? 'active' : '' }}">Pending Accounts</a>
+                    <a href="{{ route('admin.users') }}" class="{{ request()->routeIs('admin.users') ? 'active' : '' }}">Manage Users</a>
                 @endif
                 <a href="{{ route('policy') }}" class="{{ request()->routeIs('policy') ? 'active' : '' }}">Policy</a>
+                @include('partials.notification-bell')
                 <span>{{ Auth::user()->name }} ({{ optional(Auth::user()->role)->name ?? 'N/A' }})</span>
                 <form action="{{ route('logout') }}" method="POST">
                     @csrf

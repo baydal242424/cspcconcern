@@ -14,8 +14,8 @@ class InvolvementHistoryTest extends TestCase
     /** After staff refers to counselor, the concern STAYS in staff's history */
     public function test_staff_keeps_referred_concern_as_history(): void
     {
-        $staff=$this->u('staff@cspc.edu'); $counselor=$this->u('counselor@cspc.edu');
-        $c=Concern::create(['user_id'=>$this->u('student@cspc.edu')->id,'category'=>'Academic',
+        $staff=$this->u('staff@cspc.edu.ph'); $counselor=$this->u('counselor@cspc.edu.ph');
+        $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
           'department'=>'College of Computer Studies','description'=>'x','urgency'=>'Low',
           'status'=>'submitted','is_anonymous'=>false,'assigned_to'=>$staff->id]);
 
@@ -30,8 +30,8 @@ class InvolvementHistoryTest extends TestCase
     /** Counselor can update->resolved without 403, and it stays in her history after */
     public function test_counselor_resolves_then_keeps_history(): void
     {
-        $staff=$this->u('staff@cspc.edu'); $counselor=$this->u('counselor@cspc.edu');
-        $c=Concern::create(['user_id'=>$this->u('student@cspc.edu')->id,'category'=>'Academic',
+        $staff=$this->u('staff@cspc.edu.ph'); $counselor=$this->u('counselor@cspc.edu.ph');
+        $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
           'department'=>'College of Computer Studies','description'=>'x','urgency'=>'Low',
           'status'=>'submitted','is_anonymous'=>false,'assigned_to'=>$staff->id]);
         $this->actingAs($staff)->patch("/concerns/{$c->id}",['status'=>'referred','referred_to'=>'Guidance Counselor','urgency'=>'Low']);
@@ -52,9 +52,9 @@ class InvolvementHistoryTest extends TestCase
     /** A staff who NEVER touched a Mental Health concern still cannot see it */
     public function test_uninvolved_staff_still_blocked_from_mh(): void
     {
-        $mh=Concern::create(['user_id'=>$this->u('student@cspc.edu')->id,'category'=>'Mental Health / Personal',
+        $mh=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Mental Health / Personal',
           'department'=>'Guidance Office','description'=>'x','urgency'=>'Low','status'=>'submitted','is_anonymous'=>false]);
-        $staff=$this->u('staff@cspc.edu');
+        $staff=$this->u('staff@cspc.edu.ph');
         $sees = Concern::whereKey($mh->id)->visibleTo($staff)->exists();
         fwrite(STDERR,"  [privacy] uninvolved staff sees MH concern: ".($sees?'YES (BAD)':'NO (good)')."\n");
         $this->assertFalse($sees, 'Staff must not see MH concerns they never handled');

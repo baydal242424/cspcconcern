@@ -14,14 +14,14 @@ class ListAndTimelineTest extends TestCase
     /** Active list hides resolved by default; toggle shows them */
     public function test_resolved_hidden_by_default_and_toggle_shows(): void
     {
-        $staff=$this->u('staff@cspc.edu');
+        $staff=$this->u('staff@cspc.edu.ph');
         // one open (referred) and one resolved, both handled by staff
-        $open=Concern::create(['user_id'=>$this->u('student@cspc.edu')->id,'category'=>'Academic',
+        $open=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
           'department'=>'College of Computer Studies','description'=>'OPEN','urgency'=>'Low',
           'status'=>'submitted','is_anonymous'=>false,'assigned_to'=>$staff->id]);
         $this->actingAs($staff)->patch("/concerns/{$open->id}",['status'=>'referred','referred_to'=>'Guidance Counselor','urgency'=>'Low']);
 
-        $resolved=Concern::create(['user_id'=>$this->u('student@cspc.edu')->id,'category'=>'Academic',
+        $resolved=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
           'department'=>'College of Computer Studies','description'=>'CLOSED','urgency'=>'Low',
           'status'=>'submitted','is_anonymous'=>false,'assigned_to'=>$staff->id]);
         $this->actingAs($staff)->patch("/concerns/{$resolved->id}",['status'=>'resolved','urgency'=>'Low','resolution_notes'=>'done']);
@@ -44,8 +44,8 @@ class ListAndTimelineTest extends TestCase
     /** Timeline shows referral destination and resolution with timestamps */
     public function test_timeline_shows_referral_and_resolution(): void
     {
-        $staff=$this->u('staff@cspc.edu'); $counselor=$this->u('counselor@cspc.edu');
-        $c=Concern::create(['user_id'=>$this->u('student@cspc.edu')->id,'category'=>'Academic',
+        $staff=$this->u('staff@cspc.edu.ph'); $counselor=$this->u('counselor@cspc.edu.ph');
+        $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
           'department'=>'College of Computer Studies','description'=>'x','urgency'=>'Low',
           'status'=>'submitted','is_anonymous'=>false,'assigned_to'=>$staff->id]);
         $this->actingAs($staff)->patch("/concerns/{$c->id}",['status'=>'referred','referred_to'=>'Guidance Counselor','urgency'=>'Low']);

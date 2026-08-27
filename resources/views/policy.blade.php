@@ -19,19 +19,21 @@
     false or malicious reports can be investigated. It applies to everyone who uses the system, and especially to
     those with privileged access.</p>
 
-    <h3 style="margin:1.4rem 0 .5rem;">2. Anonymity &amp; Identity Protection</h3>
-    <p>When you submit a concern anonymously, the staff member handling it sees the content and a case reference,
-    but <strong>not your name</strong>. Your identity remains stored securely and is never shown to handlers during
-    normal operation. No system can promise absolute anonymity while also preserving accountability, because your
-    identity must be stored for false reports to be investigated. What this system guarantees is that your identity
-    is <strong>hidden by default</strong>, and that any disclosure is restricted, deliberate, and permanently logged.</p>
+    <h3 style="margin:1.4rem 0 .5rem;">2. Your Identity &amp; Who Can See It</h3>
+    <p>Concerns are submitted <strong>under your name</strong> &mdash; this system does not offer anonymous
+    submission. Being able to identify a reporter is what allows staff to follow up with you, and allows false or
+    malicious reports to be investigated fairly.</p>
+    <p>What the system does guarantee is <strong>least-privilege access</strong>: your name and your report are shown
+    only to the specific staff member handling your case, never to the wider faculty, and never to a person your
+    concern is about (see Section 4). Everything else on this page &mdash; conflict-of-interest routing, confidential
+    evidence handling, and the audit trail &mdash; applies in full.</p>
 
     <h3 style="margin:1.4rem 0 .5rem;">3. Who Handles Concerns (Separation of Powers)</h3>
-    <p>The power to <em>handle</em> a concern is kept separate from the power to <em>reveal</em> a reporter's identity:</p>
+    <p>Access follows the concern, not rank. Nobody sees a case simply because they are senior:</p>
     <ul style="margin:.5rem 0 .5rem 1.2rem;">
-        <li><strong>Faculty / Staff &amp; Counselors</strong> handle and resolve concerns in their area. They see content, never the identity of an anonymous reporter.</li>
+        <li><strong>Faculty / Staff &amp; Counselors</strong> handle and resolve concerns in their area. A counselor sees mental-health and bullying cases; an Admin sees administrative and facility cases. Neither sees the other's.</li>
         <li><strong>Department Heads</strong> receive referrals and escalations. Where a concern involves a Department Head, it is escalated to a different (peer) authority so that no one ever handles a case about themselves.</li>
-        <li><strong>The Head of School</strong> holds only one special power: the ability to reveal an anonymous reporter's identity (see Section 5). This is rare and exceptional, not part of day-to-day handling.</li>
+        <li><strong>The Head of School</strong> can read concern content in order to adjudicate escalations and suspected false reports &mdash; except for any concern filed about them, which they are walled off from entirely.</li>
     </ul>
 
     <h3 style="margin:1.4rem 0 .5rem;">4. Conflict of Interest</h3>
@@ -40,15 +42,17 @@
     higher authority. The reported person cannot view, download, or act on a concern about themselves through any
     part of the system &mdash; this protects you from retaliation.</p>
 
-    <h3 style="margin:1.4rem 0 .5rem;">5. Revealing an Identity (Break-Glass)</h3>
-    <p>Only the <strong>Head of School</strong> may reveal the identity of a student who submitted anonymously,
-    subject to strict controls:</p>
+    <h3 style="margin:1.4rem 0 .5rem;">5. Audit Trail</h3>
+    <p>Every action taken on your concern is permanently recorded &mdash; who did it, what changed, when, and from
+    which address. That record is shown to you on your own concern page as an Activity Timeline, so you can see
+    exactly how your report was handled:</p>
     <ul style="margin:.5rem 0 .5rem 1.2rem;">
-        <li>A written reason is <strong>required</strong> before any reveal.</li>
-        <li>The reveal is <strong>permanently logged</strong> &mdash; who revealed it, when, and why.</li>
-        <li>Revealing an identity does <strong>not</strong> expose it to the staff handling the concern.</li>
-        <li>A reveal is justified only in limited situations, such as a credible safety risk, or a documented investigation of a suspected false or malicious report.</li>
+        <li>Submission, and the urgency the system assigned it.</li>
+        <li>Every status change, referral, and hand-off between staff.</li>
+        <li>Every edit to investigation or resolution notes.</li>
     </ul>
+    <p>The trail cannot be edited or quietly removed by the staff handling your case. It exists so that both you and
+    the institution can hold the process accountable.</p>
 
     <h3 style="margin:1.4rem 0 .5rem;">6. Evidence Attachments</h3>
     <p>If you attach evidence (such as a screenshot or document), those files are treated as strictly confidential.
@@ -80,8 +84,8 @@
 
     <hr style="margin:1.75rem 0 1rem; border:none; border-top:1px solid #e2e8f0;">
     <p style="color:#64748b; font-size:.9rem; font-style:italic;">This policy is enforced partly by technical controls
-    in the system (anonymous submission, conflict-of-interest routing, least-privilege access, secure evidence
-    handling, and logged identity reveals) and partly by institutional governance. Technology limits who <em>can</em>
+    in the system (conflict-of-interest routing, least-privilege access, secure evidence handling, and a permanent
+    audit trail) and partly by institutional governance. Technology limits who <em>can</em>
     access information; this policy governs whether they <em>should</em>.</p>
 
     <div style="margin-top:1.5rem;">

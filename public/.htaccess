@@ -23,3 +23,9 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
+# Parent .htaccess denies the application root; public/ is the one
+# directory that is safe to serve, so re-grant it here.
+<IfModule mod_authz_core.c>
+    Require all granted
+</IfModule>
