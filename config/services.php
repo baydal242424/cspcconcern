@@ -38,7 +38,14 @@ return [
     'google' => [
         'client_id' => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
-        'redirect' => env('GOOGLE_REDIRECT_URI'),
+        // Falls back to a path, not null. Socialite expands any redirect
+        // beginning with "/" against the current request host, so the callback
+        // URL is correct on localhost and on the deployed domain without
+        // anyone remembering to set GOOGLE_REDIRECT_URI. Left unset it sent
+        // Google no redirect_uri at all, which fails as "Missing required
+        // parameter: redirect_uri" before the app does anything else.
+        // Set the env var only to override (e.g. a tunnel or staging domain).
+        'redirect' => env('GOOGLE_REDIRECT_URI', '/auth/google/callback'),
     ],
 
 ];
