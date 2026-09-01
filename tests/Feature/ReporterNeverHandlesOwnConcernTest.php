@@ -123,21 +123,22 @@ class ReporterNeverHandlesOwnConcernTest extends TestCase
     /** Auto-routing at submission must not assign a concern to its reporter. */
     public function test_intake_routing_never_assigns_to_the_reporter(): void
     {
-        // The Registrar files an Administrative concern -- the category that
-        // routes straight to the Registrar.
-        $registrar = $this->u('registrar@cspc.edu.ph');
-        $this->assertSame('Registrar', $registrar->role->name);
+        // General Services files a Facilities concern -- the category that
+        // routes straight back to them, and an office with exactly one holder,
+        // so excluding the reporter empties the destination role entirely.
+        $gsu = $this->u('gsu@cspc.edu.ph');
+        $this->assertSame('General Services', $gsu->role->name);
 
-        $this->actingAs($registrar)->post('/concerns', [
-            'category' => 'Administrative',
-            'description' => 'A records problem reported by the records office itself.',
+        $this->actingAs($gsu)->post('/concerns', [
+            'category' => 'Facilities / Equipment',
+            'description' => 'A maintenance problem reported by the maintenance office itself.',
             'is_anonymous' => 0,
         ]);
 
-        $concern = Concern::where('user_id', $registrar->id)->latest('id')->first();
+        $concern = Concern::where('user_id', $gsu->id)->latest('id')->first();
         $this->assertNotNull($concern, 'The concern should have been created');
         $this->assertNotSame(
-            $registrar->id,
+            $gsu->id,
             $concern->assigned_to,
             'Routing must not assign a concern to the person who filed it'
         );

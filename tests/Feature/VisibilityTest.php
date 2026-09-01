@@ -59,29 +59,35 @@ class VisibilityTest extends TestCase
     }
 
     /** Admin DOES see Administrative concerns */
-    public function test_admin_does_not_see_administrative_concerns(): void
+    public function test_admin_sees_administrative_concerns(): void
     {
-        // Administrative moved to the Registrar, and Facilities to General
-        // Services -- the offices that can act on them. 'Admin' here means the
-        // people who administer the SYSTEM (accounts, roles, bans), so they
-        // now have NO category of their own: a standing window into students'
-        // concerns is exactly the privilege least-privilege withholds. They
-        // still see anything explicitly referred or assigned to them.
+        // Administrative routes to Admin again now the Registrar role is gone,
+        // so Admin has to be able to READ that category -- a concern assigned
+        // to an office that cannot open it is worse than an unassigned one,
+        // because the queue looks handled.
         $a = $this->makeConcern(['category'=>'Administrative']);
         $admin = $this->u('admin@cspc.edu.ph');
-        $this->assertFalse(Concern::whereKey($a->id)->visibleTo($admin)->exists());
-        fwrite(STDERR, "  [least-priv] sysadmin sees Administrative case: NO\n");
+        $this->assertTrue(Concern::whereKey($a->id)->visibleTo($admin)->exists());
+        fwrite(STDERR, "  [routing] admin sees Administrative case: YES\n");
     }
 
-    public function test_the_registrar_sees_administrative_concerns(): void
+    /**
+     * The widening above is limited to that one category. Everything an Admin
+     * has no business reading by default still needs an explicit referral.
+     */
+    public function test_admin_still_sees_no_other_category(): void
     {
-        $a = $this->makeConcern(['category'=>'Administrative']);
-        $registrar = \App\Models\User::factory()->create([
-            'role_id' => \App\Models\Role::where('name', 'Registrar')->value('id'),
-            'department' => 'Student Registration and Records',
-        ]);
-        $this->assertTrue(Concern::whereKey($a->id)->visibleTo($registrar)->exists());
-        fwrite(STDERR, "  [routing] registrar sees Administrative case: YES\n");
+        $admin = $this->u('admin@cspc.edu.ph');
+
+        foreach (['Mental Health / Personal', 'Bullying / Harassment', 'Academic', 'Facilities / Equipment'] as $category) {
+            $c = $this->makeConcern(['category' => $category]);
+            $this->assertFalse(
+                Concern::whereKey($c->id)->visibleTo($admin)->exists(),
+                "An Admin must not see an untouched {$category} concern"
+            );
+        }
+
+        fwrite(STDERR, "  [least-priv] admin sees no other category: confirmed\n");
     }
 
     /** Counselor sees Mental Health automatically */

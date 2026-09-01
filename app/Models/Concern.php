@@ -348,34 +348,21 @@ class Concern extends Model
             });
         }
 
-        // The Registrar. Administrative is its natural domain -- enrolment,
-        // records, credentials -- and routeConcern() sends every one here.
-        if ($role === 'Registrar') {
-            return $query->where(function ($q) use ($user, $involved) {
-                $q->where('category', 'Administrative')
-                  ->orWhere(function ($sub) {
-                      $sub->where('referred_to', 'Registrar')
-                          ->whereNotIn('status', self::TERMINAL_STATUSES);
-                  })
-                  ->orWhere(function ($sub) use ($user) {
-                      $sub->where('assigned_to', $user->id)
-                          ->whereNotIn('status', self::TERMINAL_STATUSES);
-                  })
-                  ->orWhere($involved);
-            });
-        }
-
-        // Admin now has NO category of its own. Administrative went to the
-        // Registrar and Facilities / Equipment to General Services -- the
-        // offices that can actually act on them. That is deliberate: "Admin"
-        // here means the people who administer the SYSTEM (accounts, roles,
-        // bans, the dashboard), and giving them a standing window into
-        // students' concerns is exactly the privilege least-privilege is meant
-        // to withhold. They still see anything explicitly referred or assigned
-        // to them, plus their own handling history.
+        // Administrative concerns route here now that the Registrar role is
+        // gone, so Admin has to be able to SEE that category -- a concern
+        // assigned to an office that cannot read it is worse than one nobody
+        // was assigned, because the queue looks handled.
+        //
+        // This is a real widening of what a system administrator can read, and
+        // it is worth being honest about: "Admin" means the people who manage
+        // accounts and roles, and least privilege would rather they had no
+        // standing window into students' concerns at all. Facilities still
+        // goes to General Services, and everything confidential -- mental
+        // health, harassment -- stays out of reach unless it is deliberately
+        // referred here.
         if ($role === 'Admin') {
             return $query->where(function ($q) use ($user, $involved) {
-                $q->whereRaw('1 = 0')
+                $q->where('category', 'Administrative')
                   ->orWhere(function ($sub) {
                       $sub->where('referred_to', 'Admin')
                           ->whereNotIn('status', self::TERMINAL_STATUSES);

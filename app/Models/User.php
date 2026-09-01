@@ -133,7 +133,6 @@ class User extends Authenticatable
         'Head of School',
         'Gender and Development',
         'General Services',
-        'Registrar',
     ];
 
     /**

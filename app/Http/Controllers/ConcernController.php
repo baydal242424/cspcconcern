@@ -40,14 +40,13 @@ class ConcernController extends Controller
         // Every role a concern can be filed ABOUT must be listed here, not
         // just the ones that HANDLE concerns. These three were added as
         // routing destinations and left out of this list, which meant a
-        // student reporting the Registrar, General Services or GAD was told
+        // student reporting the Administration, General Services or GAD was told
         // "The selected person is not a staff member" -- so the conflict-of-
         // interest flag never got set, and scopeVisibleTo() then handed that
         // office its own complaint. Keep this in step with the roles in
         // User::EMPLOYEE_ROLES.
         'Gender and Development',
         'General Services',
-        'Registrar',
     ];
 
 
@@ -65,7 +64,6 @@ class ConcernController extends Controller
         'Faculty/Staff',
         'Gender and Development',
         'General Services',
-        'Registrar',
     ];
 
     /**
@@ -81,7 +79,6 @@ class ConcernController extends Controller
         'Faculty/Staff'          => 'Faculty/Staff',
         'Gender and Development' => 'Gender and Development (GAD)',
         'General Services'       => 'General Services (Facilities)',
-        'Registrar'              => 'Registrar (Records & Enrolment)',
     ];
 
     /**
@@ -848,13 +845,13 @@ class ConcernController extends Controller
             'Academic'                 => 'Faculty/Staff',
             'Mental Health / Personal' => 'Guidance Counselor',
             'Bullying / Harassment'    => 'Guidance Counselor',
-            // Enrolment, records, ID, clearance -- the Student Registration
-            // and Records Office. Was 'Admin', which meant the system's
-            // administrators, not the admin OFFICE: they manage accounts, not
-            // student records, so these arrived at people with no way to act
-            // on them. Fees actually belong to the Cash Unit and get referred
-            // on from here (see the Registrar role in RoleSeeder).
-            'Administrative'           => 'Registrar',
+            // Enrolment, records, ID, clearance, fees. This briefly went to a
+            // Registrar role of its own; that role has been removed and these
+            // come back to Admin, who triage and refer on to whichever office
+            // owns the request. Worth knowing when reading complaints that
+            // this office cannot resolve much itself -- a high referral rate
+            // here is the system working, not failing.
+            'Administrative'           => 'Admin',
             // Facilities/equipment problems (a dead lab PC, no water in the CR,
             // a broken aircon) have no human subject and no academic content.
             // They go to the General Services Unit, which per cspc.edu.ph
@@ -889,7 +886,7 @@ class ConcernController extends Controller
         // other dean.
         //
         // Admin is the last resort, not a peer of the others: several roles
-        // now have exactly ONE holder (Registrar, General Services, Guidance),
+        // now have exactly ONE holder (General Services, Guidance),
         // so a concern filed ABOUT that person leaves their role with nobody
         // eligible. The chain used to stop at Head of School -- a role with no
         // holder in production -- after which the concern was created with

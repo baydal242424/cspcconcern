@@ -10,7 +10,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Guards the office roles added for CSPC's real org chart -- Registrar,
+ * Guards the office roles added for CSPC's real org chart --
  * General Services, Gender and Development.
  *
  * Two bugs are pinned here, both from adding those roles:
@@ -68,7 +68,6 @@ class OfficeRoleRoutingTest extends TestCase
     public static function officeRoles(): array
     {
         return [
-            'Registrar' => ['Registrar', 'Administrative', 'registrar@cspc.edu.ph'],
             'General Services' => ['General Services', 'Facilities / Equipment', 'gsu@cspc.edu.ph'],
             'Gender and Development' => ['Gender and Development', 'Bullying / Harassment', 'gad@cspc.edu.ph'],
         ];
@@ -119,12 +118,12 @@ class OfficeRoleRoutingTest extends TestCase
         // No Dean and no Head of School -- which is the real
         // production shape, since CSPC has not named a Head of School here.
         $student = $this->student();
-        $officer = $this->officer('Registrar', 'registrar@cspc.edu.ph');
+        $officer = $this->officer('General Services', 'gsu.test@cspc.edu.ph');
         $admin = $this->officer('Admin', 'sysadmin@cspc.edu.ph');
 
         $this->actingAs($student)->post('/concerns', [
-            'category' => 'Administrative',
-            'description' => 'A complaint about how the records office handled my request.',
+            'category' => 'Facilities / Equipment',
+            'description' => 'A complaint about how the maintenance office handled my request.',
             'about_staff_id' => $officer->id,
         ]);
 

@@ -52,14 +52,14 @@ class QaAuditTest extends TestCase
     public function test_category_routing_matrix(): void
     {
         // Each category goes to the office that can actually act on it.
-        // Administrative and Facilities used to both land on 'Admin', which
-        // means this system's administrators rather than any CSPC office --
-        // they manage accounts, not student records or building repairs.
+        // Facilities goes to General Services, the office that can actually
+        // act on it. Administrative comes back to Admin after the Registrar
+        // role was removed: they triage and refer on rather than resolving.
         $expected = [
             'Academic'                 => 'Faculty/Staff',
             'Mental Health / Personal' => 'Guidance Counselor',
             'Bullying / Harassment'    => 'Guidance Counselor',
-            'Administrative'           => 'Registrar',
+            'Administrative'           => 'Admin',
             'Facilities / Equipment'   => 'General Services',
             'Physical / Safety'        => 'Faculty/Staff',
             'Others'                   => 'Faculty/Staff',

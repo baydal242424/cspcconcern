@@ -76,28 +76,6 @@ class RoleSeeder extends Seeder
                 'name' => 'General Services',
                 'description' => 'General Services Unit; handles facilities, equipment and maintenance concerns',
             ],
-            [
-                // The Student Registration and Records Office. Per cspc.edu.ph
-                // it is "the main unit in charge of student enrollment;
-                // maintenance and preservation of student's scholastic
-                // records; academic advising, and student graduation", and it
-                // handles ID validation, grading sheets, credentials and
-                // certifications.
-                //
-                // Administrative concerns route here instead of to Admin.
-                // "Admin" in this system means the system's administrators,
-                // not the admin OFFICE -- they manage accounts, not student
-                // records, so a lost-ID or enrolment problem was reaching
-                // people with no way to act on it.
-                //
-                // Caveat: the Administrative category also covers FEES, which
-                // belong to the Cash Unit (cashier@cspc.edu.ph), not the
-                // Registrar. Those arrive here and get referred on. Splitting
-                // the category was the alternative and was judged not worth
-                // the extra step it puts on every student.
-                'name' => 'Registrar',
-                'description' => 'Student Registration and Records Office; handles enrolment, records, credentials and other administrative concerns',
-            ],
         ];
 
         foreach ($roles as $role) {

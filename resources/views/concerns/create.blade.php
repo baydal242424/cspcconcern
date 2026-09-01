@@ -194,7 +194,7 @@
                     'Academic': 'Faculty/Staff',
                     'Mental Health / Personal': 'the Guidance Office',
                     'Bullying / Harassment': 'the Guidance Office',
-                    'Administrative': 'the Registrar (Student Registration and Records)',
+                    'Administrative': 'the Administration',
                     'Facilities / Equipment': 'the General Services Unit',
                     'Physical / Safety': 'Faculty/Staff',
                     'Others': 'Faculty/Staff'
