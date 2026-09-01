@@ -6,6 +6,7 @@ use App\Models\Referral;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -30,7 +31,27 @@ class AdminController extends Controller
             ->orderByDesc('created_at')
             ->get();
 
-        return view('admin.users', ['users' => $users, 'roles' => Role::orderBy('name')->get()]);
+        // Colleges first, then the units and offices already in use. A
+        // department is not a fixed list: colleges come from COURSES_BY_COLLEGE,
+        // but office staff carry things like "Information and Communications
+        // Technology Unit" that exist only as data. Offering only the colleges
+        // would quietly wipe those the next time somebody's role was changed.
+        $colleges = array_keys(User::COURSES_BY_COLLEGE);
+        $otherUnits = User::query()
+            ->whereNotNull('department')
+            ->whereNotIn('department', $colleges)
+            ->distinct()
+            ->orderBy('department')
+            ->pluck('department')
+            ->all();
+
+        return view('admin.users', [
+            'users' => $users,
+            'roles' => Role::orderBy('name')->get(),
+            'colleges' => $colleges,
+            'otherUnits' => $otherUnits,
+            'courses' => User::COURSES_BY_COLLEGE,
+        ]);
     }
 
     /**
@@ -86,13 +107,38 @@ class AdminController extends Controller
             abort(422, 'You cannot change your own role.');
         }
 
+        // Department is validated as free text against what is actually in use
+        // rather than against a fixed list, because it holds two different
+        // kinds of thing: the six colleges, and the units and offices that
+        // exist only as data on other accounts.
         $validated = $request->validate([
             'role_id' => 'required|exists:roles,id',
+            'department' => 'nullable|string|max:255',
+            'course' => ['nullable', 'string', Rule::in(User::allCourses())],
         ]);
 
-        $user->update(['role_id' => $validated['role_id']]);
+        $changes = ['role_id' => $validated['role_id']];
 
-        return back()->with('success', "{$user->name}'s role has been updated.");
+        // Only touch what was actually submitted. The admin form always sends
+        // all three, but a role-only post -- from a script, or an older form --
+        // would otherwise silently blank someone's college, and a handler with
+        // no college is skipped by findHandler() without anything appearing to
+        // be wrong.
+        if ($request->has('department')) {
+            $changes['department'] = $validated['department'] ?? null;
+        }
+
+        // Only programme-scoped accounts carry a course: a student's own, and
+        // the programme a Program Chair covers. Storing one on anybody else
+        // would make findHandler() prefer them for that programme's concerns,
+        // which is a routing bug that is very hard to see.
+        if ($request->has('course')) {
+            $changes['course'] = $validated['course'] ?? null;
+        }
+
+        $user->update($changes);
+
+        return back()->with('success', "{$user->name} has been updated.");
     }
 
     /**

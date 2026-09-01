@@ -37,7 +37,7 @@
                                     {{ optional($user->role)->name ?? 'N/A' }}
                                 @else
                                     <form action="{{ route('admin.users.role', $user) }}" method="POST"
-                                          onsubmit="return confirm('Change {{ $user->name }}\'s role?')"
+                                          onsubmit="return confirm('Update {{ $user->name }}\'s role, college and programme?')"
                                           style="display:flex; gap:.4rem; align-items:center;">
                                         @csrf
                                         <select name="role_id" style="padding:.5rem .6rem; font-size:.82rem;">
@@ -47,6 +47,48 @@
                                                 </option>
                                             @endforeach
                                         </select>
+
+                                        {{-- The college is not decoration: findHandler() prefers a
+                                             handler from the reporter's own college, so an instructor
+                                             left unset is skipped by routing and their college's
+                                             concerns pile onto whoever happens to sort first. --}}
+                                        <select name="department" style="padding:.5rem .6rem; font-size:.82rem;">
+                                            <option value="">— no college —</option>
+                                            <optgroup label="Colleges">
+                                                @foreach ($colleges as $college)
+                                                    <option value="{{ $college }}" {{ $user->department === $college ? 'selected' : '' }}>
+                                                        {{ $college }}
+                                                    </option>
+                                                @endforeach
+                                            </optgroup>
+                                            @if (count($otherUnits))
+                                                <optgroup label="Units &amp; offices">
+                                                    @foreach ($otherUnits as $unit)
+                                                        <option value="{{ $unit }}" {{ $user->department === $unit ? 'selected' : '' }}>
+                                                            {{ $unit }}
+                                                        </option>
+                                                    @endforeach
+                                                </optgroup>
+                                            @endif
+                                        </select>
+
+                                        {{-- Only a Program Chair needs this: it is the programme
+                                             they cover, and it is what sends a BSIS student's
+                                             referral to the BSIS chair rather than to whichever
+                                             chair in that college sorts first. --}}
+                                        <select name="course" style="padding:.5rem .6rem; font-size:.82rem;">
+                                            <option value="">— no programme —</option>
+                                            @foreach ($courses as $college => $collegeCourses)
+                                                <optgroup label="{{ $college }}">
+                                                    @foreach ($collegeCourses as $course)
+                                                        <option value="{{ $course }}" {{ $user->course === $course ? 'selected' : '' }}>
+                                                            {{ $course }}
+                                                        </option>
+                                                    @endforeach
+                                                </optgroup>
+                                            @endforeach
+                                        </select>
+
                                         <button type="submit" class="btn btn-secondary">Update</button>
                                     </form>
                                 @endif
