@@ -93,9 +93,18 @@ class QaAuditTest extends TestCase
         fwrite(STDERR, "  [visibility] staff sees Physical/Safety concern #{$c->id}: YES\n");
     }
 
+    /**
+     * A student cannot set their own urgency. They used to be left at null and
+     * triaged by hand; submissions are now auto-graded from the wording, so the
+     * assertion is that what they asked for is not what they get -- not that
+     * the field stays empty.
+     */
     public function test_student_urgency_ignored(): void
     {
-        $this->assertNull($this->submit(['urgency'=>'Critical'])->urgency);
+        $urgency = $this->submit(['urgency' => 'Critical'])->urgency;
+
+        $this->assertNotSame('Critical', $urgency, 'A student must not be able to set their own urgency');
+        fwrite(STDERR, "  [triage] student asked for Critical, system assigned: ".var_export($urgency, true)."\n");
     }
 
     public function test_staff_can_set_urgency(): void
@@ -118,9 +127,16 @@ class QaAuditTest extends TestCase
         $this->get('/concerns')->assertRedirect('/login');
     }
 
+    /**
+     * Auto-grading means a submitted concern arrives with an urgency, so this
+     * no longer proves anything about the form. It still matters for a concern
+     * that has none -- seeded rows, and anything predating auto-triage -- which
+     * must read "Pending triage" rather than an empty cell.
+     */
     public function test_show_renders_pending_triage(): void
     {
         $c = $this->submit();
+        $c->forceFill(['urgency' => null])->save();
         $this->actingAs($this->u('student@my.cspc.edu.ph'))->get("/concerns/{$c->id}")
              ->assertOk()->assertSee('Pending triage');
     }

@@ -49,9 +49,14 @@ class DashboardController extends Controller
         $previousTrendCount = (clone $analyticsBase)
             ->whereBetween('created_at', [$previousWindowStart, $currentWindowStart])
             ->count();
+        // NULL when there is nothing to compare against, which is not the same
+        // as no change. A percentage needs a non-zero baseline: going from 0 to
+        // 14 is not a 100% rise, it is undefined -- and reporting it as 100%
+        // made a first month of data look identical to a doubling from 7. The
+        // view shows the two raw counts instead when this is null.
         $trendChangePercent = $previousTrendCount > 0
             ? round((($recentTrendCount - $previousTrendCount) / $previousTrendCount) * 100)
-            : ($recentTrendCount > 0 ? 100 : 0);
+            : null;
 
         $statusCounts = (clone $analyticsBase)
             ->select('status', DB::raw('count(*) as count'))

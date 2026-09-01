@@ -22,7 +22,7 @@
             <h3 style="margin-bottom: 1rem;">Trending in Last 30 Days</h3>
             <div style="font-size: 2.4rem; font-weight: 700; display:flex; align-items:baseline; gap:0.6rem;">
                 {{ $recentTrendCount }}
-                @if ($trendChangePercent != 0)
+                @if ($trendChangePercent !== null && $trendChangePercent != 0)
                     <span style="font-size: 1rem; font-weight: 700; color: {{ $trendChangePercent > 0 ? '#b42318' : '#0f6b34' }};">
                         {{ $trendChangePercent > 0 ? '▲' : '▼' }} {{ abs($trendChangePercent) }}%
                     </span>
@@ -30,7 +30,13 @@
                     <span style="font-size: 1rem; font-weight: 600; color: #94a3b8;">no change</span>
                 @endif
             </div>
-            <p style="color: #666; margin-top: 0.5rem;">vs. {{ $previousTrendCount }} in the prior 30 days.</p>
+            <p style="color: #666; margin-top: 0.5rem;">
+                @if ($trendChangePercent === null)
+                    No concerns in the prior 30 days, so there is nothing to compare against yet.
+                @else
+                    vs. {{ $previousTrendCount }} in the prior 30 days.
+                @endif
+            </p>
         </div>
     </div>
 

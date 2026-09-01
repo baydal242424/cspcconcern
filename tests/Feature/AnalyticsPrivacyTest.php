@@ -33,29 +33,46 @@ class AnalyticsPrivacyTest extends TestCase
         $this->assertEquals(3, $totals['Academic'] ?? 0, 'Resolved concerns must stay counted');
     }
 
-    /** PRIVACY: anonymous concern shows 'Anonymous' to a staff viewer on dashboard */
-    public function test_dashboard_recent_hides_anonymous_from_staff(): void
+    /**
+     * PRIVACY: an anonymous concern shows 'Anonymous' on the dashboard.
+     *
+     * Checked against an Admin, because the dashboard is Admin-only. This used
+     * to act as staff, from when the page was open to every role -- so it was
+     * asserting privacy against somebody who now gets a 403 before any of it
+     * renders, which proves nothing.
+     */
+    public function test_dashboard_recent_hides_anonymous_reporter(): void
     {
         $staff = $this->u('staff@cspc.edu.ph');
-        Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
+        // Administrative, because that is the one category an Admin can see
+        // without a referral -- an Academic concern would not appear in their
+        // Recent list at all, and the test would pass on an empty page.
+        Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Administrative',
             'department'=>'College of Computer Studies','description'=>'x','urgency'=>null,
             'status'=>'submitted','is_anonymous'=>true,'assigned_to'=>$staff->id]);
-        $resp = $this->actingAs($staff)->get('/dashboard');
+        $resp = $this->actingAs($this->u('admin@cspc.edu.ph'))->get('/dashboard');
         $resp->assertOk();
         $leak = str_contains($resp->getContent(), 'John Student');
-        fwrite(STDERR, "  [privacy] staff sees anon submitter name: ".($leak?'YES (LEAK)':'NO')."\n");
+        fwrite(STDERR, "  [privacy] admin sees anon submitter name: ".($leak?'YES (LEAK)':'NO')."\n");
         $this->assertFalse($leak);
         $resp->assertSee('Anonymous');
     }
 
-    /** PRIVACY: the owner DOES see their own name on an anonymous concern */
+    /**
+     * PRIVACY: the owner DOES see their own name on their anonymous concern.
+     *
+     * On the concern page, not the dashboard: a student cannot open the
+     * dashboard at all now, and this is where the distinction actually shows --
+     * "(you, submitted anonymously)" tells a reporter their report is theirs
+     * without telling anyone else.
+     */
     public function test_owner_sees_own_name_on_anonymous(): void
     {
         $student = $this->u('student@my.cspc.edu.ph');
-        Concern::create(['user_id'=>$student->id,'category'=>'Academic',
+        $concern = Concern::create(['user_id'=>$student->id,'category'=>'Academic',
             'department'=>'College of Computer Studies','description'=>'x','urgency'=>null,
             'status'=>'submitted','is_anonymous'=>true]);
-        $resp = $this->actingAs($student)->get('/dashboard');
+        $resp = $this->actingAs($student)->get("/concerns/{$concern->id}");
         $resp->assertOk();
         $sees = str_contains($resp->getContent(), 'John Student');
         fwrite(STDERR, "  [privacy] owner sees own name on their anon concern: ".($sees?'YES':'NO')."\n");

@@ -36,9 +36,11 @@ class VisibilityTest extends TestCase
     /** PRIVACY: anonymous submitter name hidden on dashboard */
     public function test_dashboard_hides_anonymous_name(): void
     {
+        // Against an Admin: the dashboard is Admin-only, so asserting privacy
+        // against a staff account only proved that a 403 contains no names.
         $staff = $this->u('staff@cspc.edu.ph');
-        $this->makeConcern(['category'=>'Academic','is_anonymous'=>true,'assigned_to'=>$staff->id]);
-        $resp = $this->actingAs($staff)->get('/dashboard');
+        $this->makeConcern(['category'=>'Administrative','is_anonymous'=>true,'assigned_to'=>$staff->id]);
+        $resp = $this->actingAs($this->u('admin@cspc.edu.ph'))->get('/dashboard');
         $resp->assertOk();
         $leak = str_contains($resp->getContent(), 'John Student');
         fwrite(STDERR, "  [privacy] dashboard shows anon name: ".($leak?'YES (LEAK)':'NO')."\n");
