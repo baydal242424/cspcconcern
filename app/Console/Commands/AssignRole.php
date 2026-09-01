@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\Hash;
  * the UI at /admin/users -- which is auditable and does not require server
  * access, so prefer it for everything else.
  *
- *   php artisan user:role dean@cspc.edu.ph "Department Head"
+ *   php artisan user:role dean@cspc.edu.ph "Dean"
  *   php artisan user:role you@my.cspc.edu.ph Admin
  *
  * If the address has never signed in, --create makes a placeholder account

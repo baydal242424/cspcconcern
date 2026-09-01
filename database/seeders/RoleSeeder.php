@@ -23,8 +23,8 @@ class RoleSeeder extends Seeder
                 'description' => 'Faculty or staff member who can handle concerns',
             ],
             [
-                'name' => 'Department Head',
-                'description' => 'Department head/dean who manages concerns',
+                'name' => 'Dean',
+                'description' => 'Head of a college; handles escalations and referrals for every programme under it',
             ],
             [
                 // Sits between an instructor and the dean. A program chair owns

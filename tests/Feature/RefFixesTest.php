@@ -10,23 +10,23 @@ class RefFixesTest extends TestCase {
     private function u($e){return User::where('email',$e)->firstOrFail();}
     private function line($t){fwrite(STDERR,"  $t\n");}
 
-    /** Referral to Department Head now transfers to a real user who can resolve */
+    /** Referral to Dean now transfers to a real user who can resolve */
     public function test_dept_head_referral_can_be_resolved(): void {
         $counselor=$this->u('counselor@cspc.edu.ph');
         $depthead=$this->u('ccs@cspc.edu.ph');
         $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Bullying / Harassment',
             'department'=>'Guidance Office','description'=>'x','urgency'=>'Medium','status'=>'submitted',
             'is_anonymous'=>true,'assigned_to'=>$counselor->id]);
-        // counselor refers to Department Head
-        $this->actingAs($counselor)->patch("/concerns/{$c->id}",['status'=>'referred','referred_to'=>'Department Head','urgency'=>'Medium']);
+        // counselor refers to Dean
+        $this->actingAs($counselor)->patch("/concerns/{$c->id}",['status'=>'referred','referred_to'=>'Dean','urgency'=>'Medium']);
         $c->refresh();
         $this->line("[refer] after refer to Dept Head, assigned_to=".$c->assigned_to." (depthead id=".$depthead->id.")");
-        $this->assertEquals($depthead->id,$c->assigned_to,'Ownership must transfer to the Department Head');
+        $this->assertEquals($depthead->id,$c->assigned_to,'Ownership must transfer to the Dean');
         // dept head resolves it
         $r=$this->actingAs($depthead)->patch("/concerns/{$c->id}",['status'=>'resolved','urgency'=>'Medium','resolution_notes'=>'handled']);
         $c->refresh();
         $this->line("[refer] dept head resolve -> status '{$c->status}' (resp ".$r->getStatusCode().")");
-        $this->assertEquals('resolved',$c->status,'Department Head must be able to resolve');
+        $this->assertEquals('resolved',$c->status,'Dean must be able to resolve');
     }
 
     /** Reveal reason validation: junk/short is rejected, proper reason passes */
@@ -52,13 +52,13 @@ class RefFixesTest extends TestCase {
 
     /** Referral to a role with NO users is rejected (no stranding) */
     public function test_referral_to_empty_role_rejected(): void {
-        // delete all Department Heads to simulate an empty role
-        User::whereHas('role',fn($q)=>$q->where('name','Department Head'))->delete();
+        // delete all Deans to simulate an empty role
+        User::whereHas('role',fn($q)=>$q->where('name','Dean'))->delete();
         $staff=$this->u('staff@cspc.edu.ph');
         $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
             'department'=>'College of Computer Studies','description'=>'x','urgency'=>'Low','status'=>'submitted',
             'is_anonymous'=>false,'assigned_to'=>$staff->id]);
-        $r=$this->actingAs($staff)->patch("/concerns/{$c->id}",['status'=>'referred','referred_to'=>'Department Head','urgency'=>'Low']);
+        $r=$this->actingAs($staff)->patch("/concerns/{$c->id}",['status'=>'referred','referred_to'=>'Dean','urgency'=>'Low']);
         $r->assertSessionHasErrors('referred_to');
         $c->refresh();
         $this->line("[strand] refer to empty role rejected; status still '{$c->status}'");

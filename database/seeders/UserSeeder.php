@@ -20,7 +20,7 @@ class UserSeeder extends Seeder
         $counselor_role = Role::where('name', 'Guidance Counselor')->first();
         $admin_role = Role::where('name', 'Admin')->first();
         $head_role = Role::where('name', 'Head of School')->first();
-        $depthead_role = Role::where('name', 'Department Head')->first();
+        $depthead_role = Role::where('name', 'Dean')->first();
         $gad_role = Role::where('name', 'Gender and Development')->first();
         $gsu_role = Role::where('name', 'General Services')->first();
         $registrar_role = Role::where('name', 'Registrar')->first();
@@ -148,7 +148,7 @@ class UserSeeder extends Seeder
         // REAL CSPC OFFICIALS -- seeded in every environment.
         // ==================================================================
 
-        // A Department Head for every college a student can register under, so
+        // A Dean for every college a student can register under, so
         // each department has someone to receive escalations and referrals.
         // Deans are employees, so they use the staff domain @cspc.edu.ph --
         // @my.cspc.edu.ph is the student domain. Computer Studies is seeded
@@ -263,8 +263,8 @@ class UserSeeder extends Seeder
             ['graduateschool@cspc.edu.ph', 'Dr. Leni M. Malabanan', $depthead_role, 'Graduate School'],
 
             // ---- Unit heads ----
-            // Faculty/Staff, not Department Head: routeConcern() picks a
-            // Department Head by matching the concern's COLLEGE, and these are
+            // Faculty/Staff, not Dean: routeConcern() picks a
+            // Dean by matching the concern's COLLEGE, and these are
             // units rather than colleges, so the higher role would grant
             // escalation visibility over cases they never receive. Promote at
             // /admin/users if a unit should genuinely take referrals.
@@ -310,7 +310,7 @@ class UserSeeder extends Seeder
             // have access to it is a decision for CSPC, not a default. So
             // there is deliberately NO Head of School outside tests.
             // Consequence: routeConcern()'s conflict-of-interest escalation
-            // chain (Department Head -> Head of School) stops at Department
+            // chain (Dean -> Head of School) stops at Department
             // Head, which is safe -- a case is never left unassigned, it just
             // does not escalate past the dean. Seed a real personal address
             // here, or promote the right person at /admin/users, when CSPC

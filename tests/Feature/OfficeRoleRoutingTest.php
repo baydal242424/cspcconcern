@@ -96,7 +96,7 @@ class OfficeRoleRoutingTest extends TestCase
         $student = $this->student();
         $officer = $this->officer($roleName, $email);
         // Somebody for the escalation chain to land on.
-        $this->officer('Department Head', 'ccs@cspc.edu.ph', 'College of Computer Studies');
+        $this->officer('Dean', 'ccs@cspc.edu.ph', 'College of Computer Studies');
 
         $this->actingAs($student)->post('/concerns', [
             'category' => $category,
@@ -116,7 +116,7 @@ class OfficeRoleRoutingTest extends TestCase
 
     public function test_escalation_falls_through_to_an_admin_when_nobody_else_is_eligible(): void
     {
-        // No Department Head and no Head of School -- which is the real
+        // No Dean and no Head of School -- which is the real
         // production shape, since CSPC has not named a Head of School here.
         $student = $this->student();
         $officer = $this->officer('Registrar', 'registrar@cspc.edu.ph');

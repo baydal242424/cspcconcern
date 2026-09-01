@@ -32,7 +32,7 @@
     <p>Access follows the concern, not rank. Nobody sees a case simply because they are senior:</p>
     <ul style="margin:.5rem 0 .5rem 1.2rem;">
         <li><strong>Faculty / Staff &amp; Counselors</strong> handle and resolve concerns in their area. A counselor sees mental-health and bullying cases; an Admin sees administrative and facility cases. Neither sees the other's.</li>
-        <li><strong>Department Heads</strong> receive referrals and escalations. Where a concern involves a Department Head, it is escalated to a different (peer) authority so that no one ever handles a case about themselves.</li>
+        <li><strong>Deans</strong> receive referrals and escalations. Where a concern involves a Dean, it is escalated to a different (peer) authority so that no one ever handles a case about themselves.</li>
         <li><strong>The Head of School</strong> can read concern content in order to adjudicate escalations and suspected false reports &mdash; except for any concern filed about them, which they are walled off from entirely.</li>
     </ul>
 

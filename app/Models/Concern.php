@@ -235,7 +235,7 @@ class Concern extends Model
      *  - Faculty/Staff      : concerns assigned to them, plus untriaged
      *                         submissions in their categories, plus anything
      *                         explicitly referred to "Faculty/Staff".
-     *  - Department Head    : same as Faculty/Staff.
+     *  - Dean    : same as Faculty/Staff.
      *  - Guidance Counselor : Mental Health & Bullying concerns, plus anything
      *                         referred to "Guidance Counselor".
      *  - Admin              : Administrative and Facilities / Equipment
@@ -387,11 +387,11 @@ class Concern extends Model
             });
         }
 
-        // Faculty/Staff, Program Chair and Department Head all work the same
+        // Faculty/Staff, Program Chair and Dean all work the same
         // academic queue -- the chair sits between the other two in authority,
         // not in what they may read, so splitting the rule would only create a
         // gap where an escalated concern is visible to neither.
-        if (in_array($role, ['Faculty/Staff', 'Program Chair', 'Department Head'], true)) {
+        if (in_array($role, ['Faculty/Staff', 'Program Chair', 'Dean'], true)) {
             return $query->where(function ($q) use ($user, $role, $involved) {
                 $q->where('assigned_to', $user->id)
                   ->orWhere(function ($sub) use ($role) {

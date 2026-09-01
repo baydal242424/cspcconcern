@@ -33,7 +33,7 @@ class ConcernController extends Controller
     private const STAFF_ROLES = [
         'Faculty/Staff',
         'Program Chair',
-        'Department Head',
+        'Dean',
         'Guidance Counselor',
         'Admin',
         'Head of School',
@@ -61,7 +61,7 @@ class ConcernController extends Controller
         'Guidance Counselor',
         'Program Chair',
         'Admin',
-        'Department Head',
+        'Dean',
         'Faculty/Staff',
         'Gender and Development',
         'General Services',
@@ -77,7 +77,7 @@ class ConcernController extends Controller
         'Guidance Counselor'     => 'Guidance Counselor',
         'Program Chair'          => 'Program Chair (Programme level)',
         'Admin'                  => 'Admin',
-        'Department Head'        => 'Department Head (Dean)',
+        'Dean'                   => 'Dean (College level)',
         'Faculty/Staff'          => 'Faculty/Staff',
         'Gender and Development' => 'Gender and Development (GAD)',
         'General Services'       => 'General Services (Facilities)',
@@ -329,7 +329,7 @@ class ConcernController extends Controller
         // it under the exact same least-privilege rules as the list/show pages
         // (canViewConcern -> scopeVisibleTo). This enforces the conflict-of-
         // interest wall on writes too: the person a concern is about can never
-        // act on it, and Admin/Department Head cannot touch confidential cases
+        // act on it, and Admin/Dean cannot touch confidential cases
         // outside their visibility.
         if (! $this->canViewConcern($concern, $user)) {
             abort(403, 'Unauthorized');
@@ -339,7 +339,7 @@ class ConcernController extends Controller
         // Loose-cast comparison: assigned_to may arrive as a string in some
         // code paths, so compare as integers to avoid a false "Unauthorized".
         $isAssignee = (int) $concern->assigned_to === (int) $user->id;
-        $isPrivileged = in_array($role, ['Admin', 'Department Head'], true);
+        $isPrivileged = in_array($role, ['Admin', 'Dean'], true);
         // A user whose role matches where the concern was referred may also act on it.
         $isReferralTarget = $concern->referred_to !== null && $concern->referred_to === $role;
 
@@ -402,8 +402,8 @@ class ConcernController extends Controller
         // Guard against a pointless "refer to where it already is": if the
         // destination role already owns this concern (the current assignee holds
         // that role), block it so the timeline isn't cluttered with no-ops.
-        // Naming a person is exempt: handing a case from one Department Head
-        // to a different Department Head is a real hand-off, not a no-op.
+        // Naming a person is exempt: handing a case from one Dean
+        // to a different Dean is a real hand-off, not a no-op.
         if ($validated['status'] === 'referred' && ! empty($validated['referred_to'])
             && empty($validated['referred_to_user_id'])) {
             $currentOwnerRole = optional(optional($concern->assignedUser)->role)->name;
@@ -422,7 +422,7 @@ class ConcernController extends Controller
         // When referring, transfer ownership to a user holding the destination
         // role so that person can actually act on (and resolve) the concern.
         // findHandler() picks someone from the reporter's own college first, so
-        // "refer to Department Head" reaches the dean of THAT college rather
+        // "refer to Dean" reaches the dean of THAT college rather
         // than whichever dean happens to have the lowest id. It also applies
         // the same conflict-of-interest exclusion as routeConcern(), so a
         // manual referral can never assign the case to its own subject.
@@ -496,7 +496,7 @@ class ConcernController extends Controller
         // timeline isn't cluttered with "changed from X to X" noise.
         if ($statusChanged || $isReferral) {
             if ($isReferral) {
-                // Name the actual recipient -- "Referred to Department Head"
+                // Name the actual recipient -- "Referred to Dean"
                 // alone hid which dean received it.
                 $logDescription = "Referred to {$validated['referred_to']}";
 
@@ -903,7 +903,7 @@ class ConcernController extends Controller
         // person who filed it. An empty role is a routing failure regardless
         // of what caused it.
         if (! $targetUser) {
-            foreach (['Department Head', 'Head of School', 'Admin'] as $escalationRole) {
+            foreach (['Dean', 'Head of School', 'Admin'] as $escalationRole) {
                 $escalated = $this->findHandler($escalationRole, $concern);
 
                 if ($escalated) {
@@ -971,7 +971,7 @@ class ConcernController extends Controller
             ->where('status', '!=', 'banned')
             ->with('role')
             // Colleagues from the reporter's own college first: a referral to
-            // "Department Head" most often means the dean of THAT college, and
+            // "Dean" most often means the dean of THAT college, and
             // the same ordering findHandler() uses for the automatic pick.
             ->orderByRaw('CASE WHEN department = ? THEN 0 ELSE 1 END', [$concern->department])
             ->orderBy('name')

@@ -14,7 +14,7 @@ use Tests\TestCase;
  * handing a concern back to the person who reported it: findHandler() excluded
  * the person a concern was ABOUT, but never the person who FILED it. So a dean
  * reporting a facilities problem could be assigned their own complaint the
- * moment somebody referred it to Department Head -- and could then write the
+ * moment somebody referred it to Dean -- and could then write the
  * resolution notes on it and close it.
  *
  * The conflict-of-interest wall has two sides. These tests pin the reporter's.
@@ -37,9 +37,9 @@ class ReporterNeverHandlesOwnConcernTest extends TestCase
     /** Referring to a role the reporter holds must not return it to them. */
     public function test_referral_never_lands_back_on_the_reporter(): void
     {
-        // A Department Head who is also the reporter.
+        // A Dean who is also the reporter.
         $dean = $this->u('ccs@cspc.edu.ph');
-        $this->assertSame('Department Head', $dean->role->name);
+        $this->assertSame('Dean', $dean->role->name);
 
         $concern = Concern::create([
             'user_id' => $dean->id,
@@ -53,7 +53,7 @@ class ReporterNeverHandlesOwnConcernTest extends TestCase
 
         $this->actingAs($this->u('staff@cspc.edu.ph'))->patch("/concerns/{$concern->id}", [
             'status' => 'referred',
-            'referred_to' => 'Department Head',
+            'referred_to' => 'Dean',
             'urgency' => 'Medium',
         ]);
 
@@ -108,7 +108,7 @@ class ReporterNeverHandlesOwnConcernTest extends TestCase
 
         $this->actingAs($staff)->patch("/concerns/{$concern->id}", [
             'status' => 'referred',
-            'referred_to' => 'Department Head',
+            'referred_to' => 'Dean',
             'referred_to_user_id' => $dean->id,
             'urgency' => 'Medium',
         ])->assertSessionHasErrors('referred_to_user_id');

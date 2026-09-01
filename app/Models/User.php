@@ -127,7 +127,7 @@ class User extends Authenticatable
     public const EMPLOYEE_ROLES = [
         'Faculty/Staff',
         'Program Chair',
-        'Department Head',
+        'Dean',
         'Guidance Counselor',
         'Admin',
         'Head of School',

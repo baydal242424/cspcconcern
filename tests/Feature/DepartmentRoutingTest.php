@@ -105,7 +105,7 @@ class DepartmentRoutingTest extends TestCase
     public function test_referral_to_department_head_reaches_that_colleges_dean(): void
     {
         // A Health Sciences student's case, referred by the counselor to
-        // "Department Head", must reach the CHS dean -- not whichever dean
+        // "Dean", must reach the CHS dean -- not whichever dean
         // happens to have the lowest user id.
         $c = $this->submit([
             'category' => 'Bullying / Harassment',
@@ -116,7 +116,7 @@ class DepartmentRoutingTest extends TestCase
         $this->assertSame($counselor->id, $c->assigned_to, 'Should start with the counselor');
 
         $this->actingAs($counselor)->patch("/concerns/{$c->id}", [
-            'status' => 'referred', 'referred_to' => 'Department Head', 'urgency' => 'Medium',
+            'status' => 'referred', 'referred_to' => 'Dean', 'urgency' => 'Medium',
         ]);
 
         $c->refresh();
@@ -135,11 +135,11 @@ class DepartmentRoutingTest extends TestCase
 
         $counselor = User::where('email', 'counselor@cspc.edu.ph')->firstOrFail();
         $this->actingAs($counselor)->patch("/concerns/{$c->id}", [
-            'status' => 'referred', 'referred_to' => 'Department Head', 'urgency' => 'Medium',
+            'status' => 'referred', 'referred_to' => 'Dean', 'urgency' => 'Medium',
         ]);
 
         $c->refresh();
-        $this->assertSame('Department Head', optional($this->handler($c)->role)->name);
+        $this->assertSame('Dean', optional($this->handler($c)->role)->name);
     }
 
     public function test_escalation_prefers_the_dean_of_the_same_college(): void

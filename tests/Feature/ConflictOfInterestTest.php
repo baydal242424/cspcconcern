@@ -42,7 +42,7 @@ class ConflictOfInterestTest extends TestCase {
         $handlerRole=optional(optional(User::find($c->assigned_to))->role)->name;
         $this->line("[conflict] escalated to role: ".($handlerRole ?? 'NONE'));
         $this->assertNotEquals($staff->id,$c->assigned_to,'Must not assign a concern to the person it is about');
-        $this->assertContains($handlerRole,['Department Head','Head of School'],'Should escalate to higher authority');
+        $this->assertContains($handlerRole,['Dean','Head of School'],'Should escalate to higher authority');
     }
 
     /** Normal concern (not about anyone) still routes normally to staff */

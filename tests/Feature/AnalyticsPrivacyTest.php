@@ -74,7 +74,7 @@ class AnalyticsPrivacyTest extends TestCase
         ]);
         $resp->assertRedirect();
         // The message names the person who actually received it, not just the
-        // destination role -- with several deans, "Department Head" alone hid
+        // destination role -- with several deans, "Dean" alone hid
         // which one got the case.
         $this->assertStringContainsString('Referred successfully to Dr. Maria Reyes', session('success'));
         $this->assertStringContainsString('Guidance Counselor', session('success'));
