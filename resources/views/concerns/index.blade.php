@@ -53,7 +53,7 @@
                                 <div style="font-size:0.72rem; color:#64748b; margin-top:0.25rem;">→ {{ $concern->referred_to }}</div>
                             @endif
                         </td>
-                        <td>{{ $concern->created_at->format('M d, Y · g:i A') }}</td>
+                        <td>{{ $concern->created_at->local()->format('M d, Y · g:i A') }}</td>
                         <td style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
                             <a href="{{ route('concerns.show', $concern) }}" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">View</a>
                             @if (Auth::user()->id === $concern->user_id && $concern->status === 'submitted')

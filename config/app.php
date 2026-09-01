@@ -69,6 +69,24 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Display Timezone
+    |--------------------------------------------------------------------------
+    |
+    | Timestamps are STORED in UTC and shown in this zone. Keeping the two
+    | separate matters: switching the line above to Asia/Manila would make
+    | Carbon reinterpret every row already written as if it had been recorded
+    | in Manila, moving the entire existing history eight hours into the past
+    | -- including audit entries, which are supposed to be immutable.
+    |
+    | Everyone reading this system is in one country, so there is no per-user
+    | preference to honour; a single display zone is the whole requirement.
+    |
+    */
+
+    'display_timezone' => env('APP_DISPLAY_TIMEZONE', 'Asia/Manila'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------
     |

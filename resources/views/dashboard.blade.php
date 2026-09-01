@@ -172,7 +172,7 @@
                                     {{ $concern->user->name ?? 'N/A' }}
                                 @endif
                             </td>
-                            <td>{{ $concern->created_at->format('M d, Y') }}</td>
+                            <td>{{ $concern->created_at->local()->format('M d, Y') }}</td>
                         </tr>
                     @endforeach
                 </tbody>

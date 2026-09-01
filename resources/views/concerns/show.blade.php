@@ -32,7 +32,7 @@
                 <dd>{{ $concern->urgency ?? 'Pending triage' }}</dd>
 
                 <dt>Submitted</dt>
-                <dd>{{ $concern->created_at->format('M d, Y · g:i A') }}</dd>
+                <dd>{{ $concern->created_at->local()->format('M d, Y · g:i A') }}</dd>
 
                 <dt>Submitted by</dt>
                 <dd>
@@ -64,7 +64,7 @@
 
                 @if ($concern->resolved_at)
                     <dt>Resolved</dt>
-                    <dd>{{ $concern->resolved_at->format('M d, Y · g:i A') }}</dd>
+                    <dd>{{ $concern->resolved_at->local()->format('M d, Y · g:i A') }}</dd>
                 @endif
             </dl>
         </div>
@@ -72,8 +72,18 @@
         <div>
             <h2 class="section-title">Statistics</h2>
             <dl class="detail-list">
-                <dt>Age</dt>
-                <dd>{{ $concern->created_at->diffForHumans() }}</dd>
+                {{-- "Age" said how old the row was; what a handler actually
+                     wants to know is how long the student has been waiting,
+                     and once it is over, how long they waited in total. Same
+                     number, but it answers a question somebody has. --}}
+                @php $finishedAt = $concern->resolved_at ?? $concern->closed_at; @endphp
+                @if ($finishedAt)
+                    <dt>{{ $concern->status === 'resolved' ? 'Time to resolve' : 'Time to close' }}</dt>
+                    <dd>{{ $concern->created_at->diffForHumans($finishedAt, true) }}</dd>
+                @else
+                    <dt>Waiting</dt>
+                    <dd>{{ $concern->created_at->diffForHumans(null, true) }}</dd>
+                @endif
 
                 <dt>Total updates</dt>
                 <dd>{{ $concern->auditLogs->count() }}</dd>
@@ -129,7 +139,7 @@
                 <p style="margin-bottom:0.4rem;"><strong>Identity:</strong> {{ $concern->user->name }} ({{ $concern->user->email }})</p>
                 <p style="font-size:0.88rem; color:#7c2d12;">
                     Revealed by {{ optional($concern->identityRevealer)->name ?? 'Unknown' }}
-                    on {{ optional($concern->identity_revealed_at)->format('M d, Y \a\t g:i A') }}.
+                    on {{ $concern->identity_revealed_at?->local()?->format('M d, Y \a\t g:i A') }}.
                 </p>
                 <p style="font-size:0.88rem; color:#7c2d12; margin-top:0.3rem;"><strong>Reason given:</strong> {{ $concern->identity_reveal_reason }}</p>
             @else
@@ -190,7 +200,13 @@
                     || (optional(Auth::user()->role)->name === 'Head of School' && $concern->identityIsRevealed());
             @endphp
             <div style="position: relative; padding-left: 1.25rem;">
-                @foreach ($concern->auditLogs->sortByDesc('created_at') as $log)
+                {{-- Sorted by id, not created_at. Submission writes two entries in the same
+                     second (the concern, then its auto-assigned urgency), and sorting
+                     on a timestamp leaves those tied and falling back to insertion
+                     order -- which put the oldest event at the top of a list that is
+                     meant to read newest first. The id is monotonic, so it breaks the
+                     tie the way the clock cannot. --}}
+                @foreach ($concern->auditLogs->sortByDesc('id') as $log)
                     <div style="position: relative; padding-bottom: 1.1rem; border-left: 2px solid #e2e8f0; padding-left: 1.1rem;">
                         <span style="position:absolute; left:-6px; top:2px; width:10px; height:10px; border-radius:50%; background:#2f5bea;"></span>
                         <div style="font-weight:600; color:#1f2733; font-size:0.92rem;">
@@ -206,7 +222,7 @@
                             {{ $log->description ? str_replace('_', ' ', $log->description) : ucfirst(str_replace('_', ' ', $log->action)) }}
                         </div>
                         <div style="color:#64748b; font-size:0.82rem; margin-top:0.15rem;">
-                            by {{ $actor }} · {{ $log->created_at->format('M d, Y \a\t g:i A') }}
+                            by {{ $actor }} · {{ $log->created_at->local()->format('M d, Y \a\t g:i A') }}
                             <span style="color:#94a3b8;">({{ $log->created_at->diffForHumans() }})</span>
                         </div>
                     </div>
@@ -241,7 +257,7 @@
             <p style="line-height:1.6; color:#6b4a00;">{{ $concern->closure_reason }}</p>
             @if ($concern->closed_at)
                 <p style="color:var(--muted); font-size:.82rem; margin-top:.6rem;">
-                    Closed {{ $concern->closed_at->format('M d, Y · g:i A') }}. If you disagree with this outcome, you may raise it with the Students Affairs and Services Office.
+                    Closed {{ $concern->closed_at->local()->format('M d, Y · g:i A') }}. If you disagree with this outcome, you may raise it with the Students Affairs and Services Office.
                 </p>
             @endif
         </div>

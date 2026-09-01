@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use Illuminate\Support\Carbon;
+
 use App\Models\Notification;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\View;
@@ -22,6 +24,15 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // ->local() renders a stored UTC timestamp in the reader's timezone.
+        // A macro rather than a helper so it reads as part of the date itself
+        // in a Blade template: {{ $concern->created_at->local()->format(...) }}.
+        // Relative wording (diffForHumans) needs no conversion -- a duration is
+        // the same length in every zone -- so only absolute times use this.
+        Carbon::macro('local', function () {
+            /** @var Carbon $this */
+            return $this->copy()->setTimezone(config('app.display_timezone'));
+        });
         // Feed the navbar bell. Bound to the partial rather than to '*' so
         // the query runs only on pages that actually render the bell, and
         // never for a guest.
