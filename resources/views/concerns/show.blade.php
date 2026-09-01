@@ -390,7 +390,7 @@
                     <div class="form-group" id="refer-person-group" style="display:none;">
                         <label for="referred_to_user_id">Refer to a specific person <span style="font-weight:400; color:var(--muted);">(optional)</span></label>
                         <select name="referred_to_user_id" id="referred_to_user_id">
-                            <option value="">-- Anyone in that office --</option>
+                            <option value="">-- Let the system choose --</option>
                             @foreach ($referralCandidates as $officeName => $people)
                                 @foreach ($people as $person)
                                     <option value="{{ $person->id }}" data-role="{{ $officeName }}"
@@ -401,8 +401,9 @@
                             @endforeach
                         </select>
                         <div style="color:var(--muted); font-size:0.82rem; margin-top:0.25rem;">
-                            Leave this on "Anyone in that office" and the concern goes to a
-                            handler in the reporter's own college where there is one.
+                            Pre-filled with the handler for the reporter's own programme, or
+                            their college where no one covers the programme. Change it to send
+                            this to somebody else in that office.
                         </div>
                         @error('referred_to_user_id')
                             <div style="color:#dc3545; font-size:0.85rem; margin-top:0.25rem;">{{ $message }}</div>
@@ -435,20 +436,29 @@
 
                             var office = officeEl.value;
                             var matches = 0;
+                            var firstMatch = '';
+                            var currentStillValid = false;
 
                             Array.prototype.forEach.call(personEl.options, function (option) {
                                 if (!option.value) {
-                                    return; // the "-- Anyone in that office --" placeholder
+                                    return; // the "let the system choose" placeholder
                                 }
 
                                 var belongs = option.getAttribute('data-role') === office;
                                 option.hidden = !belongs;
                                 option.disabled = !belongs;
 
-                                if (belongs) {
-                                    matches++;
-                                } else if (option.selected) {
-                                    personEl.value = '';
+                                if (!belongs) {
+                                    return;
+                                }
+
+                                matches++;
+
+                                if (!firstMatch) {
+                                    firstMatch = option.value;
+                                }
+                                if (option.value === personEl.value) {
+                                    currentStillValid = true;
                                 }
                             });
 
@@ -457,6 +467,19 @@
 
                             if (!show) {
                                 personEl.value = '';
+                                return;
+                            }
+
+                            // Name the recipient by default rather than making
+                            // the sender pick. The list is already ordered the
+                            // way the system would choose -- the reporter's own
+                            // programme first, then their college -- so the top
+                            // entry IS the covering dean or chair. Showing it
+                            // selected means the referrer sees WHO this is going
+                            // to before they save, instead of a placeholder that
+                            // hides the decision until it is already made.
+                            if (!currentStillValid) {
+                                personEl.value = firstMatch;
                             }
                         }
 
