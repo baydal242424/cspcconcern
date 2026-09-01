@@ -88,6 +88,7 @@
             font-weight:700; display:flex; align-items:center; justify-content:center; line-height:1;
             border:2px solid var(--navy-800)}
         .navbar-nav .bell-panel{position:absolute; top:calc(100% + .5rem); right:0; z-index:60;
+            color:var(--ink);
             width:340px; max-width:calc(100vw - 2rem);
             background:var(--surface); border:1px solid var(--line); border-radius:14px;
             box-shadow:0 18px 44px -12px rgba(16,30,66,.34); overflow:hidden}
@@ -113,11 +114,11 @@
         /* min-width:0 lets the flex child shrink below its content width,
            which is what allows the text below to wrap instead of overflowing. */
         .navbar-nav .bell-item-body{display:flex; flex-direction:column; gap:.12rem; min-width:0; flex:1}
-        .navbar-nav .bell-title{display:block; font-size:.85rem; font-weight:650; color:var(--navy-900)}
-        .navbar-nav .bell-msg{display:block; font-size:.82rem; color:var(--muted); line-height:1.4;
+        .navbar-nav .bell-wrap span.bell-title{display:block; font-size:.85rem; font-weight:700; color:var(--navy-900)}
+        .navbar-nav .bell-wrap span.bell-msg{display:block; font-size:.82rem; color:var(--ink); line-height:1.45;
             white-space:normal; overflow-wrap:anywhere}
-        .navbar-nav .bell-time{display:block; font-size:.72rem; color:#94a3b8; margin-top:.15rem}
-        .navbar-nav .bell-empty{padding:1.6rem 1rem; text-align:center; color:var(--muted);
+        .navbar-nav .bell-wrap span.bell-time{display:block; font-size:.72rem; color:#5d6b80; margin-top:.2rem}
+        .navbar-nav .bell-wrap p.bell-empty{padding:1.6rem 1rem; text-align:center; color:var(--muted);
             font-size:.85rem; line-height:1.5}
 
         .container{max-width:1140px; margin:2.25rem auto; padding:0 1.25rem; animation:rise .4s ease both}
