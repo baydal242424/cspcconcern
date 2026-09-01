@@ -75,9 +75,9 @@ class ConcernController extends Controller
      */
     public const REFERRAL_ROLE_LABELS = [
         'Guidance Counselor'     => 'Guidance Counselor',
-        'Program Chair'          => 'Program Chair (Programme level)',
+        'Program Chair'          => 'Program Chair (one program)',
         'Admin'                  => 'Admin',
-        'Dean'                   => 'Dean (College level)',
+        'Dean'                   => 'Dean (whole college)',
         'Faculty/Staff'          => 'Faculty/Staff',
         'Gender and Development' => 'Gender and Development (GAD)',
         'General Services'       => 'General Services (Facilities)',
