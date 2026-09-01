@@ -6,6 +6,27 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Demo sign-in
+    |--------------------------------------------------------------------------
+    |
+    | Lets a demonstrator sign in as a seeded account from a dropdown, without
+    | a Google account for every role. This is a deliberate bypass of the only
+    | authentication this system has, so it is OFF unless DEMO_LOGIN_ENABLED is
+    | explicitly set, and AuthController refuses the route outright when it is
+    | off -- with a 404 rather than a 403, so a closed door does not advertise
+    | that there is a door.
+    |
+    | Two things it can never do, enforced in the controller rather than here:
+    | it will not offer or accept an account that has ever signed in with
+    | Google, so no real person can be impersonated; and it will not touch a
+    | suspended account. Turn it off again after the demonstration.
+    |
+    */
+
+    'demo_login' => (bool) env('DEMO_LOGIN_ENABLED', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Authentication Defaults
     |--------------------------------------------------------------------------
     |

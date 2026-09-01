@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Laravel\Socialite\Facades\Socialite;
@@ -73,7 +74,81 @@ class AuthController extends Controller
             return redirect()->route('concerns.index');
         }
 
-        return view('auth.login');
+        return view('auth.login', [
+            'demoAccounts' => $this->demoAccounts(),
+        ]);
+    }
+
+    /**
+     * Accounts the demo dropdown may offer, grouped by role.
+     *
+     * Empty unless demo sign-in is switched on, and never includes anyone who
+     * has signed in with Google. That single condition is what keeps this from
+     * being an impersonation tool: a seeded row is a fixture nobody owns, but
+     * the moment a real person signs in their google_id is set and they drop
+     * out of this list permanently.
+     */
+    private function demoAccounts()
+    {
+        if (! config('auth.demo_login')) {
+            return collect();
+        }
+
+        return User::query()
+            ->whereNull('google_id')
+            ->where('status', 'approved')
+            ->whereHas('role')
+            ->with('role')
+            ->orderBy('name')
+            ->get()
+            ->groupBy(fn (User $u) => $u->role->name)
+            ->sortKeys();
+    }
+
+    /**
+     * Sign in as a seeded account chosen from the dropdown.
+     *
+     * Every condition the dropdown was built from is re-checked here. The form
+     * is a suggestion; this method is the authority, so a hand-crafted post
+     * naming a real person's id gets the same refusal as a missing account.
+     */
+    public function demoLogin(Request $request)
+    {
+        // 404, not 403: when the feature is off there is nothing here to find.
+        abort_unless(config('auth.demo_login'), 404);
+
+        $validated = $request->validate([
+            'user_id' => 'required|integer',
+        ]);
+
+        $user = User::whereKey($validated['user_id'])
+            ->whereNull('google_id')
+            ->where('status', 'approved')
+            ->whereHas('role')
+            ->with('role')
+            ->first();
+
+        if (! $user) {
+            return redirect()->route('login')->withErrors([
+                'email' => 'That demo account is not available. Accounts belonging to real people cannot be used here.',
+            ]);
+        }
+
+        Auth::login($user);
+        $request->session()->regenerate();
+
+        // audit_logs requires a concern_id, so a sign-in cannot go there. The
+        // application log still records who was assumed and from where, which
+        // is what matters if this is ever left switched on by accident.
+        Log::warning('Demo sign-in used', [
+            'user_id' => $user->id,
+            'email' => $user->email,
+            'role' => $user->role->name,
+            'ip_address' => $request->ip(),
+        ]);
+
+        return redirect()->route('concerns.index')
+            ->with('success', 'Signed in as '.$user->name.' ('.$user->role->name.'). This is a demo account.');
     }
 
     /**

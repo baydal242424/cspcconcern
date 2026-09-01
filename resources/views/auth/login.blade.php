@@ -101,6 +101,23 @@
         .foot{text-align:center;color:var(--muted);font-size:.8rem;margin-top:1.1rem}
         @media(max-width:900px){.wrap{grid-template-columns:1fr}.brand{display:none}.formside{padding:1.25rem}}
         @media(max-width:480px){.card{padding:1.5rem 1.25rem}}
+        /* ---- Demo sign-in (only rendered when DEMO_LOGIN_ENABLED is set) ---- */
+        .demo-signin{margin-top:1.4rem;padding-top:1.2rem;border-top:1px dashed #cbd5e1;
+            display:flex;flex-direction:column;gap:.6rem;text-align:left}
+        .demo-warn{background:#fff4d6;border:1px solid #f3dca0;color:#8a5a00;
+            border-radius:9px;padding:.6rem .75rem;font-size:.74rem;line-height:1.45}
+        .demo-warn strong{display:block;font-weight:700}
+        .demo-lab{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;
+            color:var(--muted);font-weight:600}
+        .demo-signin select{width:100%;padding:.6rem .7rem;border:1.5px solid #e7ebf1;
+            border-radius:9px;font-family:inherit;font-size:.88rem;background:#fcfdff;color:inherit}
+        .demo-signin select:focus{outline:none;border-color:var(--brand);
+            box-shadow:0 0 0 4px rgba(47,91,234,.12)}
+        .demo-btn{padding:.6rem .9rem;border:1px solid #cbd5e1;border-radius:9px;
+            background:#eef1f6;color:#475569;font-family:inherit;font-size:.85rem;
+            font-weight:600;cursor:pointer;transition:background .15s}
+        .demo-btn:hover{background:#e4e9f2}
+        .demo-btn:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
     </style>
 </head>
 <body>
@@ -164,6 +181,38 @@
                     </svg>
                     CSPC Mail
                 </a>
+
+                {{-- Demo sign-in. Rendered only when DEMO_LOGIN_ENABLED is set,
+                     and the list only ever contains seeded accounts nobody has
+                     signed into -- a real person's account disappears from it
+                     the moment they first use Google. Styled to look like what
+                     it is: a switch left on, not part of the product. --}}
+                @if ($demoAccounts->isNotEmpty())
+                    <form action="{{ route('auth.demo') }}" method="POST" class="demo-signin">
+                        @csrf
+                        <div class="demo-warn" role="note">
+                            <strong>Demo sign-in is on.</strong>
+                            Anyone visiting this page can sign in as these accounts.
+                            Switch it off after the demonstration.
+                        </div>
+
+                        <label class="demo-lab" for="demo_user">Sign in as a demo account</label>
+                        <select name="user_id" id="demo_user" required>
+                            <option value="">Choose a role to preview…</option>
+                            @foreach ($demoAccounts as $roleName => $people)
+                                <optgroup label="{{ $roleName }}">
+                                    @foreach ($people as $person)
+                                        <option value="{{ $person->id }}">
+                                            {{ $person->name }}@if ($person->department) — {{ $person->department }}@endif
+                                        </option>
+                                    @endforeach
+                                </optgroup>
+                            @endforeach
+                        </select>
+
+                        <button type="submit" class="demo-btn">Sign in as this account</button>
+                    </form>
+                @endif
 
                 {{-- There is no registration form. A student's first CSPC Mail
                      sign-in creates their account, and /complete-profile then

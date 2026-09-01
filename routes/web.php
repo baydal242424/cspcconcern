@@ -25,6 +25,10 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 // Google ("CSPC Mail") OAuth. The callback auto-provisions a Student account
 // on first sign-in; /complete-profile then collects their student details.
 // A staff member's role is assigned by an Admin, not by this flow.
+// Demo sign-in. The controller aborts with a 404 unless DEMO_LOGIN_ENABLED is
+// set, so the route existing is not the same as the route working.
+Route::post('/auth/demo', [AuthController::class, 'demoLogin'])->name('auth.demo');
+
 Route::get('/auth/google/redirect', [AuthController::class, 'redirectToGoogle'])->name('auth.google.redirect');
 Route::get('/auth/google/callback', [AuthController::class, 'handleGoogleCallback'])->name('auth.google.callback');
 
