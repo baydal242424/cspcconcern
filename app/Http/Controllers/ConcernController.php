@@ -894,7 +894,15 @@ class ConcernController extends Controller
         // unassigned complaint about an office is exactly the one that must
         // not disappear, so it lands on a system administrator who can refer
         // it by hand.
-        if (! $targetUser && $concern->about_staff_id) {
+        // Escalate whenever the target role has nobody eligible, whatever the
+        // reason. This used to require about_staff_id, back when a reported
+        // person was the only thing that could empty a role. Excluding the
+        // REPORTER added a second way -- a one-person office filing a concern
+        // in its own category -- and that path skipped the chain entirely,
+        // leaving assigned_to NULL and the concern visible to nobody but the
+        // person who filed it. An empty role is a routing failure regardless
+        // of what caused it.
+        if (! $targetUser) {
             foreach (['Department Head', 'Head of School', 'Admin'] as $escalationRole) {
                 $escalated = $this->findHandler($escalationRole, $concern);
 
@@ -956,6 +964,9 @@ class ConcernController extends Controller
             ->whereHas('role', fn ($q) => $q->whereIn('name', self::REFERRAL_ROLES))
             ->where('id', '!=', $user->id)
             ->when($concern->about_staff_id, fn ($q) => $q->where('id', '!=', $concern->about_staff_id))
+            // ...and never the reporter, so the picker cannot offer to hand
+            // someone their own concern. Matches findHandler().
+            ->where('id', '!=', $concern->user_id)
             ->when($concern->assigned_to, fn ($q) => $q->where('id', '!=', $concern->assigned_to))
             ->where('status', '!=', 'banned')
             ->with('role')
@@ -977,6 +988,15 @@ class ConcernController extends Controller
         if ($concern->about_staff_id) {
             $candidates->where('id', '!=', $concern->about_staff_id);
         }
+
+        // The REPORTER is excluded too, and for the same reason the subject is:
+        // nobody investigates their own case. Staff file concerns as well as
+        // handle them, so a dean who reports a facilities problem could be
+        // handed it straight back the moment it was referred to Department
+        // Head -- free to write the resolution notes on their own complaint
+        // and close it. Excluding about_staff_id alone left that open on the
+        // reporter's side of the wall.
+        $candidates->where('id', '!=', $concern->user_id);
 
         // Same college first. Cloned so the fallback below still sees the
         // unfiltered candidate list.
