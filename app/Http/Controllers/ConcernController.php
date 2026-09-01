@@ -195,6 +195,9 @@ class ConcernController extends Controller
         // this against users.department to pick a handler from that college, so
         // it must come from the account, never from user input.
         $validated['department'] = Auth::user()->department;
+        // Their programme, for the same reason and by the same rule: a
+        // Program Chair chairs one course, so a referral has to know which.
+        $validated['course'] = Auth::user()->course;
         // Urgency is assigned automatically from the category and description
         // at submission time -- students never set it, and staff no longer
         // have to triage a blank "Pending triage" queue by hand. Staff can
@@ -970,9 +973,12 @@ class ConcernController extends Controller
             ->when($concern->assigned_to, fn ($q) => $q->where('id', '!=', $concern->assigned_to))
             ->where('status', '!=', 'banned')
             ->with('role')
-            // Colleagues from the reporter's own college first: a referral to
-            // "Dean" most often means the dean of THAT college, and
-            // the same ordering findHandler() uses for the automatic pick.
+            // Same order of preference findHandler() applies when it picks on
+            // its own: the reporter's own programme first, then their college,
+            // then everyone else. So the name at the top of the list is the
+            // one the system would have chosen anyway, and picking somebody
+            // else is a deliberate override rather than a correction.
+            ->orderByRaw('CASE WHEN course IS NOT NULL AND course = ? THEN 0 ELSE 1 END', [$concern->course])
             ->orderByRaw('CASE WHEN department = ? THEN 0 ELSE 1 END', [$concern->department])
             ->orderBy('name')
             ->get()
@@ -998,7 +1004,24 @@ class ConcernController extends Controller
         // reporter's side of the wall.
         $candidates->where('id', '!=', $concern->user_id);
 
-        // Same college first. Cloned so the fallback below still sees the
+        // Narrowest match first. A Program Chair chairs a single programme, so
+        // a BSIS student's concern should reach the BSIS chair rather than
+        // whichever Computer Studies chair happens to sort first. Roles that
+        // are not programme-scoped carry no course at all, so this tier simply
+        // finds nobody for them and falls through to the college below --
+        // which is why it can be applied to every role rather than special-
+        // cased for chairs.
+        if ($concern->course) {
+            $sameCourse = (clone $candidates)
+                ->where('course', $concern->course)
+                ->first();
+
+            if ($sameCourse) {
+                return $sameCourse;
+            }
+        }
+
+        // Same college next. Cloned so the fallback below still sees the
         // unfiltered candidate list.
         if ($concern->department) {
             $sameDepartment = (clone $candidates)

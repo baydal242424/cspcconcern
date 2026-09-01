@@ -36,13 +36,19 @@ class CcsFacultySeeder extends Seeder
     private const COLLEGE = 'College of Computer Studies';
 
     /**
-     * [email, full name, role]
+     * [email, full name, role, programme]
+     *
+     * The fourth field is the PROGRAMME a Program Chair chairs, and it is what
+     * makes "refer to Program Chair" reach the right one: findHandler() looks
+     * for a chair whose course matches the reporter's before falling back to
+     * the college. A chair seeded without it is reachable only by luck of
+     * sort order. Null for anyone who is not programme-scoped.
      *
      * Add a row only once the address is confirmed -- see the class comment.
      */
     private const FACULTY = [
         // Information Systems Department. Instructor I, Rise Lab In-Charge.
-        ['jeremyneo@cspc.edu.ph', 'Jeremy Jireh Neo', 'Faculty/Staff'],
+        ['jeremyneo@cspc.edu.ph', 'Jeremy Jireh Neo', 'Faculty/Staff', null],
     ];
 
     /*
@@ -52,10 +58,15 @@ class CcsFacultySeeder extends Seeder
      *
      * Program Chairs (the referral tier between an instructor and the dean,
      * so these are the ones worth chasing first):
-     *   - Tiffany Lyn Pandes      -- BSCS Program Chair
-     *   - Freddie Prianes         -- BSIT Program Chair
-     *   - Jonuel Rey Colle        -- BSIS Program Chair
-     *   - Ime Amor A. Mortel      -- BLIS Program Chair
+     *   - Tiffany Lyn Pandes  -- 'BS Computer Science'
+     *   - Freddie Prianes     -- 'BS Information Technology'
+     *   - Jonuel Rey Colle    -- 'BS Information Systems'
+     *   - Ime Amor A. Mortel  -- 'Bachelor of Library and Information Science'
+     *
+     * Those strings are the programme field above, and they have to match
+     * User::COURSES_BY_COLLEGE exactly -- a chair whose course reads "BSIS"
+     * matches no student, because that is not what a student's profile
+     * stores.
      *
      * The OIC Dean, Rosel O. Onesa, is already reachable through the office
      * mailbox ccs@cspc.edu.ph seeded in UserSeeder, so she is not repeated
@@ -64,7 +75,7 @@ class CcsFacultySeeder extends Seeder
 
     public function run(): void
     {
-        foreach (self::FACULTY as [$email, $name, $roleName]) {
+        foreach (self::FACULTY as [$email, $name, $roleName, $course]) {
             $role = Role::where('name', $roleName)->first();
 
             // A role that has not been seeded yet would otherwise fail on a
@@ -81,6 +92,7 @@ class CcsFacultySeeder extends Seeder
                     'password' => Hash::make(Str::random(40)),
                     'role_id' => $role->id,
                     'department' => self::COLLEGE,
+                    'course' => $course,
                     'status' => 'approved',
                     // Their college address is verified by definition -- Google
                     // sign-in is the only way in, and it proves control of the

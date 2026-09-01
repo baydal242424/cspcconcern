@@ -119,6 +119,7 @@ class Concern extends Model
         'user_id',
         'category',
         'department',
+        'course',
         'urgency',
         'description',
         'investigation_notes',
