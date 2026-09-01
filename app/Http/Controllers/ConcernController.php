@@ -32,6 +32,7 @@ class ConcernController extends Controller
      */
     private const STAFF_ROLES = [
         'Faculty/Staff',
+        'Program Chair',
         'Department Head',
         'Guidance Counselor',
         'Admin',
@@ -49,6 +50,7 @@ class ConcernController extends Controller
         'Registrar',
     ];
 
+
     /**
      * The offices a staff member may hand a concern on to. Single source of
      * truth: update()'s validation, the "Refer to" dropdown and the people
@@ -57,12 +59,29 @@ class ConcernController extends Controller
      */
     public const REFERRAL_ROLES = [
         'Guidance Counselor',
+        'Program Chair',
         'Admin',
         'Department Head',
         'Faculty/Staff',
         'Gender and Development',
         'General Services',
         'Registrar',
+    ];
+
+    /**
+     * How each destination is written in the "Refer to" dropdown. Keys must
+     * match REFERRAL_ROLES exactly -- the view iterates this, so a destination
+     * added above without a label here would simply not be offered.
+     */
+    public const REFERRAL_ROLE_LABELS = [
+        'Guidance Counselor'     => 'Guidance Counselor',
+        'Program Chair'          => 'Program Chair (Programme level)',
+        'Admin'                  => 'Admin',
+        'Department Head'        => 'Department Head (Dean)',
+        'Faculty/Staff'          => 'Faculty/Staff',
+        'Gender and Development' => 'Gender and Development (GAD)',
+        'General Services'       => 'General Services (Facilities)',
+        'Registrar'              => 'Registrar (Records & Enrolment)',
     ];
 
     /**

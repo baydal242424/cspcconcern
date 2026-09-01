@@ -27,6 +27,17 @@ class RoleSeeder extends Seeder
                 'description' => 'Department head/dean who manages concerns',
             ],
             [
+                // Sits between an instructor and the dean. A program chair owns
+                // one degree programme (BSCS, BSIT, BSIS, BLIS in Computer
+                // Studies), so an academic complaint that an instructor cannot
+                // settle alone has somewhere to go that is not yet the whole
+                // college. Without this role that escalation jumped straight to
+                // the dean, which is both slower and heavier than most academic
+                // concerns warrant.
+                'name' => 'Program Chair',
+                'description' => 'Chair of a degree programme; handles academic concerns escalated from instructors before they reach the dean',
+            ],
+            [
                 'name' => 'Guidance Counselor',
                 'description' => 'Guidance office staff for mental health and referrals',
             ],

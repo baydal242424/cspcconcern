@@ -349,13 +349,12 @@
                     <label for="referred_to">Refer to</label>
                     <select name="referred_to" id="referred_to">
                         <option value="">-- Select destination --</option>
-                        <option value="Guidance Counselor" {{ $concern->referred_to === 'Guidance Counselor' ? 'selected' : '' }}>Guidance Counselor</option>
-                        <option value="Admin" {{ $concern->referred_to === 'Admin' ? 'selected' : '' }}>Admin</option>
-                        <option value="Department Head" {{ $concern->referred_to === 'Department Head' ? 'selected' : '' }}>Department Head</option>
-                        <option value="Faculty/Staff" {{ $concern->referred_to === 'Faculty/Staff' ? 'selected' : '' }}>Faculty/Staff</option>
-                        <option value="Gender and Development" {{ $concern->referred_to === "Gender and Development" ? "selected" : "" }}>Gender and Development (GAD)</option>
-                        <option value="General Services" {{ $concern->referred_to === "General Services" ? "selected" : "" }}>General Services (Facilities)</option>
-                        <option value="Registrar" {{ $concern->referred_to === "Registrar" ? "selected" : "" }}>Registrar (Records &amp; Enrolment)</option>
+                        {{-- Driven by ConcernController::REFERRAL_ROLE_LABELS so the
+                             options offered here and the destinations update()
+                             accepts can never fall out of step. --}}
+                        @foreach (\App\Http\Controllers\ConcernController::REFERRAL_ROLE_LABELS as $roleValue => $roleLabel)
+                            <option value="{{ $roleValue }}" {{ $concern->referred_to === $roleValue ? 'selected' : '' }}>{{ $roleLabel }}</option>
+                        @endforeach
                     </select>
                     @error('referred_to')
                         <div style="color:#dc3545; font-size:0.85rem; margin-top:0.25rem;">{{ $message }}</div>

@@ -387,8 +387,11 @@ class Concern extends Model
             });
         }
 
-        // Faculty/Staff and Department Head
-        if ($role === 'Faculty/Staff' || $role === 'Department Head') {
+        // Faculty/Staff, Program Chair and Department Head all work the same
+        // academic queue -- the chair sits between the other two in authority,
+        // not in what they may read, so splitting the rule would only create a
+        // gap where an escalated concern is visible to neither.
+        if (in_array($role, ['Faculty/Staff', 'Program Chair', 'Department Head'], true)) {
             return $query->where(function ($q) use ($user, $role, $involved) {
                 $q->where('assigned_to', $user->id)
                   ->orWhere(function ($sub) use ($role) {
