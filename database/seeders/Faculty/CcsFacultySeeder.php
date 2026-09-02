@@ -48,7 +48,7 @@ class CcsFacultySeeder extends Seeder
      */
     private const FACULTY = [
         // Information Systems Department. Instructor I, Rise Lab In-Charge.
-        ['jeremyneo@cspc.edu.ph', 'Jeremy Jireh Neo', 'Faculty/Staff', null],
+        ['jeremyneo@cspc.edu.ph', 'Jeremy Jireh Neo', 'Instructor', null],
     ];
 
     /*

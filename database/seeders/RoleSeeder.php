@@ -19,6 +19,16 @@ class RoleSeeder extends Seeder
                 'description' => 'College student who can submit concerns',
             ],
             [
+                // Teaching staff. Split out of Faculty/Staff, which had become
+                // a bucket: five of its six holders were unit heads, and every
+                // academic complaint routed to all of them alike.
+                'name' => 'Instructor',
+                'description' => 'Teaching staff of a college; first handler for academic, safety and general concerns',
+            ],
+            [
+                // What is left after the split: office and unit staff -- ICT,
+                // Health Services, Legal, Records. No category of their own;
+                // they receive work by referral, like GAD.
                 'name' => 'Faculty/Staff',
                 'description' => 'Faculty or staff member who can handle concerns',
             ],

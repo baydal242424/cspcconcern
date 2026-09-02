@@ -191,13 +191,13 @@
                 // routing in ConcernController::routeConcern(). Routing is decided
                 // by category only; the department field is informational.
                 const routingByCategory = {
-                    'Academic': 'Faculty/Staff',
+                    'Academic': 'an instructor in your college',
                     'Mental Health / Personal': 'the Guidance Office',
                     'Bullying / Harassment': 'the Guidance Office',
                     'Administrative': 'the Administration',
                     'Facilities / Equipment': 'the General Services Unit',
-                    'Physical / Safety': 'Faculty/Staff',
-                    'Others': 'Faculty/Staff'
+                    'Physical / Safety': 'an instructor in your college',
+                    'Others': 'an instructor in your college'
                 };
 
                 // One-line plain-English scope for each category. Without this

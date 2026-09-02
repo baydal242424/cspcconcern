@@ -17,6 +17,7 @@ class UserSeeder extends Seeder
     {
         $students_role = Role::where('name', 'Student')->first();
         $staff_role = Role::where('name', 'Faculty/Staff')->first();
+        $instructor_role = Role::where('name', 'Instructor')->first();
         $counselor_role = Role::where('name', 'Guidance Counselor')->first();
         $admin_role = Role::where('name', 'Admin')->first();
         $head_role = Role::where('name', 'Head of School')->first();
@@ -78,7 +79,10 @@ class UserSeeder extends Seeder
             [
                 'name' => 'Prof. Juan Dela Cruz',
                 'password' => Hash::make('password'),
-                'role_id' => $staff_role->id,
+                // A professor, so an Instructor. His department is Academic
+                // Affairs rather than a college, which makes him the fallback
+                // handler when a college has no instructor of its own.
+                'role_id' => $instructor_role->id,
                 'department' => 'Academic Affairs',
             ]
         );
@@ -101,7 +105,7 @@ class UserSeeder extends Seeder
                 [
                     'name' => $name,
                     'password' => Hash::make('password'),
-                    'role_id' => $staff_role->id,
+                    'role_id' => $instructor_role->id,
                     'department' => $college,
                 ]
             );

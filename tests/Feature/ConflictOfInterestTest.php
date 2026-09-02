@@ -25,14 +25,14 @@ class ConflictOfInterestTest extends TestCase {
         $handlerRole=optional(optional(User::find($c->assigned_to))->role)->name;
         $this->line("[conflict] handed to role: ".($handlerRole ?? 'NONE'));
         $this->assertNotNull($c->assigned_to,'Someone must still own it');
-        $this->assertEquals('Faculty/Staff',$handlerRole);
+        $this->assertEquals('Instructor',$handlerRole);
     }
 
     /** With no untainted peer left, it escalates up the chain instead */
     public function test_concern_about_the_last_staff_escalates(): void {
         $staff=$this->u('staff@cspc.edu.ph');
-        // remove every other Faculty/Staff so the reported person is the only one
-        User::whereHas('role',fn($q)=>$q->where('name','Faculty/Staff'))
+        // remove every other Instructor so the reported person is the only one
+        User::whereHas('role',fn($q)=>$q->where('name','Instructor'))
             ->where('id','!=',$staff->id)->delete();
         $this->actingAs($this->u('student@my.cspc.edu.ph'))->post('/concerns',[
             'category'=>'Academic','department'=>'College of Computer Studies',
@@ -54,6 +54,6 @@ class ConflictOfInterestTest extends TestCase {
         $c=Concern::where('description','a normal concern that names no staff member')->firstOrFail();
         $handlerRole=optional(optional(User::find($c->assigned_to))->role)->name;
         $this->line("[normal] routed to: ".$handlerRole);
-        $this->assertEquals('Faculty/Staff',$handlerRole);
+        $this->assertEquals('Instructor',$handlerRole);
     }
 }

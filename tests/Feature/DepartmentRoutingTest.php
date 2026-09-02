@@ -79,7 +79,7 @@ class DepartmentRoutingTest extends TestCase
     public function test_college_without_an_instructor_falls_back_to_the_catch_all(): void
     {
         // Arts and Sciences has an instructor seeded; remove them so the
-        // college has nobody in the Faculty/Staff role of its own.
+        // college has nobody in the Instructor role of its own.
         User::where('email', 'cas.instructor@cspc.edu.ph')->delete();
 
         $c = $this->submit([
@@ -144,10 +144,10 @@ class DepartmentRoutingTest extends TestCase
 
     public function test_escalation_prefers_the_dean_of_the_same_college(): void
     {
-        // Remove every Faculty/Staff so the conflict-of-interest path has to
+        // Remove every Instructor so the conflict-of-interest path has to
         // escalate, then check it picks the CCS dean rather than any dean.
         $reported = User::where('email', 'ccs.instructor@cspc.edu.ph')->firstOrFail();
-        User::whereHas('role', fn ($q) => $q->where('name', 'Faculty/Staff'))
+        User::whereHas('role', fn ($q) => $q->where('name', 'Instructor'))
             ->where('id', '!=', $reported->id)->delete();
 
         $c = $this->submit([

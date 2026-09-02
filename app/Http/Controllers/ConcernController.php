@@ -31,6 +31,7 @@ class ConcernController extends Controller
      * subjects). Used both to build the picker and to validate submissions.
      */
     private const STAFF_ROLES = [
+        'Instructor',
         'Faculty/Staff',
         'Program Chair',
         'Dean',
@@ -57,6 +58,7 @@ class ConcernController extends Controller
      * UI without being accepted by the server (or the reverse).
      */
     public const REFERRAL_ROLES = [
+        'Instructor',
         'Guidance Counselor',
         'Program Chair',
         'Admin',
@@ -76,7 +78,8 @@ class ConcernController extends Controller
         'Program Chair'          => 'Program Chair (one program)',
         'Admin'                  => 'Admin',
         'Dean'                   => 'Dean (whole college)',
-        'Faculty/Staff'          => 'Faculty/Staff',
+        'Instructor'             => 'Instructor (teaching staff)',
+        'Faculty/Staff'          => 'Faculty/Staff (offices & units)',
         'Gender and Development' => 'Gender and Development (GAD)',
         'General Services'       => 'General Services (Facilities)',
     ];
@@ -842,7 +845,7 @@ class ConcernController extends Controller
     private function routeConcern(Concern $concern)
     {
         $categoryRouting = [
-            'Academic'                 => 'Faculty/Staff',
+            'Academic'                 => 'Instructor',
             'Mental Health / Personal' => 'Guidance Counselor',
             'Bullying / Harassment'    => 'Guidance Counselor',
             // Enrolment, records, ID, clearance, fees. This briefly went to a
@@ -871,11 +874,11 @@ class ConcernController extends Controller
             // real destination beats making a student decide which of two
             // maintenance offices owns their problem.
             'Facilities / Equipment'   => 'General Services',
-            'Physical / Safety'        => 'Faculty/Staff',
-            'Others'                   => 'Faculty/Staff',
+            'Physical / Safety'        => 'Instructor',
+            'Others'                   => 'Instructor',
         ];
 
-        $targetRoleName = $categoryRouting[$concern->category] ?? 'Faculty/Staff';
+        $targetRoleName = $categoryRouting[$concern->category] ?? 'Instructor';
 
         $targetUser = $this->findHandler($targetRoleName, $concern);
 

@@ -375,11 +375,28 @@ class Concern extends Model
             });
         }
 
-        // Faculty/Staff, Program Chair and Dean all work the same
-        // academic queue -- the chair sits between the other two in authority,
-        // not in what they may read, so splitting the rule would only create a
-        // gap where an escalated concern is visible to neither.
-        if (in_array($role, ['Faculty/Staff', 'Program Chair', 'Dean'], true)) {
+        // Instructor, Program Chair and Dean all work the same academic queue --
+        // the chair sits between the other two in authority, not in what they
+        // may read, so splitting the rule would only create a gap where an
+        // escalated concern is visible to neither.
+        //
+        // Faculty/Staff is in this list for what it can still reach: anything
+        // assigned or referred to it, and its own history. It no longer sees
+        // the open academic queue, because nothing routes there any more --
+        // office staff were being shown every academic complaint in the college
+        // on the strength of sharing a role name with the teachers.
+        if ($role === 'Faculty/Staff') {
+            return $query->where(function ($q) use ($user, $role, $involved) {
+                $q->where('assigned_to', $user->id)
+                  ->orWhere(function ($sub) use ($role) {
+                      $sub->where('referred_to', $role)
+                          ->whereNotIn('status', self::TERMINAL_STATUSES);
+                  })
+                  ->orWhere($involved);
+            });
+        }
+
+        if (in_array($role, ['Instructor', 'Program Chair', 'Dean'], true)) {
             return $query->where(function ($q) use ($user, $role, $involved) {
                 $q->where('assigned_to', $user->id)
                   ->orWhere(function ($sub) use ($role) {

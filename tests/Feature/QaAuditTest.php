@@ -56,13 +56,13 @@ class QaAuditTest extends TestCase
         // act on it. Administrative comes back to Admin after the Registrar
         // role was removed: they triage and refer on rather than resolving.
         $expected = [
-            'Academic'                 => 'Faculty/Staff',
+            'Academic'                 => 'Instructor',
             'Mental Health / Personal' => 'Guidance Counselor',
             'Bullying / Harassment'    => 'Guidance Counselor',
             'Administrative'           => 'Admin',
             'Facilities / Equipment'   => 'General Services',
-            'Physical / Safety'        => 'Faculty/Staff',
-            'Others'                   => 'Faculty/Staff',
+            'Physical / Safety'        => 'Instructor',
+            'Others'                   => 'Instructor',
         ];
         // submit each with a DELIBERATELY mismatched department to prove dept can't hijack routing
         foreach ($expected as $cat => $role) {
