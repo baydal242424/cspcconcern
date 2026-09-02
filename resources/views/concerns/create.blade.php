@@ -194,7 +194,11 @@
                     'Academic': 'an instructor in your college',
                     'Mental Health / Personal': 'the Guidance Office',
                     'Bullying / Harassment': 'the Guidance Office',
-                    'Administrative': 'the Administration',
+                    // Admin triage these and pass them to whichever office
+                    // owns the request -- records, cashier, clearance. Saying
+                    // "the Administration office" sets the right expectation:
+                    // received here, answered elsewhere.
+                    'Administrative': 'the Administration office',
                     'Facilities / Equipment': 'the General Services Unit',
                     'Physical / Safety': 'an instructor in your college',
                     'Others': 'an instructor in your college'
