@@ -28,6 +28,7 @@
             --shadow:0 6px 24px -8px rgba(16,30,66,.18),0 2px 6px rgba(16,30,66,.06);
         }
         *{margin:0;padding:0;box-sizing:border-box}
+        html{background:var(--navy-800); overscroll-behavior-y:none}
         body{
             font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
             background:var(--bg); color:var(--ink); line-height:1.55;
@@ -39,10 +40,19 @@
         h3{font-size:1.05rem; font-weight:650}
         a{color:var(--brand)}
 
+        /* Solid, not translucent. A semi-transparent bar with a backdrop blur
+           has to recompute what is behind it on every scroll frame, and the
+           page content sliding underneath showed through as a shimmer -- worst
+           on Windows, where the blur is not GPU-accelerated. The bar is a fixed
+           surface; it should look like one and cost nothing to keep on screen.
+
+           top:-1px with a matching border removes the pale hairline that
+           appeared above the bar when the page was over-scrolled upward. */
         .navbar{
-            background:rgba(13,27,62,.92); backdrop-filter:saturate(140%) blur(8px);
+            background:var(--navy-800);
             color:#fff; padding:.85rem 1.5rem; display:flex; justify-content:space-between;
-            align-items:center; position:sticky; top:0; z-index:50;
+            align-items:center; position:sticky; top:-1px; z-index:50;
+            border-top:1px solid var(--navy-800);
             box-shadow:0 1px 0 rgba(255,255,255,.06),0 8px 24px -16px rgba(0,0,0,.6);
         }
         .navbar-brand{font-size:1.12rem; font-weight:700; letter-spacing:-.01em}
