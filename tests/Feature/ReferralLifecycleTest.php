@@ -89,7 +89,7 @@ class ReferralLifecycleTest extends TestCase
     public function test_counselor_keeps_own_domain_after_resolve(): void
     {
         $c = Concern::create([
-            'user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Mental Health / Personal',
+            'user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Mental Health',
             'department'=>'Guidance Office','description'=>'x','urgency'=>'Low',
             'status'=>'resolved','is_anonymous'=>false,'assigned_to'=>$this->u('counselor@cspc.edu.ph')->id,
         ]);

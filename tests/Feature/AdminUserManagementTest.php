@@ -80,7 +80,7 @@ class AdminUserManagementTest extends TestCase
 
         $concern = Concern::create([
             'user_id' => $student->id,
-            'category' => 'Mental Health / Personal',
+            'category' => 'Mental Health',
             'department' => 'College of Computer Studies',
             'description' => 'needs referral',
             'urgency' => 'Low',

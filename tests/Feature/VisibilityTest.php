@@ -51,7 +51,7 @@ class VisibilityTest extends TestCase
     /** LEAST-PRIVILEGE: admin does NOT see a confidential counselor (Mental Health) case */
     public function test_admin_cannot_see_mental_health_case(): void
     {
-        $mh = $this->makeConcern(['category'=>'Mental Health / Personal']);
+        $mh = $this->makeConcern(['category'=>'Mental Health']);
         $admin = $this->u('admin@cspc.edu.ph');
         $visible = Concern::whereKey($mh->id)->visibleTo($admin)->exists();
         fwrite(STDERR, "  [least-priv] admin sees Mental Health case: ".($visible?'YES (BAD)':'NO')."\n");
@@ -81,7 +81,7 @@ class VisibilityTest extends TestCase
     {
         $admin = $this->u('admin@cspc.edu.ph');
 
-        foreach (['Mental Health / Personal', 'Bullying', 'Academic', 'Facilities'] as $category) {
+        foreach (['Mental Health', 'Bullying', 'Academic', 'Facilities'] as $category) {
             $c = $this->makeConcern(['category' => $category]);
             $this->assertFalse(
                 Concern::whereKey($c->id)->visibleTo($admin)->exists(),
@@ -95,7 +95,7 @@ class VisibilityTest extends TestCase
     /** Counselor sees Mental Health automatically */
     public function test_counselor_sees_mental_health(): void
     {
-        $mh = $this->makeConcern(['category'=>'Mental Health / Personal']);
+        $mh = $this->makeConcern(['category'=>'Mental Health']);
         $c = $this->u('counselor@cspc.edu.ph');
         $this->assertTrue(Concern::whereKey($mh->id)->visibleTo($c)->exists());
         fwrite(STDERR, "  [counselor] sees Mental Health: YES\n");

@@ -52,7 +52,7 @@ class InvolvementHistoryTest extends TestCase
     /** A staff who NEVER touched a Mental Health concern still cannot see it */
     public function test_uninvolved_staff_still_blocked_from_mh(): void
     {
-        $mh=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Mental Health / Personal',
+        $mh=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Mental Health',
           'department'=>'Guidance Office','description'=>'x','urgency'=>'Low','status'=>'submitted','is_anonymous'=>false]);
         $staff=$this->u('staff@cspc.edu.ph');
         $sees = Concern::whereKey($mh->id)->visibleTo($staff)->exists();

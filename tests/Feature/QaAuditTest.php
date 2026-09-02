@@ -57,7 +57,7 @@ class QaAuditTest extends TestCase
         // role was removed: they triage and refer on rather than resolving.
         $expected = [
             'Academic'                 => 'Instructor',
-            'Mental Health / Personal' => 'Guidance Counselor',
+            'Mental Health' => 'Guidance Counselor',
             'Bullying'                 => 'Guidance Counselor',
             'Harassment'               => 'Guidance Counselor',
             'Administrative'           => 'Admin',
@@ -79,7 +79,7 @@ class QaAuditTest extends TestCase
     /** Counselor must SEE a concern routed to them (check the View link, which the index renders). */
     public function test_counselor_sees_assigned_concern(): void
     {
-        $c = $this->submit(['category'=>'Mental Health / Personal']);
+        $c = $this->submit(['category'=>'Mental Health']);
         $resp = $this->actingAs($this->u('counselor@cspc.edu.ph'))->get('/concerns');
         $resp->assertOk();
         // index renders a "View" link to /concerns/{id}

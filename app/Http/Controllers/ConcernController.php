@@ -837,7 +837,7 @@ class ConcernController extends Controller
         // baseline severity.
         return match ($category) {
             'Physical', 'Safety' => 'High',
-            'Mental Health / Personal', 'Bullying', 'Harassment' => 'Medium',
+            'Mental Health', 'Personal', 'Bullying', 'Harassment' => 'Medium',
             // Academic, Administrative, Facilities, Equipment, Others.
             // A broken PC is genuinely Low; a genuinely dangerous facility
             // fault still escalates on its own through the keyword scan above
@@ -866,7 +866,8 @@ class ConcernController extends Controller
     {
         $categoryRouting = [
             'Academic'                 => 'Instructor',
-            'Mental Health / Personal' => 'Guidance Counselor',
+            'Mental Health'            => 'Guidance Counselor',
+            'Personal'                 => 'Guidance Counselor',
             'Bullying'                 => 'Guidance Counselor',
             'Harassment'               => 'Guidance Counselor',
             // Enrolment, records, ID, clearance, fees. This briefly went to a

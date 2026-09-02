@@ -58,7 +58,7 @@ class BreakGlassTest extends TestCase {
 
     public function test_head_sees_content_of_all_concerns(): void {
         // Head of School can read content (to adjudicate) but that is separate from identity
-        $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Mental Health / Personal','department'=>'Guidance Office','description'=>'HEADCANREAD','urgency'=>null,'status'=>'submitted','is_anonymous'=>true]);
+        $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Mental Health','department'=>'Guidance Office','description'=>'HEADCANREAD','urgency'=>null,'status'=>'submitted','is_anonymous'=>true]);
         $resp=$this->actingAs($this->u('head@cspc.edu.ph'))->get("/concerns/{$c->id}");
         $resp->assertOk();
         $resp->assertSee('HEADCANREAD');

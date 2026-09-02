@@ -91,7 +91,8 @@ class Concern extends Model
      */
     public const CATEGORIES = [
         'Academic',
-        'Mental Health / Personal',
+        'Mental Health',
+        'Personal',
         'Bullying',
         'Harassment',
         'Administrative',
@@ -104,7 +105,8 @@ class Concern extends Model
 
     /** Assessed by the Guidance Office, and withheld from everybody else. */
     public const GUIDANCE_CATEGORIES = [
-        'Mental Health / Personal',
+        'Mental Health',
+        'Personal',
         'Bullying',
         'Harassment',
     ];

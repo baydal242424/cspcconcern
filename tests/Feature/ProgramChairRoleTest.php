@@ -82,7 +82,7 @@ class ProgramChairRoleTest extends TestCase
         );
 
         // ...but not somebody else's mental health case.
-        $confidential = $this->makeConcern(['category' => 'Mental Health / Personal']);
+        $confidential = $this->makeConcern(['category' => 'Mental Health']);
         $this->assertFalse(
             Concern::whereKey($confidential->id)->visibleTo($chair)->exists(),
             'A Program Chair must not see Mental Health concerns'

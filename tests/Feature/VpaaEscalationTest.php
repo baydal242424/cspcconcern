@@ -121,7 +121,7 @@ class VpaaEscalationTest extends TestCase
 
         $notHers = Concern::create([
             'user_id' => $this->student()->id,
-            'category' => 'Mental Health / Personal',
+            'category' => 'Mental Health',
             'department' => 'College of Computer Studies',
             'description' => 'A counselling matter that is none of her business.',
             'status' => 'submitted',

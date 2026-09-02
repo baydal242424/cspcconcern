@@ -62,14 +62,14 @@ class AggressiveQaTest extends TestCase
     }
     public function test_admin_cannot_read_untouched_mental_health(): void
     {
-        $mh=$this->mk(['category'=>'Mental Health / Personal']);
+        $mh=$this->mk(['category'=>'Mental Health']);
         $r=$this->actingAs($this->u('admin@cspc.edu.ph'))->get("/concerns/{$mh->id}");
         $this->line("[least-priv] admin opens untouched MH -> ".$r->getStatusCode()." (want 403)");
         $r->assertForbidden();
     }
     public function test_staff_cannot_read_untouched_mental_health(): void
     {
-        $mh=$this->mk(['category'=>'Mental Health / Personal']);
+        $mh=$this->mk(['category'=>'Mental Health']);
         $r=$this->actingAs($this->u('staff@cspc.edu.ph'))->get("/concerns/{$mh->id}");
         $this->line("[least-priv] staff opens untouched MH -> ".$r->getStatusCode()." (want 403)");
         $r->assertForbidden();

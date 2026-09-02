@@ -94,7 +94,7 @@ class DepartmentRoutingTest extends TestCase
         // A mental-health concern from a college with its own instructor must
         // STILL reach the counselor -- the college only narrows within a role.
         $c = $this->submit([
-            'category' => 'Mental Health / Personal',
+            'category' => 'Mental Health',
             'description' => 'a mental health concern raised by a computer studies student',
         ], 'College of Computer Studies');
 

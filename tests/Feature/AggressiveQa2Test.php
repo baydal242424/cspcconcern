@@ -37,7 +37,7 @@ class AggressiveQa2Test extends TestCase {
         $staff=$this->u('staff@cspc.edu.ph');
         $c=$this->mk(['category'=>'Academic','assigned_to'=>$staff->id]);
         $r=$this->actingAs($this->u('student@my.cspc.edu.ph'))->patch("/concerns/{$c->id}",[
-            'category'=>'Mental Health / Personal','department'=>'College of Computer Studies',
+            'category'=>'Mental Health','department'=>'College of Computer Studies',
             'description'=>'edited into a mental health concern for rerouting','is_anonymous'=>0,
         ]);
         $c->refresh();

@@ -15,7 +15,8 @@
             <select name="category" id="category" required>
                 <option value="">-- Select a category --</option>
                 <option value="Academic">Academic</option>
-                <option value="Mental Health / Personal">Mental Health / Personal</option>
+                <option value="Mental Health">Mental Health</option>
+                <option value="Personal">Personal</option>
                 <option value="Bullying">Bullying</option>
                 <option value="Harassment">Harassment</option>
                 <option value="Administrative">Administrative</option>
@@ -214,7 +215,8 @@
                 // by category only; the department field is informational.
                 const routingByCategory = {
                     'Academic': 'an instructor in your college',
-                    'Mental Health / Personal': 'the Guidance Office',
+                    'Mental Health': 'the Guidance Office',
+                    'Personal': 'the Guidance Office',
                     'Bullying': 'the Guidance Office',
                     'Harassment': 'the Guidance Office',
                     // Admin triage these and pass them to whichever office
@@ -235,7 +237,8 @@
                 // filed it -- three different handlers for one problem.
                 const scopeByCategory = {
                     'Academic': 'Grades, subjects, class schedules, instructors, teaching concerns.',
-                    'Mental Health / Personal': 'Stress, anxiety, family or personal difficulties, anything you need support with.',
+                    'Mental Health': 'Stress, anxiety, low mood, or anything affecting how you are coping.',
+                    'Personal': 'Family, money, housing, or another situation you need support with.',
                     'Bullying': 'Repeated behaviour aimed at you or someone else -- threats, intimidation, humiliation.',
                     'Harassment': 'Unwanted conduct or discrimination by anyone on campus, including a single incident.',
                     'Administrative': 'Enrollment, records, ID, clearance, fees, and other office processes.',
@@ -274,7 +277,7 @@
                     }
 
                     // Show the confidentiality note only for sensitive categories.
-                    const sensitive = ['Mental Health / Personal', 'Bullying', 'Harassment'].includes(cat);
+                    const sensitive = ['Mental Health', 'Personal', 'Bullying', 'Harassment'].includes(cat);
                     confidentialEl.style.display = sensitive ? 'block' : 'none';
                 }
 
