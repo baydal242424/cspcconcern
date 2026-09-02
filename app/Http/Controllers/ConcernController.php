@@ -31,6 +31,7 @@ class ConcernController extends Controller
      * subjects). Used both to build the picker and to validate submissions.
      */
     private const STAFF_ROLES = [
+        'Vice President for Academic Affairs',
         'Instructor',
         'Faculty/Staff',
         'Program Chair',
@@ -58,6 +59,7 @@ class ConcernController extends Controller
      * UI without being accepted by the server (or the reverse).
      */
     public const REFERRAL_ROLES = [
+        'Vice President for Academic Affairs',
         'Instructor',
         'Guidance Counselor',
         'Program Chair',
@@ -77,6 +79,7 @@ class ConcernController extends Controller
         'Guidance Counselor'     => 'Guidance Counselor',
         'Program Chair'          => 'Program Chair (one program)',
         'Admin'                  => 'Admin',
+        'Vice President for Academic Affairs' => 'VPAA (above the Administration)',
         'Dean'                   => 'Dean (whole college)',
         'Instructor'             => 'Instructor (teaching staff)',
         'Faculty/Staff'          => 'Faculty/Staff (offices & units)',
@@ -910,8 +913,34 @@ class ConcernController extends Controller
         // leaving assigned_to NULL and the concern visible to nobody but the
         // person who filed it. An empty role is a routing failure regardless
         // of what caused it.
+        // A complaint about an administrator is never handed to another
+        // administrator. Excluding the individual is not enough here: Admin is
+        // the role that manages accounts, roles and bans -- including each
+        // other's -- so an administrator investigating a colleague they could
+        // promote or suspend is not an independent review. It goes above the
+        // Administration instead.
+        if ($targetRoleName === 'Admin' && $concern->about_staff_id) {
+            $subjectIsAdmin = User::whereKey($concern->about_staff_id)
+                ->whereHas('role', fn ($q) => $q->where('name', 'Admin'))
+                ->exists();
+
+            if ($subjectIsAdmin) {
+                $targetUser = null;
+            }
+        }
+
         if (! $targetUser) {
-            foreach (['Dean', 'Head of School', 'Admin'] as $escalationRole) {
+            // Where the concern goes depends on WHICH office could not take it.
+            // A complaint the Admin cannot handle is almost always a complaint
+            // ABOUT the Admin, and a college dean has no standing over a
+            // system administrator -- so it goes up to the VPAA rather than
+            // sideways. Everything else still climbs the academic ladder, with
+            // Admin last so nothing can end up assigned to nobody.
+            $chain = $targetRoleName === 'Admin'
+                ? ['Vice President for Academic Affairs', 'Head of School', 'Dean']
+                : ['Dean', 'Head of School', 'Vice President for Academic Affairs', 'Admin'];
+
+            foreach ($chain as $escalationRole) {
                 $escalated = $this->findHandler($escalationRole, $concern);
 
                 if ($escalated) {

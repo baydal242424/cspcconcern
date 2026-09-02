@@ -125,6 +125,7 @@ class User extends Authenticatable
      * @var list<string>
      */
     public const EMPLOYEE_ROLES = [
+        'Vice President for Academic Affairs',
         'Instructor',
         'Faculty/Staff',
         'Program Chair',

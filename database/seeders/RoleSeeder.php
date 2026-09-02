@@ -52,6 +52,14 @@ class RoleSeeder extends Seeder
                 'description' => 'Guidance office staff for mental health and referrals',
             ],
             [
+                // Sits above the Administration. Exists so that a concern the
+                // Admin cannot handle -- because it is about them -- escalates
+                // upward instead of sideways to a college dean with no
+                // authority over a system administrator.
+                'name' => 'Vice President for Academic Affairs',
+                'description' => 'Oversees the academic division; receives concerns the Administration cannot handle itself',
+            ],
+            [
                 'name' => 'Admin',
                 'description' => 'System administrator with full access',
             ],

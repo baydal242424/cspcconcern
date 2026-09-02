@@ -385,7 +385,12 @@ class Concern extends Model
         // the open academic queue, because nothing routes there any more --
         // office staff were being shown every academic complaint in the college
         // on the strength of sharing a role name with the teachers.
-        if ($role === 'Faculty/Staff') {
+        // Referral-gated, both of them. The VPAA oversees the Administration
+        // rather than working a queue, so she sees what is escalated or
+        // referred to her and nothing else -- an oversight role with a standing
+        // window into every student's concern would be the opposite of the
+        // point.
+        if (in_array($role, ['Faculty/Staff', 'Vice President for Academic Affairs'], true)) {
             return $query->where(function ($q) use ($user, $role, $involved) {
                 $q->where('assigned_to', $user->id)
                   ->orWhere(function ($sub) use ($role) {
