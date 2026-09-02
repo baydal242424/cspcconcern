@@ -19,10 +19,30 @@
                 <option value="Bullying / Harassment">Bullying / Harassment</option>
                 <option value="Administrative">Administrative</option>
                 <option value="Facilities / Equipment">Facilities / Equipment</option>
-                <option value="Physical / Safety">Physical / Safety</option>
+                <option value="Physical">Physical</option>
+                <option value="Safety">Safety</option>
                 <option value="Others">Others</option>
             </select>
             @error('category')
+                <div style="color: #dc3545; font-size: 0.85rem; margin-top: 0.25rem;">{{ $message }}</div>
+            @enderror
+        </div>
+
+        {{-- "Others" is the one category that does not say what it is. Without
+             this the handler opens a concern labelled Others and has to read
+             the whole description before knowing what kind of thing it is --
+             and the dashboard counts every unlike thing as one bucket. --}}
+        <div class="form-group" id="other-category-group"
+             @unless (old('category') === 'Others') style="display:none;" @endunless>
+            <label for="other_category">What is this about? *</label>
+            <input type="text" name="other_category" id="other_category" maxlength="120"
+                   value="{{ old('other_category') }}"
+                   placeholder="A few words, e.g. lost locker key, lost ID at the gym">
+            <div style="color:var(--muted); font-size:0.82rem; margin-top:0.25rem;">
+                A short label so the right person can pick this up. Describe the full
+                situation in the box below.
+            </div>
+            @error('other_category')
                 <div style="color: #dc3545; font-size: 0.85rem; margin-top: 0.25rem;">{{ $message }}</div>
             @enderror
         </div>
@@ -200,7 +220,8 @@
                     // received here, answered elsewhere.
                     'Administrative': 'the Administration office',
                     'Facilities / Equipment': 'the General Services Unit',
-                    'Physical / Safety': 'an instructor in your college',
+                    'Physical': 'an instructor in your college',
+                    'Safety': 'an instructor in your college',
                     'Others': 'an instructor in your college'
                 };
 
@@ -214,7 +235,8 @@
                     'Bullying / Harassment': 'Bullying, threats, harassment, or discrimination by anyone on campus.',
                     'Administrative': 'Enrollment, records, ID, clearance, fees, and other office processes.',
                     'Facilities / Equipment': 'Broken computers or lab equipment, no water or electricity, aircon, lights, chairs, internet, damaged rooms.',
-                    'Physical / Safety': 'Accidents, injuries, hazards, or anything that puts people at risk.',
+                    'Physical': 'An accident or injury that has already happened to you or someone else.',
+                    'Safety': 'A hazard that has not caused harm yet -- a broken stair, exposed wiring, a blocked exit.',
                     'Others': 'Anything that does not fit the categories above.'
                 };
 
@@ -231,6 +253,18 @@
                         helperEl.style.display = 'block';
                     } else {
                         helperEl.style.display = 'none';
+                    }
+
+                    // "Others" has to explain itself before anything else can.
+                    const otherGroup = document.getElementById('other-category-group');
+                    const otherInput = document.getElementById('other_category');
+                    if (otherGroup) {
+                        const isOther = (cat === 'Others');
+                        otherGroup.style.display = isOther ? 'block' : 'none';
+                        // Cleared on the way out, so switching away from Others
+                        // cannot submit a label belonging to a category that no
+                        // longer applies.
+                        if (!isOther && otherInput) { otherInput.value = ''; }
                     }
 
                     // Show the confidentiality note only for sensitive categories.

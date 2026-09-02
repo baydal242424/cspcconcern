@@ -10,6 +10,7 @@ use App\Models\Feedback;
 use App\Services\ConcernNotificationService;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
 
 /**
@@ -169,7 +170,10 @@ class ConcernController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'category' => 'required|in:Academic,Mental Health / Personal,Bullying / Harassment,Administrative,Facilities / Equipment,Physical / Safety,Others',
+            'category' => ['required', Rule::in(Concern::CATEGORIES)],
+            // "Others" is the one category that does not say what it is, so it
+            // has to say here. Required for that alone; ignored for the rest.
+            'other_category' => ['nullable', 'required_if:category,Others', 'string', 'min:3', 'max:120'],
             // 'department' is NOT accepted from the form: it is the reporter's
             // own college, taken from their account below. Students told us
             // twice which college they belong to otherwise -- once at
@@ -217,6 +221,14 @@ class ConcernController extends Controller
         // the Head of School's identity-reveal feature for them) are
         // untouched.
         $validated['is_anonymous'] = false;
+
+        // Only "Others" carries a label. The form clears the field when the
+        // category changes, but that is a convenience, not a rule -- a direct
+        // post would otherwise store a label beside a category that already
+        // says what it is, and it would show on the concern page.
+        if ($validated['category'] !== 'Others') {
+            $validated['other_category'] = null;
+        }
 
         // 'attachments' is not a column on concerns -- handle it separately.
         $uploadedFiles = $request->file('attachments', []);
@@ -824,7 +836,7 @@ class ConcernController extends Controller
         // No alarming language found -- fall back to the category's normal
         // baseline severity.
         return match ($category) {
-            'Physical / Safety' => 'High',
+            'Physical', 'Safety' => 'High',
             'Mental Health / Personal', 'Bullying / Harassment' => 'Medium',
             // Academic, Administrative, Facilities / Equipment, Others.
             // A broken PC is genuinely Low; a genuinely dangerous facility
@@ -882,7 +894,8 @@ class ConcernController extends Controller
             // real destination beats making a student decide which of two
             // maintenance offices owns their problem.
             'Facilities / Equipment'   => 'General Services',
-            'Physical / Safety'        => 'Instructor',
+            'Physical'                 => 'Instructor',
+            'Safety'                   => 'Instructor',
             'Others'                   => 'Instructor',
         ];
 

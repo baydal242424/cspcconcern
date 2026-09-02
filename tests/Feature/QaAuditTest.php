@@ -61,7 +61,8 @@ class QaAuditTest extends TestCase
             'Bullying / Harassment'    => 'Guidance Counselor',
             'Administrative'           => 'Admin',
             'Facilities / Equipment'   => 'General Services',
-            'Physical / Safety'        => 'Instructor',
+            'Physical'                 => 'Instructor',
+            'Safety'                   => 'Instructor',
             'Others'                   => 'Instructor',
         ];
         // submit each with a DELIBERATELY mismatched department to prove dept can't hijack routing
@@ -87,7 +88,7 @@ class QaAuditTest extends TestCase
     /** Staff must SEE a concern routed to them. */
     public function test_staff_sees_assigned_concern(): void
     {
-        $c = $this->submit(['category'=>'Physical / Safety']);
+        $c = $this->submit(['category'=>'Safety']);
         $this->actingAs($this->u('staff@cspc.edu.ph'))->get('/concerns')
              ->assertOk()->assertSee("/concerns/{$c->id}", false);
         fwrite(STDERR, "  [visibility] staff sees Physical/Safety concern #{$c->id}: YES\n");
@@ -109,7 +110,7 @@ class QaAuditTest extends TestCase
 
     public function test_staff_can_set_urgency(): void
     {
-        $c = $this->submit(['category'=>'Physical / Safety']);
+        $c = $this->submit(['category'=>'Safety']);
         $this->actingAs($this->u('staff@cspc.edu.ph'))->patch("/concerns/{$c->id}", [
             'status'=>'in_progress','urgency'=>'High',
         ]);

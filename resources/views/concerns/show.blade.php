@@ -26,7 +26,14 @@
             <h2 class="section-title">Concern Details</h2>
             <dl class="detail-list">
                 <dt>Category</dt>
-                <dd>{{ $concern->category }}</dd>
+                {{-- "Others" on its own tells a handler nothing. What the student
+                     called it sits beside the label, so the queue is readable
+                     without opening every one. --}}
+                <dd>
+                    {{ $concern->category }}@if ($concern->other_category)
+                        <span style="color:var(--muted);">&mdash; {{ $concern->other_category }}</span>
+                    @endif
+                </dd>
 
                 <dt>Urgency</dt>
                 <dd>{{ $concern->urgency ?? 'Pending triage' }}</dd>

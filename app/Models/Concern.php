@@ -82,6 +82,36 @@ class Concern extends Model
      *
      * @var list<string>
      */
+    /**
+     * What a student may file, in the order the form offers them.
+     *
+     * Stored on the row and matched by name in routing, urgency grading and
+     * every visibility rule -- a contract rather than a label. Renaming one
+     * means migrating the concerns that carry it.
+     */
+    public const CATEGORIES = [
+        'Academic',
+        'Mental Health / Personal',
+        'Bullying / Harassment',
+        'Administrative',
+        'Facilities / Equipment',
+        'Physical',
+        'Safety',
+        'Others',
+    ];
+
+    /**
+     * The open queue the teaching tiers share. A concern here stays visible to
+     * every instructor, chair and dean until somebody takes it, so nothing
+     * sits unread while one person is away.
+     */
+    public const TEACHING_CATEGORIES = [
+        'Academic',
+        'Physical',
+        'Safety',
+        'Others',
+    ];
+
     public const TERMINAL_STATUSES = ['resolved', 'closed_no_action'];
 
     /**
@@ -118,6 +148,8 @@ class Concern extends Model
     protected $fillable = [
         'user_id',
         'category',
+        // Only set when category is Others -- what the student called it.
+        'other_category',
         'department',
         'course',
         'urgency',
@@ -410,7 +442,7 @@ class Concern extends Model
                   })
                   ->orWhere(function ($sub) {
                       $sub->where('status', 'submitted')
-                          ->whereIn('category', ['Academic', 'Physical / Safety', 'Others']);
+                          ->whereIn('category', self::TEACHING_CATEGORIES);
                   })
                   // Anything they have personally handled (history / reference).
                   ->orWhere($involved);

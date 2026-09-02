@@ -33,7 +33,7 @@ class CapacityProbeTest extends TestCase
         for ($i = 0; $i < 60; $i++) {
             Concern::create([
                 'user_id' => $student->id,
-                'category' => ['Academic', 'Physical / Safety', 'Others'][$i % 3],
+                'category' => ['Academic', 'Safety', 'Others'][$i % 3],
                 'department' => 'College of Computer Studies',
                 'description' => 'Measured load row number '.$i.' with a description of realistic length.',
                 'urgency' => 'Low',
