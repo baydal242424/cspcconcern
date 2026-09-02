@@ -224,6 +224,24 @@
         .table-wrap{width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; border-radius:14px}
         .table-wrap .table{margin-top:0}
 
+        /* Anything a person typed: a concern, staff notes, a closure reason.
+           Two problems, both only visible with real input rather than test
+           input.
+
+           overflow-wrap:anywhere -- a description can be 2000 characters with
+           no spaces in it. Without a break opportunity the line does not wrap,
+           it just keeps going, widening the page and pushing every other
+           element sideways.
+
+           white-space:pre-wrap -- HTML collapses newlines, so a letter written
+           in paragraphs arrived as one unbroken block. The student pressed
+           Enter; showing it back to them any other way loses what they wrote. */
+        .user-text{
+            line-height:1.6; color:#555;
+            white-space:pre-wrap; overflow-wrap:anywhere;
+        }
+        .user-text.closure{color:#6b4a00}
+
         footer{text-align:center; color:var(--muted); padding:2rem 1rem 3rem; font-size:.85rem}
 
         @media (max-width:768px){

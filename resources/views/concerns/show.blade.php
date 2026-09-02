@@ -95,7 +95,7 @@
 
     <div>
         <h2 class="section-title">Description</h2>
-        <p style="line-height: 1.6; color: #555;">{{ $concern->description }}</p>
+        <p class="user-text">{{ $concern->description }}</p>
     </div>
 
     {{-- Evidence attachments. Links go through a controller that re-checks
@@ -235,7 +235,7 @@
         <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
         <div>
             <h2 class="section-title">Investigation Notes</h2>
-            <p style="line-height: 1.6; color: #555;">{{ $concern->investigation_notes }}</p>
+            <p class="user-text">{{ $concern->investigation_notes }}</p>
         </div>
     @endif
 
@@ -243,7 +243,7 @@
         <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
         <div>
             <h2 class="section-title">Resolution Notes</h2>
-            <p style="line-height: 1.6; color: #555;">{{ $concern->resolution_notes }}</p>
+            <p class="user-text">{{ $concern->resolution_notes }}</p>
         </div>
     @endif
 
@@ -254,7 +254,7 @@
         <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
         <div style="background:var(--warn-bg); border:1px solid #f3dca0; border-radius:12px; padding:1.1rem 1.25rem;">
             <h2 class="section-title" style="margin-bottom:.5rem; color:var(--warn-ink);">Closed without action</h2>
-            <p style="line-height:1.6; color:#6b4a00;">{{ $concern->closure_reason }}</p>
+            <p class="user-text closure">{{ $concern->closure_reason }}</p>
             @if ($concern->closed_at)
                 <p style="color:var(--muted); font-size:.82rem; margin-top:.6rem;">
                     Closed {{ $concern->closed_at->local()->format('M d, Y · g:i A') }}. If you disagree with this outcome, you may raise it with the Students Affairs and Services Office.
@@ -277,7 +277,7 @@
                 <span style="color:#64748b; font-size:0.85rem; margin-left:0.3rem;">{{ $concern->feedback->rating }}/5</span>
             </p>
             @if ($concern->feedback->comment)
-                <p style="line-height: 1.6; color: #555;">{{ $concern->feedback->comment }}</p>
+                <p class="user-text">{{ $concern->feedback->comment }}</p>
             @endif
         </div>
     @elseif ($concern->status === 'resolved' && Auth::id() === $concern->user_id)
