@@ -139,8 +139,13 @@ class ConcernController extends Controller
             $q->whereIn('name', self::STAFF_ROLES);
         })->orderBy('name')->get(['id', 'name', 'department', 'role_id']);
 
+        // Splits on Instructor. This read 'Faculty/Staff' until that role was
+        // divided in two, at which point the two lists silently swapped: the
+        // "which instructor" picker filled up with unit heads -- ICT, Records,
+        // Health Services -- while the actual teachers dropped into the
+        // other-staff list. Nothing errored; the names were just wrong.
         [$instructors, $otherStaff] = $staffMembers->partition(
-            fn (User $u) => optional($u->role)->name === 'Faculty/Staff'
+            fn (User $u) => optional($u->role)->name === 'Instructor'
         );
 
         return view('concerns.create', [

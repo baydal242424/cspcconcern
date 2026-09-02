@@ -129,10 +129,22 @@ class AdminController extends Controller
         }
 
         // Only programme-scoped accounts carry a course: a student's own, and
-        // the programme a Program Chair covers. Storing one on anybody else
-        // would make findHandler() prefer them for that programme's concerns,
-        // which is a routing bug that is very hard to see.
-        if ($request->has('course')) {
+        // the programme a Program Chair covers. On anybody else findHandler()
+        // starts preferring them for that programme's concerns -- a routing
+        // bug with nothing on screen to show for it.
+        //
+        // Cleared here rather than trusted to the form. The programme picker is
+        // hidden for other roles, but a hidden field still posts its value, so
+        // promoting a BSIS student to Instructor carried their programme along
+        // with them and quietly made them the preferred handler for every BSIS
+        // concern in the college.
+        $programmeScoped = Role::whereKey($validated['role_id'])
+            ->whereIn('name', ['Student', 'Program Chair'])
+            ->exists();
+
+        if (! $programmeScoped) {
+            $changes['course'] = null;
+        } elseif ($request->has('course')) {
             $changes['course'] = $validated['course'] ?? null;
         }
 
