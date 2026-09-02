@@ -837,8 +837,8 @@ class ConcernController extends Controller
         // baseline severity.
         return match ($category) {
             'Physical', 'Safety' => 'High',
-            'Mental Health / Personal', 'Bullying / Harassment' => 'Medium',
-            // Academic, Administrative, Facilities / Equipment, Others.
+            'Mental Health / Personal', 'Bullying', 'Harassment' => 'Medium',
+            // Academic, Administrative, Facilities, Equipment, Others.
             // A broken PC is genuinely Low; a genuinely dangerous facility
             // fault still escalates on its own through the keyword scan above
             // ('unsafe', 'fire', 'accident', 'injury'), so exposed wiring or a
@@ -867,7 +867,8 @@ class ConcernController extends Controller
         $categoryRouting = [
             'Academic'                 => 'Instructor',
             'Mental Health / Personal' => 'Guidance Counselor',
-            'Bullying / Harassment'    => 'Guidance Counselor',
+            'Bullying'                 => 'Guidance Counselor',
+            'Harassment'               => 'Guidance Counselor',
             // Enrolment, records, ID, clearance, fees. This briefly went to a
             // Registrar role of its own; that role has been removed and these
             // come back to Admin, who triage and refer on to whichever office
@@ -893,7 +894,8 @@ class ConcernController extends Controller
             // office students already report a broken anything to, and one
             // real destination beats making a student decide which of two
             // maintenance offices owns their problem.
-            'Facilities / Equipment'   => 'General Services',
+            'Facilities'               => 'General Services',
+            'Equipment'                => 'General Services',
             'Physical'                 => 'Instructor',
             'Safety'                   => 'Instructor',
             'Others'                   => 'Instructor',

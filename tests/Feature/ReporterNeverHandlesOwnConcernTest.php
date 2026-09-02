@@ -130,7 +130,7 @@ class ReporterNeverHandlesOwnConcernTest extends TestCase
         $this->assertSame('General Services', $gsu->role->name);
 
         $this->actingAs($gsu)->post('/concerns', [
-            'category' => 'Facilities / Equipment',
+            'category' => 'Facilities',
             'description' => 'A maintenance problem reported by the maintenance office itself.',
             'is_anonymous' => 0,
         ]);

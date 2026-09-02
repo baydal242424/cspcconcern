@@ -16,9 +16,11 @@
                 <option value="">-- Select a category --</option>
                 <option value="Academic">Academic</option>
                 <option value="Mental Health / Personal">Mental Health / Personal</option>
-                <option value="Bullying / Harassment">Bullying / Harassment</option>
+                <option value="Bullying">Bullying</option>
+                <option value="Harassment">Harassment</option>
                 <option value="Administrative">Administrative</option>
-                <option value="Facilities / Equipment">Facilities / Equipment</option>
+                <option value="Facilities">Facilities</option>
+                <option value="Equipment">Equipment</option>
                 <option value="Physical">Physical</option>
                 <option value="Safety">Safety</option>
                 <option value="Others">Others</option>
@@ -213,13 +215,15 @@
                 const routingByCategory = {
                     'Academic': 'an instructor in your college',
                     'Mental Health / Personal': 'the Guidance Office',
-                    'Bullying / Harassment': 'the Guidance Office',
+                    'Bullying': 'the Guidance Office',
+                    'Harassment': 'the Guidance Office',
                     // Admin triage these and pass them to whichever office
                     // owns the request -- records, cashier, clearance. Saying
                     // "the Administration office" sets the right expectation:
                     // received here, answered elsewhere.
                     'Administrative': 'the Administration office',
-                    'Facilities / Equipment': 'the General Services Unit',
+                    'Facilities': 'the General Services Unit',
+                    'Equipment': 'the General Services Unit',
                     'Physical': 'an instructor in your college',
                     'Safety': 'an instructor in your college',
                     'Others': 'an instructor in your college'
@@ -232,9 +236,11 @@
                 const scopeByCategory = {
                     'Academic': 'Grades, subjects, class schedules, instructors, teaching concerns.',
                     'Mental Health / Personal': 'Stress, anxiety, family or personal difficulties, anything you need support with.',
-                    'Bullying / Harassment': 'Bullying, threats, harassment, or discrimination by anyone on campus.',
+                    'Bullying': 'Repeated behaviour aimed at you or someone else -- threats, intimidation, humiliation.',
+                    'Harassment': 'Unwanted conduct or discrimination by anyone on campus, including a single incident.',
                     'Administrative': 'Enrollment, records, ID, clearance, fees, and other office processes.',
-                    'Facilities / Equipment': 'Broken computers or lab equipment, no water or electricity, aircon, lights, chairs, internet, damaged rooms.',
+                    'Facilities': 'The building itself -- no water or electricity, aircon, lights, damaged rooms, blocked exits.',
+                    'Equipment': 'Things inside it -- computers, lab equipment, chairs, internet.',
                     'Physical': 'An accident or injury that has already happened to you or someone else.',
                     'Safety': 'A hazard that has not caused harm yet -- a broken stair, exposed wiring, a blocked exit.',
                     'Others': 'Anything that does not fit the categories above.'
@@ -268,7 +274,7 @@
                     }
 
                     // Show the confidentiality note only for sensitive categories.
-                    const sensitive = (cat === 'Mental Health / Personal' || cat === 'Bullying / Harassment');
+                    const sensitive = ['Mental Health / Personal', 'Bullying', 'Harassment'].includes(cat);
                     confidentialEl.style.display = sensitive ? 'block' : 'none';
                 }
 

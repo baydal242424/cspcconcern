@@ -70,7 +70,7 @@ class WhatAnInstructorSeesTest extends TestCase
         $mine = $this->concern(['assigned_to' => $me->id, 'status' => 'in_progress']);
         $openQueue = $this->concern(['category' => 'Safety']);
         $counselling = $this->concern(['category' => 'Mental Health / Personal']);
-        $facilities = $this->concern(['category' => 'Facilities / Equipment']);
+        $facilities = $this->concern(['category' => 'Facilities']);
 
         $visible = Concern::visibleTo($me)->pluck('id');
 

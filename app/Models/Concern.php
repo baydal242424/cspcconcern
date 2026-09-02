@@ -92,12 +92,27 @@ class Concern extends Model
     public const CATEGORIES = [
         'Academic',
         'Mental Health / Personal',
-        'Bullying / Harassment',
+        'Bullying',
+        'Harassment',
         'Administrative',
-        'Facilities / Equipment',
+        'Facilities',
+        'Equipment',
         'Physical',
         'Safety',
         'Others',
+    ];
+
+    /** Assessed by the Guidance Office, and withheld from everybody else. */
+    public const GUIDANCE_CATEGORIES = [
+        'Mental Health / Personal',
+        'Bullying',
+        'Harassment',
+    ];
+
+    /** Maintenance work: the General Services Unit's standing domain. */
+    public const FACILITIES_CATEGORIES = [
+        'Facilities',
+        'Equipment',
     ];
 
     /**
@@ -323,7 +338,7 @@ class Concern extends Model
         if ($role === 'Guidance Counselor') {
             return $query->where(function ($q) use ($user, $involved) {
                 // Natural domain: always visible.
-                $q->whereIn('category', ['Mental Health / Personal', 'Bullying / Harassment'])
+                $q->whereIn('category', self::GUIDANCE_CATEGORIES)
                   // Currently referred to her (open case she must act on).
                   ->orWhere(function ($sub) {
                       $sub->where('referred_to', 'Guidance Counselor')
@@ -361,13 +376,13 @@ class Concern extends Model
             });
         }
 
-        // General Services. Facilities / Equipment is its natural domain, the
+        // General Services. Facilities and Equipment are its natural domain, the
         // way Administrative is Admin's -- routeConcern() sends every one of
         // them here, so the office must be able to see them without waiting
         // for a referral.
         if ($role === 'General Services') {
             return $query->where(function ($q) use ($user, $involved) {
-                $q->where('category', 'Facilities / Equipment')
+                $q->whereIn('category', self::FACILITIES_CATEGORIES)
                   ->orWhere(function ($sub) {
                       $sub->where('referred_to', 'General Services')
                           ->whereNotIn('status', self::TERMINAL_STATUSES);

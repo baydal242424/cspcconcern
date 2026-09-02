@@ -9,7 +9,7 @@ class BreakGlassTest extends TestCase {
     protected function setUp():void{parent::setUp();$this->seed([RoleSeeder::class,UserSeeder::class]);}
     private function u($e){return User::where('email',$e)->firstOrFail();}
     private function line($t){fwrite(STDERR,"  $t\n");}
-    private function anon(){return Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Bullying / Harassment','department'=>'Guidance Office','description'=>'sensitive','urgency'=>null,'status'=>'submitted','is_anonymous'=>true]);}
+    private function anon(){return Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Bullying','department'=>'Guidance Office','description'=>'sensitive','urgency'=>null,'status'=>'submitted','is_anonymous'=>true]);}
 
     public function test_head_can_reveal_with_reason_and_it_is_logged(): void {
         $c=$this->anon();

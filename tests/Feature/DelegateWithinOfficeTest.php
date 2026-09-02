@@ -48,7 +48,7 @@ class DelegateWithinOfficeTest extends TestCase
     {
         return Concern::create([
             'user_id' => User::where('email', 'student@my.cspc.edu.ph')->firstOrFail()->id,
-            'category' => 'Facilities / Equipment',
+            'category' => 'Facilities',
             'department' => 'College of Computer Studies',
             'description' => 'The tap in the second floor comfort room will not close.',
             'status' => 'in_progress',

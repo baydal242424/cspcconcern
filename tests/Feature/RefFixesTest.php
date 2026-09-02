@@ -14,7 +14,7 @@ class RefFixesTest extends TestCase {
     public function test_dept_head_referral_can_be_resolved(): void {
         $counselor=$this->u('counselor@cspc.edu.ph');
         $depthead=$this->u('ccs@cspc.edu.ph');
-        $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Bullying / Harassment',
+        $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Bullying',
             'department'=>'Guidance Office','description'=>'x','urgency'=>'Medium','status'=>'submitted',
             'is_anonymous'=>true,'assigned_to'=>$counselor->id]);
         // counselor refers to Dean
@@ -32,7 +32,7 @@ class RefFixesTest extends TestCase {
     /** Reveal reason validation: junk/short is rejected, proper reason passes */
     public function test_reveal_reason_validation(): void {
         $head=$this->u('head@cspc.edu.ph');
-        $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Bullying / Harassment',
+        $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Bullying',
             'department'=>'Guidance Office','description'=>'x','urgency'=>null,'status'=>'submitted','is_anonymous'=>true]);
         // too short
         $r1=$this->actingAs($head)->post("/concerns/{$c->id}/reveal-identity",['identity_reveal_reason'=>'dsadasda']);

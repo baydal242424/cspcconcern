@@ -108,7 +108,7 @@ class DepartmentRoutingTest extends TestCase
         // "Dean", must reach the CHS dean -- not whichever dean
         // happens to have the lowest user id.
         $c = $this->submit([
-            'category' => 'Bullying / Harassment',
+            'category' => 'Bullying',
             'description' => 'a bullying concern from a health sciences student',
         ], 'College of Health Sciences');
 
@@ -129,7 +129,7 @@ class DepartmentRoutingTest extends TestCase
         User::where('email', 'chs@cspc.edu.ph')->delete();
 
         $c = $this->submit([
-            'category' => 'Bullying / Harassment',
+            'category' => 'Bullying',
             'description' => 'a bullying concern with no dean of its own to receive it',
         ], 'College of Health Sciences');
 

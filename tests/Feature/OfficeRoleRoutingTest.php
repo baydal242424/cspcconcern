@@ -68,8 +68,8 @@ class OfficeRoleRoutingTest extends TestCase
     public static function officeRoles(): array
     {
         return [
-            'General Services' => ['General Services', 'Facilities / Equipment', 'gsu@cspc.edu.ph'],
-            'Gender and Development' => ['Gender and Development', 'Bullying / Harassment', 'gad@cspc.edu.ph'],
+            'General Services' => ['General Services', 'Facilities', 'gsu@cspc.edu.ph'],
+            'Gender and Development' => ['Gender and Development', 'Bullying', 'gad@cspc.edu.ph'],
         ];
     }
 
@@ -122,7 +122,7 @@ class OfficeRoleRoutingTest extends TestCase
         $admin = $this->officer('Admin', 'sysadmin@cspc.edu.ph');
 
         $this->actingAs($student)->post('/concerns', [
-            'category' => 'Facilities / Equipment',
+            'category' => 'Facilities',
             'description' => 'A complaint about how the maintenance office handled my request.',
             'about_staff_id' => $officer->id,
         ]);

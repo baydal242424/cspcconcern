@@ -58,9 +58,11 @@ class QaAuditTest extends TestCase
         $expected = [
             'Academic'                 => 'Instructor',
             'Mental Health / Personal' => 'Guidance Counselor',
-            'Bullying / Harassment'    => 'Guidance Counselor',
+            'Bullying'                 => 'Guidance Counselor',
+            'Harassment'               => 'Guidance Counselor',
             'Administrative'           => 'Admin',
-            'Facilities / Equipment'   => 'General Services',
+            'Facilities'               => 'General Services',
+            'Equipment'                => 'General Services',
             'Physical'                 => 'Instructor',
             'Safety'                   => 'Instructor',
             'Others'                   => 'Instructor',

@@ -81,7 +81,7 @@ class VisibilityTest extends TestCase
     {
         $admin = $this->u('admin@cspc.edu.ph');
 
-        foreach (['Mental Health / Personal', 'Bullying / Harassment', 'Academic', 'Facilities / Equipment'] as $category) {
+        foreach (['Mental Health / Personal', 'Bullying', 'Academic', 'Facilities'] as $category) {
             $c = $this->makeConcern(['category' => $category]);
             $this->assertFalse(
                 Concern::whereKey($c->id)->visibleTo($admin)->exists(),
