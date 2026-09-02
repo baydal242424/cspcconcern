@@ -33,6 +33,10 @@
     .user-form{display:flex; flex-wrap:wrap; gap:.6rem; align-items:flex-end;
         padding-top:.85rem; border-top:1px dashed var(--line)}
     .field{display:flex; flex-direction:column; gap:.25rem; flex:1 1 210px; min-width:0}
+    /* display:flex above outranks the [hidden] attribute, which only gets
+       display:none from the user-agent stylesheet -- so hiding the programme
+       picker had no visible effect at all. Author rules beat UA rules. */
+    .field[hidden]{display:none}
     .field label{font-size:.7rem; font-weight:600; letter-spacing:.05em;
         text-transform:uppercase; color:var(--muted)}
     .field select{width:100%; padding:.55rem .6rem; border:1.5px solid var(--line);
