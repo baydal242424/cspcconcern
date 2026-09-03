@@ -55,6 +55,58 @@ class ConcernController extends Controller
 
 
     /**
+     * Which ROLE handles each category. Step one of routeConcern(); step two
+     * picks which person in that role.
+     *
+     * A constant rather than a local array because the filing form tells the
+     * student who will read their concern before they write it, and that
+     * promise has now drifted twice -- most recently the four adviser
+     * categories went on saying "an instructor in your college" after routing
+     * had moved to the class adviser a tier above. CategoryRoutingHelperTest
+     * reads this and the form's routingByCategory map and fails when they
+     * disagree.
+     */
+    public const CATEGORY_ROUTING = [
+        // Not 'Instructor'. Academic concerns reach the student's own class
+        // adviser first; routeConcern() falls back to an instructor of the
+        // college only where no adviser holds that section.
+        'Academic' => 'Adviser',
+        'Mental Health' => 'Guidance Counselor',
+        'Personal' => 'Guidance Counselor',
+        'Bullying' => 'Guidance Counselor',
+        'Harassment' => 'Guidance Counselor',
+        // Enrolment, records, ID, clearance, fees. This briefly went to a
+        // Registrar role of its own; that role has been removed and these
+        // come back to Admin, who triage and refer on to whichever office
+        // owns the request. Worth knowing when reading complaints that this
+        // office cannot resolve much itself -- a high referral rate here is
+        // the system working, not failing.
+        'Administrative' => 'Admin',
+        // Facilities/equipment problems (a dead lab PC, no water in the CR, a
+        // broken aircon) have no human subject and no academic content. They
+        // go to the General Services Unit, which per cspc.edu.ph performs
+        // "routine maintenance on all the buildings, grounds, facilities and
+        // other equipment" and is staffed for preventive maintenance, the
+        // electrical system, and air-conditioning and water systems.
+        //
+        // This used to be 'Admin'. That was wrong twice over: Admin has no
+        // maintenance function, and with the demo accounts removed the only
+        // Admins left are the system's own administrators -- so a broken
+        // computer was landing on the student who built the app.
+        //
+        // Computer faults are strictly ICTRaM's (the ICT Unit's repair arm),
+        // not GSU's. They still come here on purpose: GSU is the office
+        // students already report a broken anything to, and one real
+        // destination beats making a student decide which of two maintenance
+        // offices owns their problem.
+        'Facilities' => 'General Services',
+        'Equipment' => 'General Services',
+        'Physical' => 'Adviser',
+        'Safety' => 'Adviser',
+        'Others' => 'Adviser',
+    ];
+
+    /**
      * The offices a staff member may hand a concern on to. Single source of
      * truth: update()'s validation, the "Refer to" dropdown and the people
      * picker all read this list, so a destination can never be offered in the
@@ -871,45 +923,7 @@ class ConcernController extends Controller
      */
     private function routeConcern(Concern $concern)
     {
-        $categoryRouting = [
-            'Academic'                 => 'Adviser',
-            'Mental Health'            => 'Guidance Counselor',
-            'Personal'                 => 'Guidance Counselor',
-            'Bullying'                 => 'Guidance Counselor',
-            'Harassment'               => 'Guidance Counselor',
-            // Enrolment, records, ID, clearance, fees. This briefly went to a
-            // Registrar role of its own; that role has been removed and these
-            // come back to Admin, who triage and refer on to whichever office
-            // owns the request. Worth knowing when reading complaints that
-            // this office cannot resolve much itself -- a high referral rate
-            // here is the system working, not failing.
-            'Administrative'           => 'Admin',
-            // Facilities/equipment problems (a dead lab PC, no water in the CR,
-            // a broken aircon) have no human subject and no academic content.
-            // They go to the General Services Unit, which per cspc.edu.ph
-            // performs "routine maintenance on all the buildings, grounds,
-            // facilities and other equipment" and is staffed for preventive
-            // maintenance, the electrical system, and air-conditioning and
-            // water systems.
-            //
-            // This used to be 'Admin'. That was wrong twice over: Admin has no
-            // maintenance function, and with the demo accounts removed the
-            // only Admins left are the system's own administrators -- so a
-            // broken computer was landing on the student who built the app.
-            //
-            // Computer faults are strictly ICTRaM's (the ICT Unit's repair
-            // arm), not GSU's. They still come here on purpose: GSU is the
-            // office students already report a broken anything to, and one
-            // real destination beats making a student decide which of two
-            // maintenance offices owns their problem.
-            'Facilities'               => 'General Services',
-            'Equipment'                => 'General Services',
-            'Physical'                 => 'Adviser',
-            'Safety'                   => 'Adviser',
-            'Others'                   => 'Adviser',
-        ];
-
-        $targetRoleName = $categoryRouting[$concern->category] ?? 'Adviser';
+        $targetRoleName = self::CATEGORY_ROUTING[$concern->category] ?? 'Adviser';
 
         $targetUser = $this->findHandler($targetRoleName, $concern);
 

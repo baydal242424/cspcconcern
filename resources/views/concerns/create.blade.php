@@ -213,8 +213,15 @@
                 // Where each category is routed. This MUST mirror the server-side
                 // routing in ConcernController::routeConcern(). Routing is decided
                 // by category only; the department field is informational.
+                //
+                // These strings are a promise to the student about who is
+                // going to read what they are about to write, so a stale one
+                // is worse than none at all: the four adviser categories went
+                // on saying "an instructor in your college" after routing had
+                // already moved to the class adviser a tier above them.
+                // Change routeConcern() and change this in the same commit.
                 const routingByCategory = {
-                    'Academic': 'an instructor in your college',
+                    'Academic': 'your class adviser',
                     'Mental Health': 'the Guidance Office',
                     'Personal': 'the Guidance Office',
                     'Bullying': 'the Guidance Office',
@@ -226,9 +233,9 @@
                     'Administrative': 'the Administration office',
                     'Facilities': 'the General Services Unit',
                     'Equipment': 'the General Services Unit',
-                    'Physical': 'an instructor in your college',
-                    'Safety': 'an instructor in your college',
-                    'Others': 'an instructor in your college'
+                    'Physical': 'your class adviser',
+                    'Safety': 'your class adviser',
+                    'Others': 'your class adviser'
                 };
 
                 // One-line plain-English scope for each category. Without this
