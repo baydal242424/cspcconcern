@@ -40,6 +40,28 @@ class CeaFacultySeeder extends Seeder
      */
     private const FACULTY = [
         ['joyaguado@cspc.edu.ph', 'April Joy F. Aguado', 'Instructor', null],
+        ['alvinbadong@cspc.edu.ph', 'Alvin Badong', 'Instructor', null],
+        ['markbuena@cspc.edu.ph', 'Mark Buena', 'Instructor', null],
+        ['vincentmalapo@cspc.edu.ph', 'Vincent E. Malapo', 'Instructor', null],
+        ['engrgavina@cspc.edu.ph', 'Wenceslao Gavina', 'Instructor', null],
+        ['romulo.ruel@cspc.edu.ph', 'Ruel Romulo', 'Instructor', null],
+        ['rizzaloquias@cspc.edu.ph', 'Rizza T. Loquias', 'Instructor', null],
+        ['oliverosa@cspc.edu.ph', 'Rosanova Oliveros', 'Instructor', null],
+        ['victorisaac@cspc.edu.ph', 'Victor Isaac', 'Instructor', null],
+        ['eugenebarbonio@cspc.edu.ph', 'Eugene Barbonio', 'Instructor', null],
+
+        // Directs Research and Development Services per cspc.edu.ph, and
+        // appears on the college's teaching list. Seeded as a CEA instructor
+        // on that basis -- if the directorship is the whole role he belongs
+        // with the office staff, and CEA students should not reach him.
+        ['haroldterano@cspc.edu.ph', 'Harold Jan R. Terano', 'Instructor', null],
+
+        // Heads the Center for Quality Assurance per cspc.edu.ph, and appears
+        // on the college's teaching list. Seeded as a CEA instructor on that
+        // basis -- if the unit post is the whole role he belongs with the
+        // office staff instead, and CEA students' concerns should not reach
+        // him.
+        ['jbustamante@cspc.edu.ph', 'Juvy Bustamante', 'Instructor', null],
     ];
 
     /*
@@ -47,28 +69,24 @@ class CeaFacultySeeder extends Seeder
      * visible rather than forgotten, and so nobody is tempted to fill it with
      * a guess. Move a name up into FACULTY once its mailbox is confirmed.
      *
-     *   - Mark Buena
      *   - Daisylen De Guzman Alano
      *   - Angelica L. Bongcayao
-     *   - Vincent E. Malapo
-     *   - Wenceslao Gavina
      *   - Christoper Oares
-     *   - Ruel Romulo
-     *   - Rizza T. Loquias
-     *   - Rosanova Oliveros
-     *   - Harold Jan R. Terano
-     *   - Eugene Barbonio
-     *   - Victor Isaac
      *   - Peter Turiano
-     *   - Alvin Badong
-     *   - James Sias
-     *   - Juvy Bustamante
      *
-     * Two of these hold posts recorded elsewhere on cspc.edu.ph -- Harold Jan
-     * R. Terano directs Research and Development Services, and Juvy Bustamante
-     * heads the Center for Quality Assurance. If they teach as well, they
-     * belong here; if the unit post is their whole role, they belong in
-     * UserSeeder as office staff instead. Worth confirming before either.
+     * They hold accounts already, under placeholder addresses seeded by
+     * PlaceholderFacultySeeder, so routing reaches them. Replacing a
+     * placeholder address with the real one on that existing row keeps their
+     * concerns and history; adding a second row here would split them.
+     *
+     * Daisylen De Guzman Alano directs Extension and Community Services per
+     * cspc.edu.ph and appears on the college's teaching list. If the
+     * directorship is the whole role she belongs in UserSeeder as office
+     * staff, and CEA students' concerns should not reach her.
+     *
+     * James Sias appeared on this list and on the CCS consultation sheet. He
+     * has a confirmed address and is seeded in CcsFacultySeeder, where the
+     * posted hours place him.
      *
      * None of them need seeding to use the system: anyone signing in with a
      * cspc.edu.ph address is created as Faculty/Staff automatically, and an

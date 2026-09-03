@@ -49,6 +49,18 @@ class CcsFacultySeeder extends Seeder
     private const FACULTY = [
         // Information Systems Department. Instructor I, Rise Lab In-Charge.
         ['jeremyneo@cspc.edu.ph', 'Jeremy Jireh Neo', 'Instructor', null],
+
+        // Information Systems Department. BSIS Program Chair -- the
+        // programme string must match User::COURSES_BY_COLLEGE exactly, or
+        // findHandler() will not match him to a BSIS student and the
+        // referral falls back to college level looking like it worked.
+        ['jonuelreycolle@cspc.edu.ph', 'Jonuel Rey Colle', 'Program Chair', 'BS Information Systems'],
+
+        // Appears on the CEA list as well. Seeded to CCS because the
+        // posted Faculty Consultation Hours name him there with hours,
+        // which is the stronger evidence -- but his college here decides
+        // whose students' concerns reach him, so it is worth confirming.
+        ['jamessias@cspc.edu.ph', 'Mr. James Nicolo S. Sias', 'Instructor', null],
     ];
 
     /*
@@ -60,7 +72,6 @@ class CcsFacultySeeder extends Seeder
      * so these are the ones worth chasing first):
      *   - Tiffany Lyn Pandes  -- 'BS Computer Science'
      *   - Freddie Prianes     -- 'BS Information Technology'
-     *   - Jonuel Rey Colle    -- 'BS Information Systems'
      *   - Ime Amor A. Mortel  -- 'Bachelor of Library and Information Science'
      *
      * Those strings are the programme field above, and they have to match
