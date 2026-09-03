@@ -439,7 +439,11 @@ class Concern extends Model
         // referred to her and nothing else -- an oversight role with a standing
         // window into every student's concern would be the opposite of the
         // point.
-        if (in_array($role, ['Faculty/Staff', 'Vice President for Academic Affairs'], true)) {
+        // Referral-gated. Instructor is here rather than on the academic queue
+        // because Academic, Physical, Safety and Others now reach the Adviser
+        // first -- an instructor works what is sent to them, and what routing
+        // falls back to them when a college has named no adviser yet.
+        if (in_array($role, ['Instructor', 'Faculty/Staff', 'Vice President for Academic Affairs'], true)) {
             return $query->where(function ($q) use ($user, $role, $involved) {
                 $q->where('assigned_to', $user->id)
                   ->orWhere(function ($sub) use ($role) {
@@ -450,7 +454,7 @@ class Concern extends Model
             });
         }
 
-        if (in_array($role, ['Instructor', 'Program Chair', 'Dean'], true)) {
+        if (in_array($role, ['Adviser', 'Program Chair', 'Dean'], true)) {
             return $query->where(function ($q) use ($user, $role, $involved) {
                 $q->where('assigned_to', $user->id)
                   ->orWhere(function ($sub) use ($role) {

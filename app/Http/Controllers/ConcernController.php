@@ -33,6 +33,7 @@ class ConcernController extends Controller
      */
     private const STAFF_ROLES = [
         'Vice President for Academic Affairs',
+        'Adviser',
         'Instructor',
         'Faculty/Staff',
         'Program Chair',
@@ -60,6 +61,7 @@ class ConcernController extends Controller
      * UI without being accepted by the server (or the reverse).
      */
     public const REFERRAL_ROLES = [
+        'Adviser',
         'Vice President for Academic Affairs',
         'Instructor',
         'Guidance Counselor',
@@ -82,6 +84,7 @@ class ConcernController extends Controller
         'Admin'                  => 'Admin',
         'Vice President for Academic Affairs' => 'VPAA (above the Administration)',
         'Dean'                   => 'Dean (whole college)',
+        'Adviser'                => 'Adviser (a college)',
         'Instructor'             => 'Instructor (teaching staff)',
         'Faculty/Staff'          => 'Faculty/Staff (offices & units)',
         'Gender and Development' => 'Gender and Development (GAD)',
@@ -865,7 +868,7 @@ class ConcernController extends Controller
     private function routeConcern(Concern $concern)
     {
         $categoryRouting = [
-            'Academic'                 => 'Instructor',
+            'Academic'                 => 'Adviser',
             'Mental Health'            => 'Guidance Counselor',
             'Personal'                 => 'Guidance Counselor',
             'Bullying'                 => 'Guidance Counselor',
@@ -897,12 +900,12 @@ class ConcernController extends Controller
             // maintenance offices owns their problem.
             'Facilities'               => 'General Services',
             'Equipment'                => 'General Services',
-            'Physical'                 => 'Instructor',
-            'Safety'                   => 'Instructor',
-            'Others'                   => 'Instructor',
+            'Physical'                 => 'Adviser',
+            'Safety'                   => 'Adviser',
+            'Others'                   => 'Adviser',
         ];
 
-        $targetRoleName = $categoryRouting[$concern->category] ?? 'Instructor';
+        $targetRoleName = $categoryRouting[$concern->category] ?? 'Adviser';
 
         $targetUser = $this->findHandler($targetRoleName, $concern);
 
@@ -929,6 +932,14 @@ class ConcernController extends Controller
         // leaving assigned_to NULL and the concern visible to nobody but the
         // person who filed it. An empty role is a routing failure regardless
         // of what caused it.
+        // No adviser in that college yet? Try the tier below before climbing.
+        // An instructor is closer to the student than a dean is, and a college
+        // that has not named its advisers should not have every academic
+        // concern land on its dean in the meantime.
+        if (! $targetUser && $targetRoleName === 'Adviser') {
+            $targetUser = $this->findHandler('Instructor', $concern);
+        }
+
         // A complaint about an administrator is never handed to another
         // administrator. Excluding the individual is not enough here: Admin is
         // the role that manages accounts, roles and bans -- including each

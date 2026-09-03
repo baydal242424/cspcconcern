@@ -62,24 +62,31 @@ class WhatAnInstructorSeesTest extends TestCase
         fwrite(STDERR, "  [nav] Concerns + Policy + notifications; no Dashboard, no Manage Users\n");
     }
 
-    /** Their list: their own work, plus the open queue for their categories. */
+    /**
+     * Their list is their own work and nothing else.
+     *
+     * This used to include the open academic queue. The Adviser role took that
+     * over -- Academic, Physical, Safety and Others reach an adviser first, and
+     * an instructor now works what is sent to them: assigned, referred, or
+     * routed down to them because their college has named no adviser yet.
+     */
     public function test_what_appears_in_their_concern_list(): void
     {
         $me = $this->instructor();
 
         $mine = $this->concern(['assigned_to' => $me->id, 'status' => 'in_progress']);
-        $openQueue = $this->concern(['category' => 'Safety']);
+        $unclaimed = $this->concern(['category' => 'Safety', 'assigned_to' => null]);
         $counselling = $this->concern(['category' => 'Mental Health']);
         $facilities = $this->concern(['category' => 'Facilities']);
 
         $visible = Concern::visibleTo($me)->pluck('id');
 
         $this->assertTrue($visible->contains($mine->id), 'their own assigned concern');
-        $this->assertTrue($visible->contains($openQueue->id), 'the unclaimed academic/safety queue');
+        $this->assertFalse($visible->contains($unclaimed->id), 'the open queue belongs to the adviser tier');
         $this->assertFalse($visible->contains($counselling->id), 'counselling is not theirs');
         $this->assertFalse($visible->contains($facilities->id), 'facilities is not theirs');
 
-        fwrite(STDERR, "  [list] sees assigned + open Academic/Safety/Others; not Mental Health, not Facilities\n");
+        fwrite(STDERR, "  [list] sees what is assigned or referred to them, and nothing else\n");
     }
 
     /** An anonymous reporter stays anonymous to them. */

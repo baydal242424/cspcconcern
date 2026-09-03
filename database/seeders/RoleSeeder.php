@@ -19,6 +19,15 @@ class RoleSeeder extends Seeder
                 'description' => 'College student who can submit concerns',
             ],
             [
+                // The tier a student meets first for an academic matter, and
+                // the reason Academic no longer routes to whichever instructor
+                // happens to be in their college. Attached to a college, like
+                // a dean -- section-level advising would be more accurate and
+                // needs a column somebody maintains every term.
+                'name' => 'Adviser',
+                'description' => 'Academic adviser for a college; first handler for academic, safety and general concerns',
+            ],
+            [
                 // Teaching staff. Split out of Faculty/Staff, which had become
                 // a bucket: five of its six holders were unit heads, and every
                 // academic complaint routed to all of them alike.

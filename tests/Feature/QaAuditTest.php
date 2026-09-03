@@ -88,12 +88,24 @@ class QaAuditTest extends TestCase
     }
 
     /** Staff must SEE a concern routed to them. */
-    public function test_staff_sees_assigned_concern(): void
+    /**
+     * Whoever routing picked can see it. Named that way rather than acting as
+     * a fixed account: Safety reaches the student's adviser now, falling back
+     * to an instructor of their college, so which person holds it depends on
+     * who exists -- and the thing worth asserting is that the handler can
+     * open their own work.
+     */
+    public function test_the_assigned_handler_sees_the_concern(): void
     {
         $c = $this->submit(['category'=>'Safety']);
-        $this->actingAs($this->u('staff@cspc.edu.ph'))->get('/concerns')
+        $handler = $c->assignedUser;
+
+        $this->assertNotNull($handler, 'the concern should have reached somebody');
+
+        $this->actingAs($handler)->get('/concerns')
              ->assertOk()->assertSee("/concerns/{$c->id}", false);
-        fwrite(STDERR, "  [visibility] staff sees Physical/Safety concern #{$c->id}: YES\n");
+
+        fwrite(STDERR, "  [visibility] {$handler->name} sees Safety concern #{$c->id}: YES\n");
     }
 
     /**

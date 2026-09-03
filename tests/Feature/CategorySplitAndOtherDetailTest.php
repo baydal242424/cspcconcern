@@ -68,7 +68,18 @@ class CategorySplitAndOtherDetailTest extends TestCase
     /** Both sit in the shared teaching queue. */
     public function test_both_appear_in_the_open_teaching_queue(): void
     {
-        $instructor = User::where('email', 'ccs.instructor@cspc.edu.ph')->firstOrFail();
+        // The queue moved up a tier with the Adviser role: Academic, Physical,
+        // Safety and Others reach an adviser first, and an instructor is
+        // referral-gated.
+        $adviser = User::create([
+            'name' => 'Queue Adviser',
+            'email' => 'queue.adviser@cspc.edu.ph',
+            'password' => \Illuminate\Support\Facades\Hash::make('not-used'),
+            'role_id' => \App\Models\Role::where('name', 'Adviser')->firstOrFail()->id,
+            'department' => 'College of Computer Studies',
+            'status' => 'approved',
+            'email_verified_at' => now(),
+        ]);
 
         foreach (['Physical', 'Safety'] as $category) {
             $c = Concern::create([
@@ -80,10 +91,10 @@ class CategorySplitAndOtherDetailTest extends TestCase
                 'is_anonymous' => false,
             ]);
 
-            $this->assertTrue(Concern::visibleTo($instructor)->pluck('id')->contains($c->id));
+            $this->assertTrue(Concern::visibleTo($adviser)->pluck('id')->contains($c->id));
         }
 
-        fwrite(STDERR, "  [queue] both visible to every instructor until claimed\n");
+        fwrite(STDERR, "  [queue] both visible to every adviser until claimed\n");
     }
 
     /** Others cannot be filed without saying what it is. */

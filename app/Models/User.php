@@ -126,6 +126,7 @@ class User extends Authenticatable
      */
     public const EMPLOYEE_ROLES = [
         'Vice President for Academic Affairs',
+        'Adviser',
         'Instructor',
         'Faculty/Staff',
         'Program Chair',
