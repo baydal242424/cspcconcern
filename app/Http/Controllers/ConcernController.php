@@ -262,6 +262,17 @@ class ConcernController extends Controller
      */
     public function store(Request $request)
     {
+        // One name or several, posted the same way. The field became a list
+        // when a concern gained the ability to name more than one person;
+        // wrapping a lone id here means every existing form post, link and
+        // test that sends a single value keeps working unchanged.
+        $request->merge([
+            'about_staff_id' => array_values(array_filter(
+                \Illuminate\Support\Arr::wrap($request->input('about_staff_id')),
+                fn ($id) => $id !== null && $id !== '',
+            )),
+        ]);
+
         $validated = $request->validate([
             'category' => ['required', Rule::in(Concern::CATEGORIES)],
             // "Others" is the one category that does not say what it is, so it
@@ -274,9 +285,18 @@ class ConcernController extends Controller
             // Length limits are enforced server-side too -- the form's
             // minlength/maxlength are advisory only.
             'description' => 'required|string|min:20|max:2000',
-            // Optional conflict-of-interest flag: the staff member this concern
-            // is about. Must be a real user holding a staff-type role.
-            'about_staff_id' => ['nullable', 'integer', \Illuminate\Validation\Rule::exists('users', 'id'),
+            // Optional conflict-of-interest flag: the people this concern is
+            // about. Each must be a real user holding a staff-type role.
+            //
+            // A list, because a complaint is often about more than one person
+            // and naming only one left the others eligible to receive it. The
+            // form can now name an instructor, the class adviser and a dean on
+            // the same concern.
+            //
+            // Normalised to an array before validation (see store()), so a
+            // single id still posts exactly as it always did.
+            'about_staff_id' => ['nullable', 'array', 'max:10'],
+            'about_staff_id.*' => ['integer', \Illuminate\Validation\Rule::exists('users', 'id'),
                 function ($attribute, $value, $fail) {
                     $roleName = optional(optional(User::find($value))->role)->name;
                     if (! in_array($roleName, self::STAFF_ROLES, true)) {
@@ -331,7 +351,17 @@ class ConcernController extends Controller
         $uploadedFiles = $request->file('attachments', []);
         unset($validated['attachments']);
 
+        // Neither is the subject list: it lives in concern_subjects. Held back
+        // until the row exists, then written through syncSubjects(), which is
+        // the only thing that sets about_staff_id.
+        $subjectIds = $validated['about_staff_id'] ?? [];
+        unset($validated['about_staff_id']);
+
         $concern = Concern::create($validated);
+
+        if (! empty($subjectIds)) {
+            $concern->syncSubjects($subjectIds);
+        }
 
         // Securely store any evidence files on the PRIVATE disk with randomized
         // names. The original name is kept only as a display label.
@@ -1001,7 +1031,7 @@ class ConcernController extends Controller
 
             if ($sectionAdviser
                 && $sectionAdviser->id !== (int) $concern->user_id
-                && $sectionAdviser->id !== (int) $concern->about_staff_id
+                && ! in_array($sectionAdviser->id, $concern->subjectIds(), true)
                 && $sectionAdviser->status !== 'banned') {
                 $targetUser = $sectionAdviser;
             }
@@ -1022,7 +1052,9 @@ class ConcernController extends Controller
         // promote or suspend is not an independent review. It goes above the
         // Administration instead.
         if ($targetRoleName === 'Admin' && $concern->about_staff_id) {
-            $subjectIsAdmin = User::whereKey($concern->about_staff_id)
+            // ANY named administrator disqualifies the office, not just the
+            // first one listed.
+            $subjectIsAdmin = User::whereIn('id', $concern->subjectIds())
                 ->whereHas('role', fn ($q) => $q->where('name', 'Admin'))
                 ->exists();
 
@@ -1102,7 +1134,8 @@ class ConcernController extends Controller
         return User::query()
             ->whereHas('role', fn ($q) => $q->whereIn('name', self::REFERRAL_ROLES))
             ->where('id', '!=', $user->id)
-            ->when($concern->about_staff_id, fn ($q) => $q->where('id', '!=', $concern->about_staff_id))
+            // Nobody the concern names, however many that is.
+            ->whereNotIn('id', $concern->subjectIds())
             // ...and never the reporter, so the picker cannot offer to hand
             // someone their own concern. Matches findHandler().
             ->where('id', '!=', $concern->user_id)
@@ -1127,9 +1160,8 @@ class ConcernController extends Controller
             $q->where('name', $roleName);
         });
 
-        if ($concern->about_staff_id) {
-            $candidates->where('id', '!=', $concern->about_staff_id);
-        }
+        // Every person the concern names is out, not just the first.
+        $candidates->whereNotIn('id', $concern->subjectIds());
 
         // The REPORTER is excluded too, and for the same reason the subject is:
         // nobody investigates their own case. Staff file concerns as well as

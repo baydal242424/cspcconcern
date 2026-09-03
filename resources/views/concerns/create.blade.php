@@ -105,28 +105,43 @@
             @enderror
         </div>
 
-        {{-- Two ways to name the person a concern is about. Both write to the
-             same about_staff_id field, and only one can be active at a time:
-             the inactive select is disabled, so the browser never submits it
-             (and nothing is submitted at all when JavaScript is off). --}}
+        {{-- Three ways to name the people a concern is about, and they combine:
+             an instructor, the class adviser and a dean can all be named on
+             one concern. They were mutually exclusive while about_staff_id
+             held a single id, so a complaint about two people could only name
+             one -- and the other stayed eligible to receive it, read it, and
+             resolve a complaint about themselves.
+
+             Each control is disabled while its row is closed, so the browser
+             never submits it, and nothing is submitted at all with JavaScript
+             off. --}}
+        @php $namedSubjects = collect(old('about_staff_id', []))->map(fn ($id) => (int) $id); @endphp
         <div class="form-group">
             <label>
                 <input type="checkbox" id="about_instructor_toggle" class="about-toggle" data-target="about_instructor_wrap" data-select="about_instructor_id">
                 <span style="font-weight: normal; margin-left: 0.5rem;">This concern is about a specific instructor</span>
             </label>
             <div id="about_instructor_wrap" style="display:none; margin-top:0.6rem;">
-                <label for="about_instructor_id" style="font-size:0.9rem;">Which instructor is this concern about?</label>
-                <select name="about_staff_id" id="about_instructor_id" disabled>
-                    <option value="">-- Select the instructor --</option>
+                <label style="font-size:0.9rem;">Which instructor is this concern about? You can pick more than one.</label>
+                {{-- Checkboxes, not a multi-select. Choosing several from a
+                     <select multiple> means Ctrl-clicking, and a phone has no
+                     Ctrl key -- most students file from a phone, so the
+                     multi-select made the second name unreachable for exactly
+                     the people most likely to need it. A checkbox is one tap
+                     on every device. --}}
+                <input type="search" class="people-filter" data-list="about_instructor_id" placeholder="Type a name to narrow the list" aria-label="Search instructors" style="width:100%; margin:0.4rem 0;">
+                <div id="about_instructor_id" class="people-picker" data-name="about_staff_id[]">
                     @foreach ($instructorsByCollege as $college => $members)
-                        <optgroup label="{{ $college }}">
-                            @foreach ($members as $member)
-                                <option value="{{ $member->id }}" {{ old('about_staff_id') == $member->id ? 'selected' : '' }}>{{ $member->name }}</option>
-                            @endforeach
-                        </optgroup>
+                        <p class="people-group">{{ $college }}</p>
+                        @foreach ($members as $member)
+                            <label class="person">
+                                <input type="checkbox" name="about_staff_id[]" value="{{ $member->id }}" {{ $namedSubjects->contains($member->id) ? 'checked' : '' }} disabled>
+                                <span>{{ $member->name }}</span>
+                            </label>
+                        @endforeach
                     @endforeach
-                </select>
-                <p style="font-size: 0.82rem; color: #666; margin-top: 0.4rem;">To avoid a conflict of interest, this concern will <strong>not</strong> be assigned to the person named here. It will be routed to a higher authority instead.</p>
+                </div>
+                <p style="font-size: 0.82rem; color: #666; margin-top: 0.4rem;">To avoid a conflict of interest, this concern will <strong>not</strong> be assigned to anyone named here. It will be routed to a higher authority instead.</p>
             </div>
 
             {{-- The class adviser gets a row of their own, naming them.
@@ -156,7 +171,7 @@
                     {{-- No list to choose from: one adviser, held in a hidden
                          field that the shared toggle script fills in from
                          data-value when this row is the active one. --}}
-                    <input type="hidden" name="about_staff_id" id="about_adviser_id" data-value="{{ $adviser->id }}" value="{{ old('about_staff_id') == $adviser->id ? $adviser->id : '' }}" disabled>
+                    <input type="hidden" name="about_staff_id[]" id="about_adviser_id" data-value="{{ $adviser->id }}" value="{{ $namedSubjects->contains($adviser->id) ? $adviser->id : '' }}" disabled>
                     <p style="margin:0; font-weight:600;">{{ $adviser->name }}</p>
                     {{-- The student's section, not the adviser's own column,
                          which is a student field and empty on staff. --}}
@@ -175,24 +190,29 @@
                 <span style="font-weight: normal; margin-left: 0.5rem;">This concern is about someone else on staff — a dean, program chair, counselor, office or administrator</span>
             </label>
             <div id="about_staff_wrap" style="display:none; margin-top:0.6rem;">
-                <label for="about_staff_id" style="font-size:0.9rem;">Who is this concern about?</label>
-                <select name="about_staff_id" id="about_staff_id" disabled>
-                    <option value="">-- Select the staff member --</option>
+                <label style="font-size:0.9rem;">Who is this concern about? You can pick more than one.</label>
+                <input type="search" class="people-filter" data-list="about_staff_id" placeholder="Type a name to narrow the list" aria-label="Search staff" style="width:100%; margin:0.4rem 0;">
+                <div id="about_staff_id" class="people-picker" data-name="about_staff_id[]">
                     {{-- Grouped by office: "Faculty/Staff" alone named no
                          department, and one person appears twice under two
                          accounts for the two offices they head. --}}
                     @foreach ($otherStaffByOffice as $office => $members)
-                        <optgroup label="{{ $office }}">
-                            @foreach ($members as $member)
-                                <option value="{{ $member->id }}" {{ old('about_staff_id') == $member->id ? 'selected' : '' }}>{{ $member->name }} — {{ optional($member->role)->name }}</option>
-                            @endforeach
-                        </optgroup>
+                        <p class="people-group">{{ $office }}</p>
+                        @foreach ($members as $member)
+                            <label class="person">
+                                <input type="checkbox" name="about_staff_id[]" value="{{ $member->id }}" {{ $namedSubjects->contains($member->id) ? 'checked' : '' }} disabled>
+                                <span>{{ $member->name }} — {{ optional($member->role)->name }}</span>
+                            </label>
+                        @endforeach
                     @endforeach
-                </select>
-                <p style="font-size: 0.82rem; color: #666; margin-top: 0.4rem;">To avoid a conflict of interest, this concern will <strong>not</strong> be assigned to the person named here. It will be routed to a higher authority instead.</p>
+                </div>
+                <p style="font-size: 0.82rem; color: #666; margin-top: 0.4rem;">To avoid a conflict of interest, this concern will <strong>not</strong> be assigned to anyone named here. It will be routed to a higher authority instead.</p>
             </div>
 
             @error('about_staff_id')
+                <div style="color: #dc3545; font-size: 0.85rem; margin-top: 0.25rem;">{{ $message }}</div>
+            @enderror
+            @error('about_staff_id.*')
                 <div style="color: #dc3545; font-size: 0.85rem; margin-top: 0.25rem;">{{ $message }}</div>
             @enderror
         </div>
@@ -217,49 +237,116 @@
         </div>
 
         <script>
-            // "About a specific instructor" and "about an office or
-            // administrator" are two views of the same about_staff_id field,
-            // so ticking one unticks the other. The hidden select is disabled
-            // so only the visible one is ever submitted.
+            // The three "this concern is about..." rows. They are independent,
+            // not alternatives: a concern can name an instructor, the class
+            // adviser and a dean at once, and all of them post into the same
+            // about_staff_id[] list.
+            //
+            // They used to untick each other, because the column held one id.
+            // That quietly capped a complaint at one subject, and everybody
+            // the student could not name stayed eligible to receive it.
+            //
+            // A closed row is disabled so the browser leaves it out of the
+            // submission entirely.
             (function () {
                 const toggles = Array.from(document.querySelectorAll('.about-toggle'));
 
-                function apply(changed) {
-                    toggles.forEach(function (toggle) {
-                        if (changed && toggle !== changed && changed.checked) {
-                            toggle.checked = false;
-                        }
+                // A row is either a list of checkboxes (instructors, staff) or
+                // a single hidden field (the class adviser, who is named
+                // rather than chosen).
+                function boxesIn(field) {
+                    return Array.from(field.querySelectorAll('input[type="checkbox"]'));
+                }
 
+                function apply() {
+                    toggles.forEach(function (toggle) {
                         const wrap = document.getElementById(toggle.dataset.target);
-                        const select = document.getElementById(toggle.dataset.select);
+                        const field = document.getElementById(toggle.dataset.select);
+                        const boxes = boxesIn(field);
 
                         wrap.style.display = toggle.checked ? 'block' : 'none';
-                        select.disabled = !toggle.checked;
+
+                        if (boxes.length) {
+                            boxes.forEach(function (box) {
+                                box.disabled = !toggle.checked;
+                                // Clear on close, so reopening the row does not
+                                // silently re-add somebody the student had
+                                // unticked.
+                                if (!toggle.checked) box.checked = false;
+                            });
+                            return;
+                        }
+
+                        field.disabled = !toggle.checked;
 
                         if (!toggle.checked) {
-                            select.value = '';
-                        } else if (select.dataset.value) {
-                            // The class adviser row: one fixed person, held in
-                            // a hidden field rather than a dropdown. Its value
-                            // is filled in only while its row is the active
-                            // one -- if it carried the id at all times, the
-                            // old() restore below would tick this box on every
-                            // page load.
-                            select.value = select.dataset.value;
+                            field.value = '';
+                        } else if (field.dataset.value) {
+                            // The adviser's id is carried only while the row is
+                            // open. If the field held it at all times, the
+                            // restore below would tick the box on every load.
+                            field.value = field.dataset.value;
                         }
                     });
                 }
 
                 toggles.forEach(function (toggle) {
-                    toggle.addEventListener('change', function () { apply(this); });
+                    toggle.addEventListener('change', apply);
                 });
 
-                // Re-open the right one after a failed submit repopulates old().
+                // Reopen every row that had somebody in it after a failed
+                // submit repopulates old(). More than one may.
                 toggles.forEach(function (toggle) {
-                    const select = document.getElementById(toggle.dataset.select);
-                    if (select.value) toggle.checked = true;
+                    const field = document.getElementById(toggle.dataset.select);
+                    const boxes = boxesIn(field);
+                    const chosen = boxes.length
+                        ? boxes.some(function (box) { return box.checked; })
+                        : field.value !== '';
+
+                    if (chosen) toggle.checked = true;
                 });
-                apply(null);
+                apply();
+            })();
+
+            // Narrowing a list of several hundred names. Hides rows that do
+            // not match, and any college heading left with nothing under it.
+            // A ticked person is never hidden -- a name that disappears while
+            // still submitted is how somebody gets reported without the
+            // student realising they had left them ticked.
+            (function () {
+                Array.from(document.querySelectorAll('.people-filter')).forEach(function (search) {
+                    const list = document.getElementById(search.dataset.list);
+                    if (!list) return;
+
+                    search.addEventListener('input', function () {
+                        const term = search.value.trim().toLowerCase();
+
+                        Array.from(list.children).forEach(function (row) {
+                            if (row.classList.contains('people-group')) {
+                                row.dataset.empty = 'true';
+                                return;
+                            }
+
+                            const box = row.querySelector('input[type="checkbox"]');
+                            const match = !term || row.textContent.toLowerCase().includes(term);
+                            const show = match || (box && box.checked);
+
+                            row.hidden = !show;
+                        });
+
+                        // Second pass: a heading is shown only if something
+                        // under it survived.
+                        let heading = null;
+                        Array.from(list.children).forEach(function (row) {
+                            if (row.classList.contains('people-group')) {
+                                heading = row;
+                                heading.hidden = true;
+                            } else if (heading && !row.hidden) {
+                                heading.hidden = false;
+                            }
+                        });
+                    });
+                });
             })();
 
             (function() {

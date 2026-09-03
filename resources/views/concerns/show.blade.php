@@ -57,8 +57,20 @@
                 </dd>
 
                 @if ($concern->about_staff_id)
+                    {{-- Every named person, not just the first: the handler
+                         has to know who is walled out of this concern, and
+                         "about" one of two reported instructors would read as
+                         though the other were uninvolved. --}}
+                    @php $named = $concern->subjects; @endphp
                     <dt>Concern is about</dt>
-                    <dd>{{ optional($concern->aboutStaff)->name ?? 'A staff member' }} <span style="color:#b45309; font-size:0.85em;">(routed to a higher authority to avoid a conflict of interest)</span></dd>
+                    <dd>
+                        @if ($named->isEmpty())
+                            {{ optional($concern->aboutStaff)->name ?? 'A staff member' }}
+                        @else
+                            {{ $named->pluck('name')->join(', ', ' and ') }}
+                        @endif
+                        <span style="color:#b45309; font-size:0.85em;">(routed to a higher authority to avoid a conflict of interest)</span>
+                    </dd>
                 @endif
 
                 <dt>Assigned to</dt>

@@ -227,11 +227,73 @@ class Concern extends Model
     }
 
     /**
-     * The staff/person this concern is ABOUT (conflict-of-interest flag).
+     * The FIRST person this concern is about. Derived from subjects(), which
+     * is the authoritative list -- see syncSubjects().
      */
     public function aboutStaff()
     {
         return $this->belongsTo(User::class, 'about_staff_id');
+    }
+
+    /**
+     * Everyone this concern is about.
+     *
+     * A concern can name several people, and it must: a complaint about two
+     * instructors that could only name one left the other free to receive it,
+     * read it, and resolve a complaint about themselves.
+     */
+    public function subjects()
+    {
+        return $this->belongsToMany(User::class, 'concern_subjects')->withTimestamps();
+    }
+
+    /**
+     * The ids every exclusion rule works from.
+     *
+     * Falls back to about_staff_id for a concern built in memory that has not
+     * been saved yet, where the pivot cannot exist.
+     *
+     * @return array<int, int>
+     */
+    public function subjectIds(): array
+    {
+        // about_staff_id is included as well as the pivot, never instead of
+        // it. syncSubjects() keeps the two in step, but a concern written
+        // straight to the table -- a seeder, a fixture, a future controller
+        // that sets the column and forgets the list -- would otherwise have a
+        // named subject that no exclusion could see, and that person stays
+        // free to receive and read the complaint about themselves. Reading
+        // both means the only way to lose the wall is to name nobody.
+        $ids = [(int) $this->about_staff_id];
+
+        if ($this->exists) {
+            $ids = array_merge($ids, $this->relationLoaded('subjects')
+                ? $this->subjects->pluck('id')->all()
+                : $this->subjects()->pluck('users.id')->all());
+        }
+
+        return array_values(array_unique(array_filter(array_map('intval', $ids))));
+    }
+
+    /**
+     * The only place the subject list is written.
+     *
+     * Sets the pivot AND about_staff_id together so the derived column cannot
+     * drift from the list it is derived from -- a divergence here would mean a
+     * person walled out of a concern by one rule and handed it by another.
+     *
+     * @param  array<int, int|string>  $ids
+     */
+    public function syncSubjects(array $ids): void
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+
+        $this->subjects()->sync($ids);
+        $this->setRelation('subjects', $this->subjects()->get());
+
+        // The first named person, kept for the show page and for the cheap
+        // "is this about anybody at all" check.
+        $this->forceFill(['about_staff_id' => $ids[0] ?? null])->save();
     }
 
     /**
@@ -313,9 +375,22 @@ class Concern extends Model
         // rule -- so it cannot be bypassed via category, assignment, referral,
         // involvement history, or rank. The reported person is fully walled
         // off from the complaint against them.
+        //
+        // Reads the subject LIST, not about_staff_id. A concern can name
+        // several people; checking only the first would wall out one of two
+        // reported instructors and leave the other reading the complaint
+        // against them both.
+        // Both the list and the column, for the reason given on subjectIds():
+        // a concern whose subject was written straight to about_staff_id has
+        // no pivot row, and a pivot-only check would let that person read the
+        // complaint about themselves.
         $query->where(function ($outer) use ($user) {
             $outer->whereNull('about_staff_id')
-                  ->orWhere('about_staff_id', '!=', $user->id);
+                ->orWhere('about_staff_id', '!=', $user->id);
+        });
+
+        $query->whereDoesntHave('subjects', function ($subject) use ($user) {
+            $subject->where('users.id', $user->id);
         });
 
         // Head of School: highest authority. Can read ALL concern CONTENT so

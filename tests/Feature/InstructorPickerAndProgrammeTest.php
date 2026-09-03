@@ -102,8 +102,11 @@ class InstructorPickerAndProgrammeTest extends TestCase
             'A member of an office must be listed under that office'
         );
 
-        // And it must reach the page, not just the view data.
-        $resp->assertSee('<optgroup label="'.e($officeStaff->department).'">', false);
+        // And it must reach the page, not just the view data. The picker is a
+        // list of checkboxes rather than a <select multiple>, because naming
+        // two people in one of those needs a Ctrl key and most students file
+        // from a phone.
+        $resp->assertSee('<p class="people-group">'.e($officeStaff->department).'</p>', false);
 
         fwrite(STDERR, "  [picker] office staff grouped under their office: YES\n");
     }

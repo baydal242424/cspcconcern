@@ -32,6 +32,12 @@
         body{
             font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
             background:var(--bg); color:var(--ink); line-height:1.55;
+            /* html is navy so the mobile overscroll at the top matches the
+               navbar. On a short page the body stopped at its content and the
+               navy showed through underneath it as a dark band -- most
+               obvious on the empty "no concerns yet" screen. Filling the
+               viewport keeps the page background behind the whole page. */
+            min-height:100vh;
             -webkit-font-smoothing:antialiased;
             background-image:radial-gradient(1200px 400px at 80% -120px,rgba(47,91,234,.07),transparent 60%);
         }
@@ -251,6 +257,32 @@
             white-space:pre-wrap; overflow-wrap:anywhere;
         }
         .user-text.closure{color:#6b4a00}
+
+        /* Naming people on a concern. Checkboxes rather than a multi-select:
+           picking several from a <select multiple> needs a Ctrl key, and most
+           students file from a phone. A scrolling box keeps a list of several
+           hundred instructors from burying the rest of the form. */
+        .people-picker{
+            max-height:16rem; overflow-y:auto; border:1px solid var(--line);
+            border-radius:.5rem; background:#fff; padding:.35rem 0;
+        }
+        .people-picker .people-group{
+            position:sticky; top:0; background:#f4f6fb; color:var(--navy-900);
+            font-size:.78rem; font-weight:650; letter-spacing:.01em;
+            padding:.35rem .75rem; border-bottom:1px solid var(--line);
+        }
+        .people-picker .person{
+            display:flex; align-items:flex-start; gap:.55rem;
+            padding:.45rem .75rem; font-weight:400; cursor:pointer;
+        }
+        /* 44px of tappable height per row: a phone is the common case. */
+        .people-picker .person span{min-height:1.6rem; line-height:1.6}
+        .people-picker .person:hover{background:#f7f9ff}
+        .people-picker .person input{margin-top:.25rem; flex:none}
+        .people-filter{
+            padding:.5rem .7rem; border:1px solid var(--line); border-radius:.5rem;
+            font:inherit; color:var(--ink); background:#fff;
+        }
 
         footer{text-align:center; color:var(--muted); padding:2rem 1rem 3rem; font-size:.85rem}
 
