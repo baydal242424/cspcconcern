@@ -289,10 +289,25 @@ class AuthController extends Controller
                     }
                 },
             ],
-            // No year level or section: this form runs once, and both change
-            // every school year, so the stored value would be wrong for most
-            // of a student's time here. Nothing routes on them.
+            // Section IS collected now, reversing an earlier decision. The
+            // reasoning for leaving it out was that nothing routed on it and
+            // it goes stale every year -- the first half stopped being true
+            // when Academic concerns started going to a student's class
+            // adviser, who is attached to a section rather than a college.
+            //
+            // Optional, and staleness is survivable: a concern from a student
+            // with no section, or a section nobody advises any more, falls
+            // back to an adviser in their college, then an instructor, then up
+            // the escalation chain. It reaches somebody either way; the
+            // section only decides whether it reaches the RIGHT somebody.
+            'section' => ['nullable', 'string', 'max:12', 'regex:/^[1-6][A-Za-z]$/'],
+        ], [
+            'section.regex' => 'Use your year and section together, like 3A.',
         ]);
+
+        if (isset($validated['section'])) {
+            $validated['section'] = strtoupper($validated['section']);
+        }
 
         $user->update($validated);
 

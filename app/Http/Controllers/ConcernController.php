@@ -213,6 +213,10 @@ class ConcernController extends Controller
         // Their programme, for the same reason and by the same rule: a
         // Program Chair chairs one course, so a referral has to know which.
         $validated['course'] = Auth::user()->course;
+        // And the section, for the same reason one step down: an Academic
+        // concern goes to the student's own class adviser, and the adviser
+        // is attached to a section rather than to the college.
+        $validated['section'] = Auth::user()->section;
         // Urgency is assigned automatically from the category and description
         // at submission time -- students never set it, and staff no longer
         // have to triage a blank "Pending triage" queue by hand. Staff can
@@ -932,6 +936,25 @@ class ConcernController extends Controller
         // leaving assigned_to NULL and the concern visible to nobody but the
         // person who filed it. An empty role is a routing failure regardless
         // of what caused it.
+        // The student's OWN class adviser, before anybody else in the role.
+        // "Adviser" means the person who advises their section -- BSIT 3A --
+        // not whichever adviser in the college sorts first, and reaching the
+        // wrong one is the whole thing this is meant to avoid.
+        //
+        // Every exclusion still applies afterwards: an adviser who is the
+        // subject of the concern, or its reporter, is not eligible to handle
+        // it however well they know the student.
+        if ($targetRoleName === 'Adviser') {
+            $sectionAdviser = \App\Models\Section::adviserFor($concern->course, $concern->section);
+
+            if ($sectionAdviser
+                && $sectionAdviser->id !== (int) $concern->user_id
+                && $sectionAdviser->id !== (int) $concern->about_staff_id
+                && $sectionAdviser->status !== 'banned') {
+                $targetUser = $sectionAdviser;
+            }
+        }
+
         // No adviser in that college yet? Try the tier below before climbing.
         // An instructor is closer to the student than a dean is, and a college
         // that has not named its advisers should not have every academic

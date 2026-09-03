@@ -169,6 +169,7 @@ class Concern extends Model
         'other_category',
         'department',
         'course',
+        'section',
         'urgency',
         'description',
         'investigation_notes',

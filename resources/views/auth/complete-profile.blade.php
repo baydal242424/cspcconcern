@@ -80,12 +80,31 @@
                     @endforeach
                 </select>
             </div>
-            {{-- Year level and section used to be asked here and were removed:
-                 both go stale every year, and this form is shown ONCE, so a
-                 student who joined in 3rd year would be filed as a 3rd year
-                 forever. Neither is used for routing or permissions (a
-                 concern inherits its reporter's COLLEGE, not their year), so
-                 collecting them only guaranteed wrong data. --}}
+            {{-- Section is asked again, reversing an earlier decision to drop
+                 it. The objection was that it goes stale and nothing routed on
+                 it; the second half stopped being true when academic concerns
+                 started reaching a student's class adviser, who advises a
+                 SECTION rather than a college.
+
+                 Optional, and stale is survivable: with no section, or one
+                 nobody advises any more, a concern falls back to an adviser in
+                 the college, then an instructor, then up the chain. It reaches
+                 somebody either way -- the section decides whether it reaches
+                 the person who actually knows them. --}}
+            <div class="form-group">
+                <label for="section">Year and section <span style="font-weight:400; color:#666;">(optional)</span></label>
+                <input type="text" id="section" name="section" maxlength="12"
+                       value="{{ old('section', Auth::user()->section) }}"
+                       placeholder="e.g. 3A">
+                <p style="font-size:.82rem; color:#666; margin-top:.35rem;">
+                    Your year level and section letter together, like <strong>3A</strong>.
+                    We use it to send academic concerns to your own class adviser.
+                </p>
+                @error('section')
+                    <div style="color:#dc3545; font-size:.85rem; margin-top:.25rem;">{{ $message }}</div>
+                @enderror
+            </div>
+
             <button type="submit" class="btn">Save and continue</button>
         </form>
     </div>

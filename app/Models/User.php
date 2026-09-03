@@ -45,7 +45,9 @@ use Illuminate\Notifications\Notifiable;
  *
  * @mixin \Illuminate\Database\Eloquent\Model
  */
-#[Fillable(['name', 'email', 'password', 'role_id', 'department', 'student_id', 'course', 'google_id', 'status', 'approved_by', 'approved_at', 'last_seen_at', 'banned_by', 'banned_at', 'ban_reason', 'email_verified_at'])]
+#[Fillable(['name', 'email', 'password', 'role_id', 'department', 'student_id', 'course',
+    // The student's class section, e.g. 3A. Staff leave it null.
+    'section', 'google_id', 'status', 'approved_by', 'approved_at', 'last_seen_at', 'banned_by', 'banned_at', 'ban_reason', 'email_verified_at'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
