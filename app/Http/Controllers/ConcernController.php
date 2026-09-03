@@ -207,11 +207,38 @@ class ConcernController extends Controller
             fn (User $u) => optional($u->role)->name === 'Instructor'
         );
 
+        // The student's own class adviser, offered first and by name.
+        //
+        // Advising is not a role, so the adviser is whoever holds the section
+        // -- and 14 of the 105 section assignments are held by a Program
+        // Chair, a Dean or Faculty/Staff, none of whom appear in a picker
+        // built from the Instructor role. Those students had no way to name
+        // their adviser as the subject of a concern.
+        //
+        // It matters more here than anywhere else in this form: Academic,
+        // Physical, Safety and Others route to the class adviser FIRST, so a
+        // concern about the adviser that fails to name them is handed
+        // straight to the person it is about. routeConcern() steps past an
+        // adviser who is the named subject -- but only if the student could
+        // name them.
+        $adviser = \App\Models\Section::adviserFor(auth()->user()->course, auth()->user()->section);
+
+        if ($adviser && $adviser->id === auth()->id()) {
+            $adviser = null;
+        }
+
         return view('concerns.create', [
             // Grouped by college so a long list stays navigable. Instructors
             // from every college are offered, not just the student's own --
             // general-education subjects are taught across colleges.
-            'instructorsByCollege' => $instructors->groupBy(fn (User $u) => $u->department ?: 'Other'),
+            'adviser' => $adviser,
+            // The adviser has a row of their own, so they come out of both
+            // lists. One person offered in two places on one form reads as
+            // two different people, and the student cannot tell which choice
+            // the system will treat as "my adviser".
+            'instructorsByCollege' => $instructors
+                ->reject(fn (User $u) => $adviser && $u->id === $adviser->id)
+                ->groupBy(fn (User $u) => $u->department ?: 'Other'),
             // Grouped by office for the same reason, and for one more: this
             // list was a flat "Name -- Role", and "Faculty/Staff" names no
             // office at all. It covers the ICT Unit, Records, Health Services
@@ -221,6 +248,7 @@ class ConcernController extends Controller
             // the Legal Affairs Office under two accounts, and the only thing
             // separating them on screen was a role name.
             'otherStaffByOffice' => $otherStaff
+                ->reject(fn (User $u) => $adviser && $u->id === $adviser->id)
                 ->groupBy(fn (User $u) => $u->department ?: 'Other')
                 ->sortKeys(),
         ]);

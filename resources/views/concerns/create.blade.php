@@ -129,6 +129,42 @@
                 <p style="font-size: 0.82rem; color: #666; margin-top: 0.4rem;">To avoid a conflict of interest, this concern will <strong>not</strong> be assigned to the person named here. It will be routed to a higher authority instead.</p>
             </div>
 
+            {{-- The class adviser gets a row of their own, naming them.
+                 Advising is not a role, so the adviser is whoever holds the
+                 section: 14 of the 105 assignments belong to a Program Chair,
+                 a Dean or Faculty/Staff, who appear in no picker built from
+                 the Instructor role. Those students could not name their own
+                 adviser at all.
+
+                 It matters most here of anywhere on this form. Academic,
+                 Physical, Safety and Others route to the class adviser FIRST,
+                 so a concern about the adviser that fails to name them is
+                 handed straight to the person it is about. routeConcern()
+                 steps past an adviser who is the named subject -- but only if
+                 the student could name them.
+
+                 Named rather than listed because there is exactly one, and
+                 because plenty of students do not know who theirs is. A
+                 dropdown would ask them to recognise a name; this tells them
+                 one. --}}
+            @if ($adviser)
+                <label style="display:block; margin-top:0.7rem;">
+                    <input type="checkbox" id="about_adviser_toggle" class="about-toggle" data-target="about_adviser_wrap" data-select="about_adviser_id">
+                    <span style="font-weight: normal; margin-left: 0.5rem;">This concern is about my class adviser</span>
+                </label>
+                <div id="about_adviser_wrap" style="display:none; margin-top:0.6rem; padding-left:1.6rem;">
+                    {{-- No list to choose from: one adviser, held in a hidden
+                         field that the shared toggle script fills in from
+                         data-value when this row is the active one. --}}
+                    <input type="hidden" name="about_staff_id" id="about_adviser_id" data-value="{{ $adviser->id }}" value="{{ old('about_staff_id') == $adviser->id ? $adviser->id : '' }}" disabled>
+                    <p style="margin:0; font-weight:600;">{{ $adviser->name }}</p>
+                    {{-- The student's section, not the adviser's own column,
+                         which is a student field and empty on staff. --}}
+                    <p style="margin:0.1rem 0 0; font-size:0.85rem; color:#555;">{{ $adviser->department }}@if (auth()->user()->section) · your adviser for section {{ auth()->user()->section }}@endif</p>
+                    <p style="font-size: 0.82rem; color: #666; margin-top: 0.4rem;">To avoid a conflict of interest, this concern will <strong>not</strong> be assigned to the person named here. It will be routed to a higher authority instead.</p>
+                </div>
+            @endif
+
             <label style="display:block; margin-top:0.7rem;">
                 <input type="checkbox" id="about_staff_toggle" class="about-toggle" data-target="about_staff_wrap" data-select="about_staff_id">
                 {{-- "an office or administrator" undersold this by a long way:
@@ -199,7 +235,18 @@
 
                         wrap.style.display = toggle.checked ? 'block' : 'none';
                         select.disabled = !toggle.checked;
-                        if (!toggle.checked) select.value = '';
+
+                        if (!toggle.checked) {
+                            select.value = '';
+                        } else if (select.dataset.value) {
+                            // The class adviser row: one fixed person, held in
+                            // a hidden field rather than a dropdown. Its value
+                            // is filled in only while its row is the active
+                            // one -- if it carried the id at all times, the
+                            // old() restore below would tick this box on every
+                            // page load.
+                            select.value = select.dataset.value;
+                        }
                     });
                 }
 
