@@ -232,13 +232,26 @@ class ConcernController extends Controller
             // from every college are offered, not just the student's own --
             // general-education subjects are taught across colleges.
             'adviser' => $adviser,
+            // The student's own college, so the form can open on it and keep
+            // the other five folded away. A Computer Studies student was
+            // scrolling past 170 Health Sciences names to reach their own
+            // college, in a list whose group order was whatever the name sort
+            // happened to produce.
+            'ownCollege' => auth()->user()->department,
             // The adviser has a row of their own, so they come out of both
             // lists. One person offered in two places on one form reads as
             // two different people, and the student cannot tell which choice
             // the system will treat as "my adviser".
             'instructorsByCollege' => $instructors
                 ->reject(fn (User $u) => $adviser && $u->id === $adviser->id)
-                ->groupBy(fn (User $u) => $u->department ?: 'Other'),
+                ->groupBy(fn (User $u) => $u->department ?: 'Other')
+                // The reporter's own college first. Group order was otherwise
+                // whatever the name sort produced, which put Health Sciences
+                // and its 170 instructors at the top for everybody.
+                ->sortBy(fn ($members, $college) => [
+                    $college === auth()->user()->department ? 0 : 1,
+                    $college,
+                ]),
             // Grouped by office for the same reason, and for one more: this
             // list was a flat "Name -- Role", and "Faculty/Staff" names no
             // office at all. It covers the ICT Unit, Records, Health Services

@@ -130,17 +130,28 @@
                      the people most likely to need it. A checkbox is one tap
                      on every device. --}}
                 <input type="search" class="people-filter" data-list="about_instructor_id" placeholder="Type a name to narrow the list" aria-label="Search instructors" style="width:100%; margin:0.4rem 0;">
+                {{-- Opens on the student's own college and folds the other
+                     five away. Every college at once is 368 names, and the
+                     order was whatever the name sort produced -- a Computer
+                     Studies student scrolled past 170 Health Sciences
+                     instructors to reach their own. Searching still looks
+                     everywhere, since general-education subjects are taught
+                     across colleges. --}}
                 <div id="about_instructor_id" class="people-picker" data-name="about_staff_id[]">
                     @foreach ($instructorsByCollege as $college => $members)
-                        <p class="people-group">{{ $college }}</p>
+                        <p class="people-group" data-own="{{ $college === $ownCollege ? '1' : '0' }}">{{ $college }}@if ($college === $ownCollege) <span style="font-weight:400; color:#64748b;">· your college</span>@endif</p>
                         @foreach ($members as $member)
-                            <label class="person">
+                            <label class="person" data-own="{{ $college === $ownCollege ? '1' : '0' }}">
                                 <input type="checkbox" name="about_staff_id[]" value="{{ $member->id }}" {{ $namedSubjects->contains($member->id) ? 'checked' : '' }} disabled>
                                 <span>{{ $member->name }}</span>
                             </label>
                         @endforeach
                     @endforeach
                 </div>
+                @php $elsewhere = $instructorsByCollege->reject(fn ($m, $c) => $c === $ownCollege)->flatten()->count(); @endphp
+                @if ($elsewhere)
+                    <button type="button" class="show-all-people" data-list="about_instructor_id" data-count="{{ $elsewhere }}" style="margin-top:.4rem;">Show instructors from other colleges ({{ $elsewhere }})</button>
+                @endif
                 <p style="font-size: 0.82rem; color: #666; margin-top: 0.4rem;">To avoid a conflict of interest, this concern will <strong>not</strong> be assigned to anyone named here. It will be routed to a higher authority instead.</p>
             </div>
 
@@ -314,28 +325,39 @@
             // still submitted is how somebody gets reported without the
             // student realising they had left them ticked.
             (function () {
-                Array.from(document.querySelectorAll('.people-filter')).forEach(function (search) {
-                    const list = document.getElementById(search.dataset.list);
-                    if (!list) return;
+                Array.from(document.querySelectorAll('.people-picker')).forEach(function (list) {
+                    const search = document.querySelector('.people-filter[data-list="' + list.id + '"]');
+                    const expand = document.querySelector('.show-all-people[data-list="' + list.id + '"]');
 
-                    search.addEventListener('input', function () {
-                        const term = search.value.trim().toLowerCase();
+                    // A list with no own/other split (the staff picker) shows
+                    // everything from the start.
+                    let showAll = !list.querySelector('[data-own="0"]');
+
+                    function render() {
+                        const term = search ? search.value.trim().toLowerCase() : '';
 
                         Array.from(list.children).forEach(function (row) {
-                            if (row.classList.contains('people-group')) {
-                                row.dataset.empty = 'true';
-                                return;
-                            }
+                            if (row.classList.contains('people-group')) return;
 
                             const box = row.querySelector('input[type="checkbox"]');
-                            const match = !term || row.textContent.toLowerCase().includes(term);
-                            const show = match || (box && box.checked);
+                            const own = row.dataset.own !== '0';
 
-                            row.hidden = !show;
+                            // Searching looks everywhere, folded colleges
+                            // included -- a name half-remembered is exactly
+                            // when the student cannot say which college it is
+                            // in, and general-education subjects are taught
+                            // across colleges anyway.
+                            const show = term
+                                ? row.textContent.toLowerCase().includes(term)
+                                : (showAll || own);
+
+                            // A ticked person is never hidden: a name that
+                            // disappears while still submitted is how somebody
+                            // gets reported without the student realising.
+                            row.hidden = !(show || (box && box.checked));
                         });
 
-                        // Second pass: a heading is shown only if something
-                        // under it survived.
+                        // A heading survives only if something under it did.
                         let heading = null;
                         Array.from(list.children).forEach(function (row) {
                             if (row.classList.contains('people-group')) {
@@ -345,7 +367,20 @@
                                 heading.hidden = false;
                             }
                         });
-                    });
+
+                        if (expand) expand.hidden = showAll || term !== '';
+                    }
+
+                    if (search) search.addEventListener('input', render);
+
+                    if (expand) {
+                        expand.addEventListener('click', function () {
+                            showAll = true;
+                            render();
+                        });
+                    }
+
+                    render();
                 });
             })();
 

@@ -279,6 +279,10 @@
         .people-picker .person span{min-height:1.6rem; line-height:1.6}
         .people-picker .person:hover{background:#f7f9ff}
         .people-picker .person input{margin-top:.25rem; flex:none}
+        .show-all-people{
+            background:none; border:0; padding:.35rem 0; font:inherit;
+            font-size:.85rem; color:var(--brand); cursor:pointer; text-decoration:underline;
+        }
         .people-filter{
             padding:.5rem .7rem; border:1px solid var(--line); border-radius:.5rem;
             font:inherit; color:var(--ink); background:#fff;
