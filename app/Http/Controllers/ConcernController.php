@@ -212,7 +212,17 @@ class ConcernController extends Controller
             // from every college are offered, not just the student's own --
             // general-education subjects are taught across colleges.
             'instructorsByCollege' => $instructors->groupBy(fn (User $u) => $u->department ?: 'Other'),
-            'otherStaff' => $otherStaff,
+            // Grouped by office for the same reason, and for one more: this
+            // list was a flat "Name -- Role", and "Faculty/Staff" names no
+            // office at all. It covers the ICT Unit, Records, Health Services
+            // and half a dozen colleges, so a student reporting a person could
+            // not tell which of them they were pointing at. Two rows read
+            // identically -- the same lawyer heads Human Rights Education and
+            // the Legal Affairs Office under two accounts, and the only thing
+            // separating them on screen was a role name.
+            'otherStaffByOffice' => $otherStaff
+                ->groupBy(fn (User $u) => $u->department ?: 'Other')
+                ->sortKeys(),
         ]);
     }
 

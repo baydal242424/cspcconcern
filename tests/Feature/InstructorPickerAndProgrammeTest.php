@@ -52,7 +52,7 @@ class InstructorPickerAndProgrammeTest extends TestCase
         $resp->assertOk();
 
         $byCollege = $resp->viewData('instructorsByCollege')->flatten();
-        $other = $resp->viewData('otherStaff');
+        $other = $resp->viewData('otherStaffByOffice')->flatten();
 
         $this->assertTrue(
             $byCollege->contains('id', $instructor->id),
@@ -65,6 +65,47 @@ class InstructorPickerAndProgrammeTest extends TestCase
         $this->assertTrue($other->contains('id', $officeStaff->id));
 
         fwrite(STDERR, "  [picker] instructors listed as instructors, unit heads as other staff: YES\n");
+    }
+
+    /**
+     * The office picker has to say which office.
+     *
+     * It was a flat list of "Name -- Role", and the commonest role there is
+     * "Faculty/Staff", which names no office at all: the ICT Unit, Records,
+     * Health Services and half a dozen colleges all read the same. A student
+     * naming the person their concern is about could not tell who they were
+     * pointing at -- and the whole purpose of that field is to route the
+     * concern AWAY from the person named, so picking the wrong one sends it to
+     * the very office it should be kept from.
+     *
+     * Worst case in the real data: one lawyer heads both Human Rights
+     * Education and the Legal Affairs Office under two accounts, so two
+     * consecutive rows were identical but for a role name.
+     */
+    public function test_the_office_picker_says_which_office_each_person_belongs_to(): void
+    {
+        $officeStaff = User::where('email', 'mict@cspc.edu.ph')->firstOrFail();
+        $this->assertNotEmpty($officeStaff->department);
+
+        $resp = $this->actingAs($this->student())->get('/concerns/create');
+        $resp->assertOk();
+
+        $grouped = $resp->viewData('otherStaffByOffice');
+
+        $this->assertTrue(
+            $grouped->has($officeStaff->department),
+            'The picker must be grouped by office, not presented as one flat list'
+        );
+
+        $this->assertTrue(
+            $grouped->get($officeStaff->department)->contains('id', $officeStaff->id),
+            'A member of an office must be listed under that office'
+        );
+
+        // And it must reach the page, not just the view data.
+        $resp->assertSee('<optgroup label="'.e($officeStaff->department).'">', false);
+
+        fwrite(STDERR, "  [picker] office staff grouped under their office: YES\n");
     }
 
     /** A newly promoted instructor shows up in the picker straight away. */

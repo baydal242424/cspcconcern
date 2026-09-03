@@ -131,14 +131,26 @@
 
             <label style="display:block; margin-top:0.7rem;">
                 <input type="checkbox" id="about_staff_toggle" class="about-toggle" data-target="about_staff_wrap" data-select="about_staff_id">
-                <span style="font-weight: normal; margin-left: 0.5rem;">This concern is about an office or administrator</span>
+                {{-- "an office or administrator" undersold this by a long way:
+                     the list holds deans, program chairs, counselors, Gender
+                     and Development, General Services and the VPAA. A student
+                     with a concern about their dean had no reason to open a
+                     box that did not mention deans. --}}
+                <span style="font-weight: normal; margin-left: 0.5rem;">This concern is about someone else on staff — a dean, program chair, counselor, office or administrator</span>
             </label>
             <div id="about_staff_wrap" style="display:none; margin-top:0.6rem;">
                 <label for="about_staff_id" style="font-size:0.9rem;">Who is this concern about?</label>
                 <select name="about_staff_id" id="about_staff_id" disabled>
                     <option value="">-- Select the staff member --</option>
-                    @foreach ($otherStaff as $member)
-                        <option value="{{ $member->id }}" {{ old('about_staff_id') == $member->id ? 'selected' : '' }}>{{ $member->name }} — {{ optional($member->role)->name }}</option>
+                    {{-- Grouped by office: "Faculty/Staff" alone named no
+                         department, and one person appears twice under two
+                         accounts for the two offices they head. --}}
+                    @foreach ($otherStaffByOffice as $office => $members)
+                        <optgroup label="{{ $office }}">
+                            @foreach ($members as $member)
+                                <option value="{{ $member->id }}" {{ old('about_staff_id') == $member->id ? 'selected' : '' }}>{{ $member->name }} — {{ optional($member->role)->name }}</option>
+                            @endforeach
+                        </optgroup>
                     @endforeach
                 </select>
                 <p style="font-size: 0.82rem; color: #666; margin-top: 0.4rem;">To avoid a conflict of interest, this concern will <strong>not</strong> be assigned to the person named here. It will be routed to a higher authority instead.</p>
