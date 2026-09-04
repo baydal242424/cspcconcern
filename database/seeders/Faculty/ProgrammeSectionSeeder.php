@@ -42,6 +42,9 @@ class ProgrammeSectionSeeder extends Seeder
 
     private const SEMESTER = 'Second';
 
+    /** Year levels to give a section to: first through fourth. */
+    public const YEARS = [1, 2, 3, 4];
+
     public function run(): void
     {
         $instructor = Role::where('name', 'Instructor')->value('id');
@@ -70,29 +73,51 @@ class ProgrammeSectionSeeder extends Seeder
             }
 
             foreach (array_values($courses) as $i => $course) {
-                // Already advised -- a published list, or a previous run.
-                if (Section::where('course', $course)->whereNotNull('adviser_id')->exists()) {
-                    continue;
+                // One section per year level, first through fourth. A single
+                // 1A covered only first years: everybody above them had a
+                // section with nobody recorded against it, so their concerns
+                // fell to college-level routing and the filing form could not
+                // offer their adviser by name. The account that found this was
+                // a real BSIS student in 4A, where the published list stopped
+                // at 1A and 1B.
+                foreach (self::YEARS as $year) {
+                    $section = $year.'A';
+
+                    // Already advised -- a published list, or a previous run.
+                    // Checked per SECTION, not per programme, so a college
+                    // that has published some of its year levels keeps them
+                    // and only gains the ones it has not.
+                    $advised = Section::where('course', $course)
+                        ->where('section', $section)
+                        ->whereNotNull('adviser_id')
+                        ->exists();
+
+                    if ($advised) {
+                        continue;
+                    }
+
+                    // Walk the faculty list by programme AND year, so the four
+                    // year levels of one programme get four different people
+                    // rather than one person advising all of them.
+                    $adviser = $faculty[(($i * count(self::YEARS)) + $year - 1) % $faculty->count()];
+
+                    Section::updateOrCreate(
+                        [
+                            'course' => $course,
+                            'section' => $section,
+                            'school_year' => self::YEAR,
+                            'semester' => self::SEMESTER,
+                        ],
+                        ['adviser_id' => $adviser->id]
+                    );
+
+                    $sections++;
                 }
 
-                $adviser = $faculty[$i % $faculty->count()];
-
-                Section::updateOrCreate(
-                    [
-                        'course' => $course,
-                        'section' => '1A',
-                        'school_year' => self::YEAR,
-                        'semester' => self::SEMESTER,
-                    ],
-                    ['adviser_id' => $adviser->id]
-                );
-
-                $sections++;
-
-                // Put this programme's demo student in the section, so filing
-                // as them demonstrates the whole chain rather than the
-                // fallback. Real students set their own section on the profile
-                // form and are left alone.
+                // Put this programme's demo student in a section that has an
+                // adviser, so filing as them demonstrates the whole chain
+                // rather than the fallback. Real students set their own
+                // section on the profile form and are left alone.
                 $students += User::where('course', $course)
                     ->where('email', 'like', 'demo.%')
                     ->whereNull('section')

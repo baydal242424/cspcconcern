@@ -227,11 +227,22 @@ class ConcernController extends Controller
             $adviser = null;
         }
 
+        // The student has a section but nobody is recorded as advising it.
+        // Distinguishing this from "no section" is the point: the row simply
+        // vanished, and a student comparing their form with a classmate's had
+        // no way to tell whether they had filled something in wrongly or the
+        // college had not published that section's adviser. Most sections are
+        // in exactly this state -- BSIS has 1A and 1B on record and nothing
+        // above first year -- so silence here is the common case, not the edge
+        // one.
+        $adviserUnknown = ! $adviser && filled(auth()->user()->section);
+
         return view('concerns.create', [
             // Grouped by college so a long list stays navigable. Instructors
             // from every college are offered, not just the student's own --
             // general-education subjects are taught across colleges.
             'adviser' => $adviser,
+            'adviserUnknown' => $adviserUnknown,
             // The student's own college, so the form can open on it and keep
             // the other five folded away. A Computer Studies student was
             // scrolling past 170 Health Sciences names to reach their own

@@ -189,6 +189,16 @@
                     <p style="margin:0.1rem 0 0; font-size:0.85rem; color:#555;">{{ $adviser->department }}@if (auth()->user()->section) · your adviser for section {{ auth()->user()->section }}@endif</p>
                     <p style="font-size: 0.82rem; color: #666; margin-top: 0.4rem;">To avoid a conflict of interest, this concern will <strong>not</strong> be assigned to the person named here. It will be routed to a higher authority instead.</p>
                 </div>
+            @elseif ($adviserUnknown)
+                {{-- Say why the row is absent. It used to just not be there,
+                     which reads as a fault in the form -- a student comparing
+                     theirs with a classmate's could not tell whether they had
+                     filled something in wrongly or their college simply had
+                     not published that section's adviser. Most sections are in
+                     this state today. --}}
+                <p style="font-size:0.82rem; color:#666; margin-top:0.7rem;">
+                    No class adviser is recorded for {{ auth()->user()->course }} section {{ auth()->user()->section }} yet, so this form cannot offer them by name. If your concern is about your adviser, find them under <strong>a specific instructor</strong> above.
+                </p>
             @endif
 
             <label style="display:block; margin-top:0.7rem;">
