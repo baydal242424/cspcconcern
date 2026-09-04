@@ -195,8 +195,19 @@ class User extends Authenticatable
             return false;
         }
 
+        // Section counts as missing detail now, not an optional extra. It was
+        // left optional because nothing routed on it -- that stopped being
+        // true when Academic, Physical, Safety and Others started reaching a
+        // student's own class adviser, who is attached to a SECTION and not to
+        // a college. Without it the concern falls back to college-level
+        // routing, and the filing form cannot offer the adviser as the subject
+        // of the complaint at all, because it does not know who they are.
+        //
+        // Students already on file without one are asked once, on their next
+        // sign-in, rather than being left in a state the form cannot serve.
         return ! array_key_exists((string) $this->department, self::COURSES_BY_COLLEGE)
-            || blank($this->course);
+            || blank($this->course)
+            || blank($this->section);
     }
 
     /**
@@ -222,6 +233,45 @@ class User extends Authenticatable
     {
         return $this->last_seen_at !== null
             && $this->last_seen_at->gt(now()->subMinutes(self::ONLINE_THRESHOLD_MINUTES));
+    }
+
+    /**
+     * The programmes an instructor teaches, as rows of instructor_programmes.
+     *
+     * Separate from users.course, which holds ONE programme meaning "the
+     * programme this person belongs to" -- a student's own, or the single
+     * programme a Program Chair chairs. An instructor teaches several, so it
+     * could not live in that column.
+     *
+     * Empty is normal: an instructor who has not filled it in yet, or one who
+     * teaches across programmes. They stay grouped under their college.
+     */
+    public function programmesTaught()
+    {
+        return $this->hasMany(InstructorProgramme::class);
+    }
+
+    /**
+     * Replace this instructor's programme list.
+     *
+     * Silently drops anything the user's own college does not offer, so a
+     * hand-posted form cannot file somebody under a programme they could not
+     * possibly teach.
+     *
+     * @param  array<int, string>  $courses
+     */
+    public function syncProgrammesTaught(array $courses): void
+    {
+        $offered = self::COURSES_BY_COLLEGE[$this->department] ?? [];
+        $courses = array_values(array_unique(array_intersect($courses, $offered)));
+
+        $this->programmesTaught()->whereNotIn('course', $courses)->delete();
+
+        foreach ($courses as $course) {
+            $this->programmesTaught()->firstOrCreate(['course' => $course]);
+        }
+
+        $this->unsetRelation('programmesTaught');
     }
 
     /**

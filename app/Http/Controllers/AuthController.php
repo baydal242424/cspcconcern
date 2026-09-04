@@ -300,7 +300,14 @@ class AuthController extends Controller
             // back to an adviser in their college, then an instructor, then up
             // the escalation chain. It reaches somebody either way; the
             // section only decides whether it reaches the RIGHT somebody.
-            'section' => ['nullable', 'string', 'max:12', 'regex:/^[1-6][A-Za-z]$/'],
+            // Required, reversing the decision above it. Leaving it optional
+            // meant a student could finish signing up with no section, and a
+            // section is what identifies their class adviser -- so their
+            // Academic concerns fell to college-level routing and the filing
+            // form could not offer their adviser as the subject of a
+            // complaint. The form simply showed one fewer checkbox, with
+            // nothing to say why.
+            'section' => ['required', 'string', 'max:12', 'regex:/^[1-6][A-Za-z]$/'],
         ], [
             'section.regex' => 'Use your year and section together, like 3A.',
         ]);

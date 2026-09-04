@@ -55,6 +55,11 @@ class UserSeeder extends Seeder
                 'department' => 'College of Computer Studies',
                 'student_id' => '2023-00123',
                 'course' => 'BS Information Technology',
+                // Every student carries a section. It identifies their class
+                // adviser, who receives Academic, Physical, Safety and Others
+                // before anyone else, so an account without one is not a
+                // realistic fixture -- the sign-up form requires it.
+                'section' => '3A',
             ]
         );
 
@@ -67,6 +72,7 @@ class UserSeeder extends Seeder
                 'department' => 'College of Health Sciences',
                 'student_id' => '2023-00456',
                 'course' => 'BS Nursing',
+                'section' => '2B',
             ]
         );
 

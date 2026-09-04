@@ -17,8 +17,8 @@ use Tests\TestCase;
  *
  * "Adviser" is not a pool. The person who advises BSIT 3A is the one who knows
  * that section, and reaching a different adviser in the same college is the
- * failure this exists to prevent. The fallbacks matter as much: a student with
- * no section, or a section nobody advises, must still reach somebody.
+ * failure this exists to prevent. The fallback matters as much: a section
+ * nobody advises must still reach somebody.
  */
 class SectionAdviserRoutingTest extends TestCase
 {
@@ -128,19 +128,14 @@ class SectionAdviserRoutingTest extends TestCase
         fwrite(STDERR, "  [term] the current semester's adviser, not last term's\n");
     }
 
-    /** No section recorded: fall back to an adviser in their college. */
-    public function test_without_a_section_it_falls_back_to_a_college_advisor(): void
-    {
-        $collegeAdviser = $this->staff('Adviser', 'adviser.ccs@cspc.edu.ph');
-
-        $concern = $this->file($this->student(null));
-
-        $this->assertSame($collegeAdviser->id, $concern->assigned_to);
-
-        fwrite(STDERR, "  [fallback] no section -> an adviser of their college\n");
-    }
-
-    /** A section nobody advises behaves the same way. */
+    /**
+     * A section nobody advises: fall back to an adviser in their college.
+     *
+     * This case absorbed the old "no section at all" test when sign-up started
+     * requiring a section. What remains reachable is a section on the student's
+     * record that has no adviser recorded against it -- a new section, or one
+     * whose adviser left. The fallback is what keeps those concerns moving.
+     */
     public function test_an_unadvised_section_falls_back_too(): void
     {
         $collegeAdviser = $this->staff('Adviser', 'adviser.ccs@cspc.edu.ph');

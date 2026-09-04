@@ -59,6 +59,10 @@ class OfficeRoleRoutingTest extends TestCase
             'role_id' => Role::where('name', 'Student')->value('id'),
             'department' => 'College of Computer Studies',
             'course' => 'BS Information Technology',
+            // Sign-up requires a section: it identifies the class adviser,
+            // who receives four of the eleven categories ahead of anybody
+            // else. A student without one cannot reach the app.
+            'section' => '3A',
             'student_id' => '2024-00001',
             'status' => 'approved',
         ]);

@@ -86,14 +86,16 @@
                  started reaching a student's class adviser, who advises a
                  SECTION rather than a college.
 
-                 Optional, and stale is survivable: with no section, or one
-                 nobody advises any more, a concern falls back to an adviser in
-                 the college, then an instructor, then up the chain. It reaches
-                 somebody either way -- the section decides whether it reaches
-                 the person who actually knows them. --}}
+                 Required now, not optional. Skipping it left a student whose
+                 concerns fell back to college-level routing and whose filing
+                 form silently dropped the "about my class adviser" row --
+                 there was no section, so there was no adviser to name, and
+                 nothing on screen said why. Stale is still survivable: a
+                 section nobody advises any more falls back to an adviser in
+                 the college, then an instructor, then up the chain. --}}
             <div class="form-group">
-                <label for="section">Year and section <span style="font-weight:400; color:#666;">(optional)</span></label>
-                <input type="text" id="section" name="section" maxlength="12"
+                <label for="section">Year and section</label>
+                <input type="text" id="section" name="section" maxlength="12" required
                        value="{{ old('section', Auth::user()->section) }}"
                        placeholder="e.g. 3A">
                 <p style="font-size:.82rem; color:#666; margin-top:.35rem;">

@@ -138,11 +138,17 @@ class ReportingYourOwnAdviserTest extends TestCase
             .optional($concern->assignedUser)->name." instead: YES\n");
     }
 
-    /** A student with no section recorded simply does not see the row. */
+    /**
+     * A section nobody advises simply does not show the row.
+     *
+     * Previously this used a student with no section at all. Sign-up requires
+     * one now -- an account without a section was the reason the row went
+     * missing for real students, with nothing on screen to say why.
+     */
     public function test_no_adviser_row_when_the_section_has_none(): void
     {
         $student = $this->student();
-        $student->update(['course' => 'BSIT', 'section' => null]);
+        $student->update(['course' => 'BSIT', 'section' => '6Z']);
 
         $resp = $this->actingAs($student->refresh())->get('/concerns/create');
         $resp->assertOk();
