@@ -414,7 +414,16 @@
                                 @foreach ($people as $person)
                                     <option value="{{ $person->id }}" data-role="{{ $officeName }}"
                                         {{ (string) old('referred_to_user_id') === (string) $person->id ? 'selected' : '' }}>
-                                        {{ $person->name }}@if ($person->department) — {{ $person->department }}@endif
+                                        {{-- A Program Chair heads one programme, and that
+                                             is what distinguishes them: four Computer
+                                             Studies chairs all read "— College of Computer
+                                             Studies", which says nothing about which of
+                                             them owns the concern in hand. Routing already
+                                             prefers the chair of the reporter's own
+                                             programme, so the label should show what the
+                                             system is matching on. Everyone else keeps the
+                                             college, which is what distinguishes them. --}}
+                                        {{ $person->name }}@if ($person->course) — {{ $person->course }}@elseif ($person->department) — {{ $person->department }}@endif
                                     </option>
                                 @endforeach
                             @endforeach

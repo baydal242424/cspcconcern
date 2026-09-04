@@ -196,7 +196,9 @@ class ConcernController extends Controller
         // have to scan past deans, counsellors and admins to find them.
         $staffMembers = User::with('role')->whereHas('role', function ($q) {
             $q->whereIn('name', self::STAFF_ROLES);
-        })->orderBy('name')->get(['id', 'name', 'department', 'role_id']);
+            // course comes along for Program Chairs, whose programme is what
+            // tells four chairs of one college apart.
+        })->orderBy('name')->get(['id', 'name', 'department', 'course', 'role_id']);
 
         // Splits on Instructor. This read 'Faculty/Staff' until that role was
         // divided in two, at which point the two lists silently swapped: the

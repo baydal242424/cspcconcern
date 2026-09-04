@@ -222,7 +222,10 @@
                         @foreach ($members as $member)
                             <label class="person">
                                 <input type="checkbox" name="about_staff_id[]" value="{{ $member->id }}" {{ $namedSubjects->contains($member->id) ? 'checked' : '' }} disabled>
-                                <span>{{ $member->name }} — {{ optional($member->role)->name }}</span>
+                                {{-- The programme for a chair, who heads exactly one:
+                                     "Program Chair" alone does not say which of the
+                                     four in a college the student means. --}}
+                                <span>{{ $member->name }} — {{ optional($member->role)->name }}@if ($member->course), {{ $member->course }}@endif</span>
                             </label>
                         @endforeach
                     @endforeach
