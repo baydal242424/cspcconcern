@@ -39,7 +39,7 @@
                 @foreach ($concerns as $concern)
                     <tr>
                         <td>#{{ $concern->id }}</td>
-                        <td>{{ $concern->category }}</td>
+                        <td>{{ $concern->category_label }}</td>
                         <td>
                             <span class="urgency-badge urgency-{{ strtolower($concern->urgency ?? 'pending') }}">
                                 {{ $concern->urgency ?? 'Pending' }}

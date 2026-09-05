@@ -14,17 +14,16 @@
             <label for="category">Concern Category *</label>
             <select name="category" id="category" required>
                 <option value="">-- Select a category --</option>
-                <option value="Academic">Academic</option>
-                <option value="Mental Health">Mental Health</option>
-                <option value="Personal">Personal</option>
-                <option value="Bullying">Bullying</option>
-                <option value="Harassment">Harassment</option>
-                <option value="Administrative">Administrative</option>
-                <option value="Facilities">Facilities</option>
-                <option value="Equipment">Equipment</option>
-                <option value="Physical">Physical</option>
-                <option value="Safety">Safety</option>
-                <option value="Others">Others</option>
+                {{-- Looped from Concern::CATEGORIES rather than written out,
+                     so the form cannot offer a category the server rejects or
+                     miss one that was added. The VALUE is the stored contract
+                     that routing matches on; the label is what a student
+                     reads, and the two differ where CATEGORY_LABELS says so. --}}
+                @foreach (\App\Models\Concern::CATEGORIES as $category)
+                    <option value="{{ $category }}" {{ old('category') === $category ? 'selected' : '' }}>
+                        {{ \App\Models\Concern::categoryLabel($category) }}
+                    </option>
+                @endforeach
             </select>
             @error('category')
                 <div style="color: #dc3545; font-size: 0.85rem; margin-top: 0.25rem;">{{ $message }}</div>

@@ -48,7 +48,7 @@
                 <ol style="padding-left: 1.2rem; color: #333;">
                     @foreach ($trendingCategories as $category => $data)
                         <li style="margin-bottom: 0.75rem; display: flex; justify-content: space-between; align-items:center;">
-                            <span>{{ $category }}</span>
+                            <span>{{ \App\Models\Concern::categoryLabel($category) }}</span>
                             <span style="display:flex; align-items:center; gap:0.4rem;">
                                 @if ($data['direction'] > 0)
                                     <span title="Rising vs. previous 30 days" style="color:#b42318;">▲</span>
@@ -106,7 +106,7 @@
             @foreach ($categoryTotals as $category => $count)
                 <div style="margin-bottom: 0.9rem;">
                     <div style="display:flex; justify-content:space-between; font-size:0.9rem; margin-bottom:0.25rem;">
-                        <span>{{ $category }}</span>
+                        <span>{{ \App\Models\Concern::categoryLabel($category) }}</span>
                         <strong>{{ $count }}</strong>
                     </div>
                     <div style="background:#eef1f6; border-radius:999px; height:8px; overflow:hidden;">
@@ -164,7 +164,7 @@
                     @foreach ($recentConcerns as $concern)
                         <tr>
                             <td>#{{ $concern->id }}</td>
-                            <td>{{ $concern->category }}</td>
+                            <td>{{ $concern->category_label }}</td>
                             <td>{{ $concern->urgency }}</td>
                             <td>{{ $concern->status_label }}</td>
                             <td>

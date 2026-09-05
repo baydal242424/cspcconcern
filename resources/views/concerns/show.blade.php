@@ -30,7 +30,7 @@
                      called it sits beside the label, so the queue is readable
                      without opening every one. --}}
                 <dd>
-                    {{ $concern->category }}@if ($concern->other_category)
+                    {{ $concern->category_label }}@if ($concern->other_category)
                         <span style="color:var(--muted);">&mdash; {{ $concern->other_category }}</span>
                     @endif
                 </dd>

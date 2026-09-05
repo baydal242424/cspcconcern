@@ -103,6 +103,34 @@ class Concern extends Model
         'Others',
     ];
 
+    /**
+     * How a category is written for a student, where that differs from the
+     * value stored on the row.
+     *
+     * The stored value is a contract: routing, urgency grading and every
+     * visibility rule match it by name, so renaming one would mean migrating
+     * every concern that carries it and touching twenty call sites. The label
+     * is just words on a screen. Same split as STATUS_LABELS, where
+     * 'closed_no_action' is stored and "Closed" is shown.
+     *
+     * @var array<string, string>
+     */
+    public const CATEGORY_LABELS = [
+        'Administrative' => 'Administrator',
+    ];
+
+    /** What a student should see for a category. */
+    public static function categoryLabel(?string $category): string
+    {
+        return self::CATEGORY_LABELS[$category] ?? (string) $category;
+    }
+
+    /** Convenience for views: {{ $concern->category_label }}. */
+    public function getCategoryLabelAttribute(): string
+    {
+        return self::categoryLabel($this->category);
+    }
+
     /** Assessed by the Guidance Office, and withheld from everybody else. */
     public const GUIDANCE_CATEGORIES = [
         'Mental Health',

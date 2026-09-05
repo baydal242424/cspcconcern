@@ -141,4 +141,35 @@ class CategorySplitAndOtherDetailTest extends TestCase
 
         fwrite(STDERR, "  [others] label ignored on a category that names itself\n");
     }
+
+    /**
+     * The student reads "Administrator"; the row still says "Administrative".
+     *
+     * The stored value is a contract -- routing, urgency grading and every
+     * visibility rule match it by name -- so renaming it for the sake of the
+     * wording would have meant migrating every concern that carries it and
+     * touching twenty call sites. Only the label changed, the same way
+     * 'closed_no_action' is stored and "Closed" is shown.
+     */
+    public function test_the_administrative_category_is_shown_as_administrator(): void
+    {
+        $page = $this->actingAs($this->student())->get('/concerns/create');
+
+        $page->assertOk();
+        $page->assertSee('value="Administrative"', false);
+        $page->assertSee('Administrator');
+
+        // And a filed one keeps the stored value while displaying the label.
+        $this->actingAs($this->student())->post('/concerns', [
+            'category' => 'Administrative',
+            'description' => 'I need a copy of my registration record for a scholarship.',
+        ]);
+
+        $concern = Concern::latest('id')->firstOrFail();
+
+        $this->assertSame('Administrative', $concern->category, 'the stored value is the contract');
+        $this->assertSame('Administrator', $concern->category_label);
+
+        fwrite(STDERR, "  [label] shown as Administrator, stored as Administrative: YES\n");
+    }
 }
