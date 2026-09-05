@@ -165,8 +165,8 @@
     @else
         <div class="user-toolbar">
             <input type="search" id="user-search" class="user-search" autocomplete="off"
-                   placeholder="Filter by name, email, role or college…"
-                   aria-label="Filter accounts">
+                   placeholder="Search by name or student ID — also email, role, college, section, status"
+                   aria-label="Search accounts by name or student ID">
             <span class="user-count" id="user-count">{{ $users->count() }} accounts</span>
         </div>
 
@@ -177,7 +177,25 @@
                     $isSelf = $user->id === auth()->id();
                 @endphp
                 <div class="user-card {{ $isSelf ? 'is-self' : '' }}"
-                     data-search="{{ Str::lower($user->name.' '.$user->email.' '.$roleName.' '.$user->department.' '.$user->course) }}">
+                     {{-- Status is in here so "graduated" and "banned" are
+                          searchable. Without it the promotion panel's advice
+                          to search for graduated accounts matched nothing,
+                          and the only way to find one was to scroll. --}}
+                     data-search="{{ Str::lower(implode(' ', array_filter([
+                         $user->name,
+                         // The student number, so an admin holding a class list
+                         // can type the id straight off it and land on the same
+                         // person a name search would find. It is what the
+                         // college's own records key on, and it is unambiguous
+                         // where two students share a name.
+                         $user->student_id,
+                         $user->email,
+                         $roleName,
+                         $user->department,
+                         $user->course,
+                         $user->section,
+                         $user->status,
+                     ]))) }}">
 
                     <div class="user-head">
                         <span class="user-name">{{ $user->name }}</span>
@@ -198,6 +216,7 @@
                             <span class="user-note">
                                 {{ $user->department ?: 'No college set' }}
                                 @if ($user->course) · {{ $user->course }} @endif
+                                @if ($user->section) · Section {{ $user->section }} @endif
                                 @if (optional($user->role)->name === 'Student' && $user->student_id) · ID {{ $user->student_id }} @endif
                             </span>
                         @endif
