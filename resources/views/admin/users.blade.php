@@ -45,9 +45,9 @@
     .field[hidden]{display:none}
     .field label{font-size:.7rem; font-weight:600; letter-spacing:.05em;
         text-transform:uppercase; color:var(--muted)}
-    .field select{width:100%; padding:.55rem .6rem; border:1.5px solid var(--line);
+    .field select, .field input{width:100%; padding:.55rem .6rem; border:1.5px solid var(--line);
         border-radius:9px; font-family:inherit; font-size:.86rem; background:#fcfdff; color:var(--ink)}
-    .field select:focus{outline:none; border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-50)}
+    .field select:focus, .field input:focus{outline:none; border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-50)}
     .user-form .btn{flex:0 0 auto}
 
     .user-actions{display:flex; flex-wrap:wrap; gap:.5rem; align-items:center;
@@ -58,6 +58,26 @@
     .spacer{flex:1 1 auto}
 
     .no-match{color:var(--muted); font-size:.9rem; padding:1rem 0}
+
+    /* Which classes a staff member advises. A list rather than a field,
+       because one instructor advises several. */
+    .advises{padding-top:.75rem; border-top:1px dashed var(--line)}
+    .advises-head{display:flex; flex-wrap:wrap; gap:.5rem; align-items:baseline; margin-bottom:.45rem}
+    .advises-title{font-size:.7rem; font-weight:600; letter-spacing:.05em;
+        text-transform:uppercase; color:var(--muted)}
+    .advises-none{font-size:.82rem; color:var(--muted)}
+    .advises-list{list-style:none; margin:0 0 .6rem; padding:0; display:flex;
+        flex-direction:column; gap:.3rem}
+    .advises-list li{display:flex; gap:.6rem; align-items:center; justify-content:space-between;
+        background:#f7f9fd; border:1px solid var(--line); border-radius:8px;
+        padding:.4rem .6rem; font-size:.86rem}
+    .advises-list form{margin:0}
+    .advises-term{color:var(--muted); font-size:.78rem; margin-left:.35rem}
+    .advises-remove{background:none; border:none; padding:0; cursor:pointer; font-family:inherit;
+        font-size:.8rem; font-weight:600; color:var(--danger-ink)}
+    .advises-remove:hover{text-decoration:underline}
+    .advises-add{display:flex; flex-wrap:wrap; gap:.6rem; align-items:flex-end; margin:0}
+    .advises-add .btn{flex:0 0 auto}
 
     /* A pending role request. Amber rather than red: somebody asking to be an
        instructor is the system working, not a problem to clear. */
@@ -204,6 +224,7 @@
                          // college's own records key on, and it is unambiguous
                          // where two students share a name.
                          $user->student_id,
+                         $user->employee_id,
                          $user->email,
                          $roleName,
                          $user->department,
@@ -233,6 +254,7 @@
                                 @if ($user->course) · {{ $user->course }} @endif
                                 @if ($user->section) · Section {{ $user->section }} @endif
                                 @if (optional($user->role)->name === 'Student' && $user->student_id) · ID {{ $user->student_id }} @endif
+                                @if ($user->employee_id) · Employee ID {{ $user->employee_id }} @endif
                             </span>
                         @endif
 
@@ -342,8 +364,140 @@
                                 </select>
                             </div>
 
+                            {{-- Year, class and student number: the three
+                                 things only a student has.
+
+                                 The year and the class letter are stored as
+                                 one value -- "4A" -- because that is what the
+                                 adviser lookup matches and what the
+                                 start-of-year promotion increments. They are
+                                 edited as two dropdowns because that is how a
+                                 person thinks of them, and because a text box
+                                 invites "4-A", "IV-A" and "4a", none of which
+                                 the lookup would match. --}}
+                            @php
+                                $studentYear = $user->section ? (int) substr($user->section, 0, 1) : null;
+                                $studentClass = $user->section ? strtoupper(substr($user->section, 1, 1)) : null;
+                            @endphp
+                            <div class="field js-student-wrap" style="flex:0 0 96px;"
+                                 @unless ($roleName === 'Student') hidden @endunless>
+                                <label for="year-{{ $user->id }}">Year</label>
+                                <select name="year" id="year-{{ $user->id }}">
+                                    <option value="">—</option>
+                                    @foreach (range(1, 6) as $year)
+                                        <option value="{{ $year }}" {{ $studentYear === $year ? 'selected' : '' }}>{{ $year }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div class="field js-student-wrap" style="flex:0 0 96px;"
+                                 @unless ($roleName === 'Student') hidden @endunless>
+                                <label for="section-{{ $user->id }}">Class</label>
+                                <select name="section_letter" id="section-{{ $user->id }}">
+                                    <option value="">—</option>
+                                    @foreach (range('A', 'H') as $letter)
+                                        <option value="{{ $letter }}" {{ $studentClass === $letter ? 'selected' : '' }}>{{ $letter }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div class="field js-student-wrap"
+                                 @unless ($roleName === 'Student') hidden @endunless>
+                                <label for="studentid-{{ $user->id }}">Student ID</label>
+                                <input type="text" name="student_id" id="studentid-{{ $user->id }}"
+                                       value="{{ $user->student_id }}" maxlength="50" placeholder="e.g. 231002370">
+                            </div>
+
+                            {{-- The staff equivalent. A separate field, not a
+                                 shared one: the two numbers come from
+                                 different offices, and one column would return
+                                 a staff member when an admin searches for a
+                                 student's id. Staff enter their own at sign-up;
+                                 this is where it gets corrected. --}}
+                            <div class="field js-staff-wrap"
+                                 @if ($roleName === 'Student' || $roleName === 'No role') hidden @endif>
+                                <label for="employeeid-{{ $user->id }}">Employee ID</label>
+                                <input type="text" name="employee_id" id="employeeid-{{ $user->id }}"
+                                       value="{{ $user->employee_id }}" maxlength="50" placeholder="Staff number">
+                            </div>
+
                             <button type="submit" class="btn btn-secondary">Update</button>
                         </form>
+
+                        {{-- Which classes this person advises.
+
+                             A list, not a field. One instructor advises several
+                             sections -- three each is normal here -- so it
+                             could never live on the account, which holds a
+                             single string. It lives in the sections table, one
+                             row per class per term, which is also what
+                             Section::adviserFor() reads when an academic
+                             concern needs a destination.
+
+                             Students are excluded: they are IN a class, and
+                             that is the Year and Class pair above. --}}
+                        @if ($roleName !== 'Student' && $roleName !== 'No role')
+                            <div class="advises">
+                                <div class="advises-head">
+                                    <span class="advises-title">Advises</span>
+                                    @if ($user->advisedSections->isEmpty())
+                                        <span class="advises-none">No classes yet — academic concerns reach them only as a college-level fallback.</span>
+                                    @endif
+                                </div>
+
+                                @if ($user->advisedSections->isNotEmpty())
+                                    <ul class="advises-list">
+                                        @foreach ($user->advisedSections as $advised)
+                                            <li>
+                                                <span>{{ $advised->course }} <strong>{{ $advised->section }}</strong>
+                                                    <span class="advises-term">{{ $advised->school_year }} · {{ $advised->semester }}</span>
+                                                </span>
+                                                <form action="{{ route('admin.users.sections.unassign', [$user, $advised]) }}" method="POST"
+                                                      onsubmit="return confirm('Take {{ $user->name }} off {{ $advised->course }} {{ $advised->section }}?\n\nThat class will have no adviser, so its concerns fall back to the college.')">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit" class="advises-remove" aria-label="Remove {{ $advised->course }} {{ $advised->section }}">Remove</button>
+                                                </form>
+                                            </li>
+                                        @endforeach
+                                    </ul>
+                                @endif
+
+                                <form action="{{ route('admin.users.sections.assign', $user) }}" method="POST" class="advises-add">
+                                    @csrf
+                                    <div class="field">
+                                        <label for="adv-course-{{ $user->id }}">Programme</label>
+                                        <select name="course" id="adv-course-{{ $user->id }}" required>
+                                            <option value="">— choose —</option>
+                                            @foreach ($courses as $college => $collegeCourses)
+                                                <optgroup label="{{ $college }}">
+                                                    @foreach ($collegeCourses as $course)
+                                                        <option value="{{ $course }}">{{ $course }}</option>
+                                                    @endforeach
+                                                </optgroup>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div class="field" style="flex:0 0 88px;">
+                                        <label for="adv-year-{{ $user->id }}">Year</label>
+                                        <select name="year" id="adv-year-{{ $user->id }}" required>
+                                            @foreach (range(1, 6) as $year)
+                                                <option value="{{ $year }}">{{ $year }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <div class="field" style="flex:0 0 88px;">
+                                        <label for="adv-class-{{ $user->id }}">Class</label>
+                                        <select name="section_letter" id="adv-class-{{ $user->id }}" required>
+                                            @foreach (range('A', 'H') as $letter)
+                                                <option value="{{ $letter }}">{{ $letter }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                    <button type="submit" class="btn btn-muted">Add class</button>
+                                </form>
+                            </div>
+                        @endif
 
                         <div class="user-actions">
                             {{-- The irregular student's way back in. Their year
@@ -399,12 +553,20 @@
 
         document.querySelectorAll('.js-role').forEach(function (roleEl) {
             var form = roleEl.closest('form');
-            var wrap = form && form.querySelector('.js-course-wrap');
-            if (!wrap) return;
+            if (!form) return;
+
+            var wrap = form.querySelector('.js-course-wrap');
+            // Year, class and student number: only a student has them, and on
+            // anybody else a student number would put a staff account in the
+            // search results for a student id.
+            var studentOnly = Array.prototype.slice.call(form.querySelectorAll('.js-student-wrap'));
+            var staffOnly = Array.prototype.slice.call(form.querySelectorAll('.js-staff-wrap'));
 
             function sync() {
                 var name = roleEl.options[roleEl.selectedIndex].getAttribute('data-role-name');
-                wrap.hidden = PROGRAMME_ROLES.indexOf(name) === -1;
+                if (wrap) wrap.hidden = PROGRAMME_ROLES.indexOf(name) === -1;
+                studentOnly.forEach(function (field) { field.hidden = name !== 'Student'; });
+                staffOnly.forEach(function (field) { field.hidden = name === 'Student' || name === 'No role'; });
             }
 
             roleEl.addEventListener('change', sync);

@@ -72,6 +72,7 @@ class StaffSignsThemselvesUpTest extends TestCase
 
         $this->actingAs($staff)->post(route('profile.complete.post'), [
             'requested_role_id' => $instructor,
+            'employee_id' => '2019-00456',
             'department' => 'College of Computer Studies',
             'section' => '3a',
         ])->assertRedirect(route('concerns.index'));
@@ -80,6 +81,7 @@ class StaffSignsThemselvesUpTest extends TestCase
 
         $this->assertSame('College of Computer Studies', $staff->department);
         $this->assertSame('3A', $staff->section, 'the section is normalised');
+        $this->assertSame('2019-00456', $staff->employee_id, 'their own staff number, as they entered it');
 
         $this->assertSame('Faculty/Staff', $staff->role->name, 'the role is NOT granted by asking');
         $this->assertSame($instructor, $staff->requested_role_id);
@@ -98,6 +100,7 @@ class StaffSignsThemselvesUpTest extends TestCase
 
         $this->actingAs($staff)->post(route('profile.complete.post'), [
             'requested_role_id' => Role::where('name', 'Guidance Counselor')->value('id'),
+            'employee_id' => '2019-00456',
             'department' => 'Guidance Office',
         ]);
 
@@ -131,6 +134,7 @@ class StaffSignsThemselvesUpTest extends TestCase
         foreach (['System Admin', 'Staff Admin', 'Head of School'] as $forbidden) {
             $this->actingAs($staff)->post(route('profile.complete.post'), [
                 'requested_role_id' => Role::where('name', $forbidden)->value('id'),
+            'employee_id' => '2019-00456',
                 'department' => 'Academic Affairs',
             ])->assertSessionHasErrors('requested_role_id');
         }
@@ -140,11 +144,34 @@ class StaffSignsThemselvesUpTest extends TestCase
         fwrite(STDERR, "  [signup] System Admin, Staff Admin and Head of School cannot be requested: YES\n");
     }
 
+    /**
+     * The staff number is asked for, not optional.
+     *
+     * CSPC's own records key on it, and two people in this database already
+     * share a name -- so it is what tells an admin which account is which. The
+     * person signing up is the one who knows it.
+     */
+    public function test_the_employee_id_is_required(): void
+    {
+        $staff = $this->newStaff();
+
+        $this->actingAs($staff)->post(route('profile.complete.post'), [
+            'requested_role_id' => Role::where('name', 'Instructor')->value('id'),
+            'department' => 'College of Computer Studies',
+        ])->assertSessionHasErrors('employee_id');
+
+        $this->assertNull($staff->fresh()->employee_id);
+        $this->assertNull($staff->fresh()->department, 'nothing is saved when the form is refused');
+
+        fwrite(STDERR, "  [signup] the employee ID is required: YES\n");
+    }
+
     /** A programme has to belong to the college they picked. */
     public function test_a_programme_from_another_college_is_refused(): void
     {
         $this->actingAs($this->newStaff())->post(route('profile.complete.post'), [
             'requested_role_id' => Role::where('name', 'Program Chair')->value('id'),
+            'employee_id' => '2019-00456',
             'department' => 'College of Computer Studies',
             'course' => 'BS Nursing',
         ])->assertSessionHasErrors('course');
@@ -159,6 +186,7 @@ class StaffSignsThemselvesUpTest extends TestCase
 
         $this->actingAs($staff)->post(route('profile.complete.post'), [
             'requested_role_id' => Role::where('name', 'Instructor')->value('id'),
+            'employee_id' => '2019-00456',
             'department' => 'College of Computer Studies',
         ]);
 
@@ -177,6 +205,7 @@ class StaffSignsThemselvesUpTest extends TestCase
 
         $this->actingAs($staff)->post(route('profile.complete.post'), [
             'requested_role_id' => Role::where('name', 'Instructor')->value('id'),
+            'employee_id' => '2019-00456',
             'department' => 'College of Computer Studies',
         ]);
 
@@ -204,6 +233,7 @@ class StaffSignsThemselvesUpTest extends TestCase
 
         $this->actingAs($staff)->post(route('profile.complete.post'), [
             'requested_role_id' => Role::where('name', 'Dean')->value('id'),
+            'employee_id' => '2019-00456',
             'department' => 'College of Computer Studies',
         ]);
 
@@ -226,6 +256,7 @@ class StaffSignsThemselvesUpTest extends TestCase
 
         $this->actingAs($staff)->post(route('profile.complete.post'), [
             'requested_role_id' => Role::where('name', 'Instructor')->value('id'),
+            'employee_id' => '2019-00456',
             'department' => 'College of Computer Studies',
         ]);
 
@@ -247,6 +278,7 @@ class StaffSignsThemselvesUpTest extends TestCase
 
         $this->actingAs($staff)->post(route('profile.complete.post'), [
             'requested_role_id' => Role::where('name', 'Instructor')->value('id'),
+            'employee_id' => '2019-00456',
             'department' => 'College of Computer Studies',
         ]);
 

@@ -45,7 +45,9 @@ use Illuminate\Notifications\Notifiable;
  *
  * @mixin \Illuminate\Database\Eloquent\Model
  */
-#[Fillable(['name', 'email', 'password', 'role_id', 'department', 'student_id', 'course',
+#[Fillable(['name', 'email', 'password', 'role_id', 'department', 'student_id',
+    // The staff equivalent of student_id, issued by a different office.
+    'employee_id', 'course',
     // The student's class section, e.g. 3A. Staff leave it null.
     'section', 'google_id', 'status', 'requested_role_id', 'role_requested_at', 'approved_by', 'approved_at', 'last_seen_at', 'banned_by', 'banned_at', 'ban_reason', 'email_verified_at'])]
 #[Hidden(['password', 'remember_token'])]
@@ -256,6 +258,21 @@ class User extends Authenticatable
         'General Services',
         'Faculty/Staff',
     ];
+
+    /**
+     * The classes this person advises.
+     *
+     * A relationship, not a column, because one instructor advises several
+     * sections -- three each is normal here. users.section holds a single
+     * string and could never answer "which classes?", which is why advising
+     * lives in its own table.
+     */
+    public function advisedSections()
+    {
+        return $this->hasMany(Section::class, 'adviser_id')
+            ->orderBy('course')
+            ->orderBy('section');
+    }
 
     /** The role this person has asked an administrator to grant them. */
     public function requestedRole()

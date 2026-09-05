@@ -114,6 +114,24 @@ class AuthController extends Controller
     }
 
     /**
+     * Whether sign-in-as-anyone is available.
+     *
+     * Two conditions, and the second is not configurable. DEMO_LOGIN_ENABLED
+     * turns on a dropdown that signs a visitor in as any seeded account
+     * without a password -- on the deployed app that would hand anyone the
+     * Head of School's login, which reads every concern in the college.
+     *
+     * The environment variable defaults to false, so a deploy is safe by
+     * omission. This makes it safe by construction: one stray value in a
+     * hosting panel cannot switch it on in production, and nobody has to
+     * remember to check.
+     */
+    private static function demoLoginEnabled(): bool
+    {
+        return (bool) config('auth.demo_login') && ! app()->isProduction();
+    }
+
+    /**
      * Accounts the demo dropdown may offer, grouped by role.
      *
      * Empty unless demo sign-in is switched on, and never includes anyone who
@@ -124,7 +142,7 @@ class AuthController extends Controller
      */
     private function demoAccounts()
     {
-        if (! config('auth.demo_login')) {
+        if (! self::demoLoginEnabled()) {
             return collect();
         }
 
@@ -135,8 +153,16 @@ class AuthController extends Controller
             ->with('role')
             ->orderBy('name')
             ->get()
-            ->groupBy(fn (User $u) => $u->role->name)
-            ->sortKeys();
+            // Purpose-made demo accounts go in one group of their own, ahead
+            // of everybody. Grouped strictly by role they were unfindable:
+            // "Demo Instructor" sorted into the middle of 367 real
+            // instructors, so the account made for trying the app out was the
+            // hardest one in the list to reach.
+            ->groupBy(fn (User $u) => str_starts_with($u->email, 'demo.')
+                ? 'Demo accounts'
+                : $u->role->name)
+            ->sortKeys()
+            ->sortBy(fn ($people, $group) => $group === 'Demo accounts' ? 0 : 1);
     }
 
     /**
@@ -149,7 +175,7 @@ class AuthController extends Controller
     public function demoLogin(Request $request)
     {
         // 404, not 403: when the feature is off there is nothing here to find.
-        abort_unless(config('auth.demo_login'), 404);
+        abort_unless(self::demoLoginEnabled(), 404);
 
         $validated = $request->validate([
             'user_id' => 'required|integer',
@@ -207,6 +233,10 @@ class AuthController extends Controller
 
         $validated = $request->validate([
             'requested_role_id' => ['required', Rule::in($requestable)],
+            // Their staff number. Required: CSPC records key on it, two people
+            // in this database already share a name, and the person filling
+            // this in is the one who knows it.
+            'employee_id' => ['required', 'string', 'max:50'],
             'department' => ['required', 'string', Rule::in($departments)],
             // Only a Program Chair covers one programme. Validated against the
             // chosen college so a hand-posted form cannot file a Computer
@@ -224,12 +254,14 @@ class AuthController extends Controller
             'section' => ['nullable', 'string', 'max:12', 'regex:/^[1-6][A-Za-z]$/'],
         ], [
             'requested_role_id.required' => 'Please choose the role you are asking for.',
+            'employee_id.required' => 'Please enter your employee ID.',
             'requested_role_id.in' => 'That role cannot be requested here. Ask an administrator directly.',
             'department.required' => 'Please choose your college or office.',
             'section.regex' => 'Use the year and section together, like 3A.',
         ]);
 
         $user->forceFill([
+            'employee_id' => $validated['employee_id'],
             'department' => $validated['department'],
             'course' => $validated['course'] ?? null,
             'section' => isset($validated['section']) ? strtoupper($validated['section']) : null,

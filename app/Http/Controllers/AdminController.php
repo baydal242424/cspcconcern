@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\Notification;
 use App\Models\Referral;
 use App\Models\Role;
+use App\Models\Section;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -45,7 +46,7 @@ class AdminController extends Controller
     {
         $this->authorizeAdmin();
 
-        $users = User::with(['role', 'requestedRole', 'bannedBy'])
+        $users = User::with(['role', 'requestedRole', 'bannedBy', 'advisedSections'])
             ->orderByDesc('last_seen_at')
             ->orderByDesc('created_at')
             ->get();
@@ -189,6 +190,91 @@ class AdminController extends Controller
         }
 
         return back()->with('success', $message);
+    }
+
+    /**
+     * Put a staff member in charge of a class.
+     *
+     * Advising is a relationship, not a field. One instructor advises several
+     * sections -- three each is normal here -- so it could never live in
+     * users.section, which holds one string. It goes in the sections table,
+     * one row per class per term, which is also what Section::adviserFor()
+     * reads when an Academic concern needs a destination.
+     *
+     * Assigning a class that already has an adviser REPLACES them rather than
+     * failing. Handovers happen mid-year, and a form that refused would leave
+     * the admin deleting a row by hand to do something ordinary.
+     */
+    public function assignSection(Request $request, User $user)
+    {
+        $this->authorizeAdmin();
+
+        if (! $user->isEmployee()) {
+            return back()->with('error', 'Only a staff account can advise a class.');
+        }
+
+        $validated = $request->validate([
+            'course' => ['required', 'string', Rule::in(User::allCourses())],
+            'year' => ['required', 'integer', 'between:1,6'],
+            'section_letter' => ['required', 'string', 'regex:/^[A-Za-z]$/'],
+        ], [
+            'course.required' => 'Choose the programme the class belongs to.',
+            'section_letter.regex' => 'The class is a single letter, like A.',
+        ]);
+
+        $term = Section::currentTerm();
+        $section = $validated['year'].strtoupper($validated['section_letter']);
+
+        $row = Section::updateOrCreate(
+            [
+                'course' => $validated['course'],
+                'section' => $section,
+                'school_year' => $term['school_year'],
+                'semester' => $term['semester'],
+            ],
+            ['adviser_id' => $user->id]
+        );
+
+        AuditLog::create([
+            'user_id' => Auth::id(),
+            'action' => 'section_adviser_assigned',
+            'changes' => json_encode(['section_id' => $row->id, 'adviser_id' => $user->id]),
+            'description' => "{$user->name} now advises {$validated['course']} {$section}",
+            'ip_address' => $request->ip(),
+        ]);
+
+        return back()->with('success', "{$user->name} now advises {$validated['course']} {$section}.");
+    }
+
+    /**
+     * Take a staff member off a class.
+     *
+     * Clears the adviser rather than deleting the row. The class still exists
+     * and students are still in it -- deleting would take the record with it,
+     * and their concerns would stop matching a section at all rather than
+     * falling back to the college, which is the softer failure.
+     */
+    public function unassignSection(Request $request, User $user, Section $section)
+    {
+        $this->authorizeAdmin();
+
+        if ((int) $section->adviser_id !== $user->id) {
+            return back()->with('error', 'That class is not advised by this person.');
+        }
+
+        $section->forceFill(['adviser_id' => null])->save();
+
+        AuditLog::create([
+            'user_id' => Auth::id(),
+            'action' => 'section_adviser_removed',
+            'changes' => json_encode(['section_id' => $section->id, 'was_adviser_id' => $user->id]),
+            'description' => "{$user->name} no longer advises {$section->course} {$section->section}",
+            'ip_address' => $request->ip(),
+        ]);
+
+        return back()->with('success',
+            "{$user->name} no longer advises {$section->course} {$section->section}. "
+            .'That class now has no adviser, so its concerns fall back to the college.');
     }
 
     /**
@@ -470,6 +556,13 @@ class AdminController extends Controller
             'role_id' => 'required|exists:roles,id',
             'department' => 'nullable|string|max:255',
             'course' => ['nullable', 'string', Rule::in(User::allCourses())],
+            // Year and class letter, combined into users.section below.
+            'year' => ['nullable', 'integer', 'between:1,6'],
+            'section_letter' => ['nullable', 'string', 'regex:/^[A-Za-z]$/'],
+            'student_id' => ['nullable', 'string', 'max:50'],
+            'employee_id' => ['nullable', 'string', 'max:50'],
+        ], [
+            'section_letter.regex' => 'The class is a single letter, like A.',
         ]);
 
         $changes = ['role_id' => $validated['role_id']];
@@ -501,6 +594,43 @@ class AdminController extends Controller
             $changes['course'] = null;
         } elseif ($request->has('course')) {
             $changes['course'] = $validated['course'] ?? null;
+        }
+
+        // Year level and section are stored as one value -- "4A" is fourth
+        // year, class A -- because that is what Section::adviserFor() matches
+        // and what the start-of-year promotion increments. They are edited as
+        // two dropdowns because that is how a person thinks of them, and
+        // because a free-text box invited "4-A", "IV-A" and "4a", none of
+        // which the adviser lookup would match.
+        $isStudent = Role::whereKey($validated['role_id'])->where('name', 'Student')->exists();
+
+        if (! $isStudent) {
+            // The two numbers come from different offices and mean different
+            // things, so an account holds one or the other -- never both. A
+            // student number left on a staff account would return them when an
+            // admin searches for a student by id, which is the exact confusion
+            // the number exists to prevent.
+            $changes['student_id'] = null;
+
+            if ($request->has('employee_id')) {
+                $changes['employee_id'] = $validated['employee_id'] ?? null;
+            }
+        } else {
+            $changes['employee_id'] = null;
+
+            if ($request->has('student_id')) {
+                $changes['student_id'] = $validated['student_id'] ?? null;
+            }
+
+            if ($request->has('year')) {
+                $year = $validated['year'] ?? null;
+                $letter = strtoupper($validated['section_letter'] ?? '');
+
+                // Both or neither. Half of a section is not a section: "4"
+                // with no class letter matches no row in sections, so the
+                // student would silently drop to college-level routing.
+                $changes['section'] = ($year && $letter !== '') ? $year.$letter : null;
+            }
         }
 
         $user->update($changes);

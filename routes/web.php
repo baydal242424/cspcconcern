@@ -93,6 +93,10 @@ Route::middleware(['auth', 'track.last_seen', 'profile.complete'])->group(functi
     Route::post('/admin/students/promote/undo', [AdminController::class, 'undoPromotion'])->name('admin.students.promote.undo');
     // Grant or refuse the role a staff member asked for when they signed up.
     Route::post('/admin/users/{user}/role-request', [AdminController::class, 'decideRoleRequest'])->name('admin.users.roleRequest');
+    // Which classes a staff member advises. One person advises several, so
+    // this lives in the sections table rather than on their account.
+    Route::post('/admin/users/{user}/sections', [AdminController::class, 'assignSection'])->name('admin.users.sections.assign');
+    Route::delete('/admin/users/{user}/sections/{section}', [AdminController::class, 'unassignSection'])->name('admin.users.sections.unassign');
     // The irregular student's way back in after their year was closed.
     Route::post('/admin/users/{user}/reactivate', [AdminController::class, 'reactivate'])->name('admin.users.reactivate');
     Route::delete('/admin/users/{user}', [AdminController::class, 'destroy'])->name('admin.users.destroy');

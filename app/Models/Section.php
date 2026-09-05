@@ -21,6 +21,29 @@ class Section extends Model
         'adviser_id',
     ];
 
+    /**
+     * The term a new assignment belongs to.
+     *
+     * Taken from the newest row on record rather than hardcoded, so an admin
+     * assigning a section today files it alongside the ones already there.
+     * adviserFor() reads the most recent term, so a new assignment landing in
+     * an older one would be silently ignored.
+     *
+     * @return array{school_year: string, semester: string}
+     */
+    public static function currentTerm(): array
+    {
+        $latest = static::query()
+            ->orderByDesc('school_year')
+            ->orderByDesc('semester')
+            ->first();
+
+        return [
+            'school_year' => $latest->school_year ?? '2024-2025',
+            'semester' => $latest->semester ?? 'Second',
+        ];
+    }
+
     public function adviser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'adviser_id');
