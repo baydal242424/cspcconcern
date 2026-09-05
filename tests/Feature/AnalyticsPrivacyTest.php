@@ -43,14 +43,16 @@ class AnalyticsPrivacyTest extends TestCase
      */
     public function test_dashboard_recent_hides_anonymous_reporter(): void
     {
-        $staff = $this->u('staff@cspc.edu.ph');
-        // Administrative, because that is the one category an Admin can see
-        // without a referral -- an Academic concern would not appear in their
-        // Recent list at all, and the test would pass on an empty page.
+        $admin = $this->u('admin@cspc.edu.ph');
+        // ASSIGNED to the admin, because a System Admin has no standing view
+        // of any category since the Admin role was split -- the office reads
+        // Administrative concerns now. What is left is what was handed to
+        // them personally, so that is what the Recent list has to be tested
+        // with; anything else would pass on an empty page.
         Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Administrative',
             'department'=>'College of Computer Studies','description'=>'x','urgency'=>null,
-            'status'=>'submitted','is_anonymous'=>true,'assigned_to'=>$staff->id]);
-        $resp = $this->actingAs($this->u('admin@cspc.edu.ph'))->get('/dashboard');
+            'status'=>'submitted','is_anonymous'=>true,'assigned_to'=>$admin->id]);
+        $resp = $this->actingAs($admin)->get('/dashboard');
         $resp->assertOk();
         $leak = str_contains($resp->getContent(), 'John Student');
         fwrite(STDERR, "  [privacy] admin sees anon submitter name: ".($leak?'YES (LEAK)':'NO')."\n");

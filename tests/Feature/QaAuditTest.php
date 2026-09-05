@@ -60,7 +60,7 @@ class QaAuditTest extends TestCase
             'Mental Health' => 'Guidance Counselor',
             'Bullying'                 => 'Guidance Counselor',
             'Harassment'               => 'Guidance Counselor',
-            'Administrative'           => 'Admin',
+            'Administrative'           => 'Staff Admin',
             'Facilities'               => 'General Services',
             'Equipment'                => 'General Services',
             'Physical'                 => 'Instructor',

@@ -25,8 +25,10 @@ class DashboardController extends Controller
         $user = Auth::user();
         $role = optional($user->role)->name;
 
-        if ($role !== 'Admin') {
-            abort(403, 'The dashboard is available to Admin accounts only.');
+        // Both administrator tiers. A Staff Admin covering while the System
+        // Admin is away needs the same view of the queue.
+        if (! in_array($role, ['System Admin', 'Staff Admin'], true)) {
+            abort(403, 'The dashboard is available to administrator accounts only.');
         }
 
         // ------------------------------------------------------------------

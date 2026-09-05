@@ -22,6 +22,23 @@ use Illuminate\Support\Facades\DB;
 class AdminController extends Controller
 {
     /**
+     * Both administrator tiers can manage accounts.
+     *
+     * A Staff Admin covers when the System Admin is away -- an account left
+     * locked out, or a graduated student waiting to be reactivated, should not
+     * have to wait for one specific person to be free.
+     *
+     * They are not equal, though, and the difference is deliberate: only a
+     * System Admin may create, demote, ban or delete another System Admin (see
+     * guardSystemAdmin). Without that limit the tiers collapse the moment a
+     * Staff Admin promotes themselves, and "who can grant the keys" is exactly
+     * the boundary worth keeping.
+     *
+     * @var list<string>
+     */
+    private const ADMIN_ROLES = ['System Admin', 'Staff Admin'];
+
+    /**
      * List every registered account.
      */
     public function index()
@@ -323,6 +340,7 @@ class AdminController extends Controller
     public function ban(Request $request, User $user)
     {
         $this->authorizeAdmin();
+        $this->guardSystemAdmin($user);
 
         if ($user->id === Auth::id()) {
             abort(422, 'You cannot ban your own account.');
@@ -348,6 +366,7 @@ class AdminController extends Controller
     public function unban(User $user)
     {
         $this->authorizeAdmin();
+        $this->guardSystemAdmin($user);
 
         $user->update([
             'status' => 'approved',
@@ -369,6 +388,8 @@ class AdminController extends Controller
         if ($user->id === Auth::id()) {
             abort(422, 'You cannot change your own role.');
         }
+
+        $this->guardSystemAdmin($user, Role::whereKey($request->input('role_id'))->value('name'));
 
         // Department is validated as free text against what is actually in use
         // rather than against a fixed list, because it holds two different
@@ -425,6 +446,7 @@ class AdminController extends Controller
     public function destroy(User $user)
     {
         $this->authorizeAdmin();
+        $this->guardSystemAdmin($user);
 
         if ($user->id === Auth::id()) {
             abort(422, 'You cannot delete your own account.');
@@ -450,8 +472,36 @@ class AdminController extends Controller
     {
         $user = Auth::user();
 
-        if (! $user->role || $user->role->name !== 'Admin') {
-            abort(403, 'Only an Admin can manage accounts.');
+        if (! $user->role || ! in_array($user->role->name, self::ADMIN_ROLES, true)) {
+            abort(403, 'Only an administrator can manage accounts.');
+        }
+    }
+
+    /**
+     * The one thing a Staff Admin may not touch: a System Admin account, or
+     * the System Admin role itself.
+     *
+     * Everything else on this page is shared, so the office can keep working
+     * while the System Admin is busy. This is the line that stops a Staff
+     * Admin promoting themselves, or banning the System Admin and becoming the
+     * only administrator left -- which would turn "cover for them" into "take
+     * over from them".
+     *
+     * @param  User|null  $target  the account being acted on
+     * @param  string|null  $newRole  the role being granted, if any
+     */
+    private function guardSystemAdmin(?User $target = null, ?string $newRole = null): void
+    {
+        if (optional(Auth::user()->role)->name === 'System Admin') {
+            return;
+        }
+
+        if ($target && optional($target->role)->name === 'System Admin') {
+            abort(403, 'Only a System Admin can change another System Admin account.');
+        }
+
+        if ($newRole === 'System Admin') {
+            abort(403, 'Only a System Admin can appoint another System Admin.');
         }
     }
 }

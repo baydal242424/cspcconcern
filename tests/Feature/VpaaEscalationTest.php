@@ -99,7 +99,7 @@ class VpaaEscalationTest extends TestCase
 
         $concern = Concern::latest('id')->firstOrFail();
 
-        $this->assertSame('Admin', optional(optional($concern->assignedUser)->role)->name);
+        $this->assertSame('Staff Admin', optional(optional($concern->assignedUser)->role)->name);
 
         fwrite(STDERR, "  [normal] ordinary Administrative concern still goes to Admin\n");
     }

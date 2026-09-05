@@ -44,7 +44,7 @@ class AdminUserManagementTest extends TestCase
             ->post("/admin/users/{$admin->id}/role", ['role_id' => $staffRole->id])
             ->assertStatus(422);
 
-        $this->assertSame('Admin', $admin->fresh()->role->name);
+        $this->assertSame('System Admin', $admin->fresh()->role->name);
     }
 
     public function test_deleting_a_user_removes_the_account_and_their_own_concerns(): void

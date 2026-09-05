@@ -330,11 +330,11 @@
         </div>
         <div class="navbar-nav">
             @if (Auth::check())
-                @if (optional(Auth::user()->role)->name === 'Admin')
+                @if (in_array(optional(Auth::user()->role)->name, ['System Admin', 'Staff Admin'], true))
                     <a href="{{ route('dashboard') }}" class="{{ request()->routeIs('dashboard') ? 'active' : '' }}">Dashboard</a>
                 @endif
                 <a href="{{ route('concerns.index') }}" class="{{ request()->routeIs('concerns.*') ? 'active' : '' }}">Concerns</a>
-                @if (optional(Auth::user()->role)->name === 'Admin')
+                @if (in_array(optional(Auth::user()->role)->name, ['System Admin', 'Staff Admin'], true))
                     <a href="{{ route('admin.users') }}" class="{{ request()->routeIs('admin.users') ? 'active' : '' }}">Manage Users</a>
                 @endif
                 <a href="{{ route('policy') }}" class="{{ request()->routeIs('policy') ? 'active' : '' }}">Policy</a>

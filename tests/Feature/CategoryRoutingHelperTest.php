@@ -39,7 +39,7 @@ class CategoryRoutingHelperTest extends TestCase
     private const EXPECTED_WORD = [
         'Adviser' => 'adviser',
         'Guidance Counselor' => 'Guidance',
-        'Admin' => 'Administration',
+        'Staff Admin' => 'Administration',
         'General Services' => 'General Services',
     ];
 

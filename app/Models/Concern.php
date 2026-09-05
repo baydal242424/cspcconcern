@@ -473,25 +473,46 @@ class Concern extends Model
             });
         }
 
-        // Administrative concerns route here now that the Registrar role is
-        // gone, so Admin has to be able to SEE that category -- a concern
-        // assigned to an office that cannot read it is worse than one nobody
-        // was assigned, because the queue looks handled.
+        // The administrative office. Administrative concerns -- enrolment,
+        // records, ID, clearance, fees -- route here, so it has to be able to
+        // SEE that category: a concern assigned to an office that cannot read
+        // it is worse than one nobody was assigned, because the queue looks
+        // handled.
         //
-        // This is a real widening of what a system administrator can read, and
-        // it is worth being honest about: "Admin" means the people who manage
-        // accounts and roles, and least privilege would rather they had no
-        // standing window into students' concerns at all. Facilities still
-        // goes to General Services, and everything confidential -- mental
-        // health, harassment -- stays out of reach unless it is deliberately
-        // referred here.
-        if ($role === 'Admin') {
+        // That is the whole of its window. Facilities still goes to General
+        // Services, and everything confidential -- mental health, harassment --
+        // stays out of reach unless a counsellor deliberately refers it here.
+        if ($role === 'Staff Admin') {
             return $query->where(function ($q) use ($user, $involved) {
                 $q->where('category', 'Administrative')
                   ->orWhere(function ($sub) {
-                      $sub->where('referred_to', 'Admin')
+                      $sub->where('referred_to', 'Staff Admin')
                           ->whereNotIn('status', self::TERMINAL_STATUSES);
                   })
+                  ->orWhere(function ($sub) use ($user) {
+                      $sub->where('assigned_to', $user->id)
+                          ->whereNotIn('status', self::TERMINAL_STATUSES);
+                  })
+                  ->orWhere($involved);
+            });
+        }
+
+        // The people who run the system get NO standing window into any
+        // category. They see what is assigned or referred to them and nothing
+        // else -- which for a System Admin is usually a complaint that climbed
+        // past the administrative office because it was about that office.
+        //
+        // The single Admin role used to read every Administrative concern,
+        // because it was also the office that handled them. Splitting the two
+        // removed the reason: managing accounts and roles needs no view of
+        // students' complaints, and this is the narrowest the role has ever
+        // been.
+        if ($role === 'System Admin') {
+            return $query->where(function ($q) use ($user, $involved) {
+                $q->where(function ($sub) {
+                    $sub->where('referred_to', 'System Admin')
+                        ->whereNotIn('status', self::TERMINAL_STATUSES);
+                })
                   ->orWhere(function ($sub) use ($user) {
                       $sub->where('assigned_to', $user->id)
                           ->whereNotIn('status', self::TERMINAL_STATUSES);

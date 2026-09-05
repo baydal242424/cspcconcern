@@ -184,7 +184,7 @@ class AuthController extends Controller
             ]);
         }
 
-        $admins = User::whereHas('role', fn ($q) => $q->where('name', 'Admin'))
+        $admins = User::whereHas('role', fn ($q) => $q->where('name', 'System Admin'))
             ->where('status', 'approved')
             ->get();
 

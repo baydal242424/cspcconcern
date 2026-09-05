@@ -19,7 +19,7 @@ class UserSeeder extends Seeder
         $staff_role = Role::where('name', 'Faculty/Staff')->first();
         $instructor_role = Role::where('name', 'Instructor')->first();
         $counselor_role = Role::where('name', 'Guidance Counselor')->first();
-        $admin_role = Role::where('name', 'Admin')->first();
+        $admin_role = Role::where('name', 'System Admin')->first();
         $head_role = Role::where('name', 'Head of School')->first();
         $depthead_role = Role::where('name', 'Dean')->first();
         $gad_role = Role::where('name', 'Gender and Development')->first();
@@ -75,6 +75,28 @@ class UserSeeder extends Seeder
                 'section' => '2B',
             ]
         );
+
+        // The administrative office. Administrative concerns route to Staff
+        // Admin, so without one in the fixtures every such concern escalates
+        // past an empty office and the tests measure the fallback instead of
+        // the rule they were written for.
+        //
+        // Test-only, like everything in this block. The Staff Admin role ships
+        // empty in production on purpose: who administers what is a decision
+        // for a person, not something a seeder should assume.
+        $staffAdminRole = Role::where('name', 'Staff Admin')->first();
+
+        if ($staffAdminRole) {
+            User::firstOrCreate(
+                ['email' => 'staffadmin@cspc.edu.ph'],
+                [
+                    'name' => 'Office Administrator',
+                    'password' => Hash::make('password'),
+                    'role_id' => $staffAdminRole->id,
+                    'department' => 'Student Registration and Records',
+                ]
+            );
+        }
 
         // Demo staff. Seeded FIRST and deliberately not attached to a college:
         // routeConcern() falls back to the first Faculty/Staff account when the

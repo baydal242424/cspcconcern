@@ -20,6 +20,21 @@ class VisibilityTest extends TestCase
     }
     private function u(string $e): User { return User::where('email',$e)->firstOrFail(); }
 
+    /**
+     * The administrative office. UserSeeder does not create one -- Staff Admin
+     * was split out of Admin and starts empty on purpose, because who
+     * administers what is a decision for a person.
+     */
+    private function staffAdmin(): User
+    {
+        return User::factory()->create([
+            'name' => 'Office Administrator',
+            'role_id' => \App\Models\Role::where('name', 'Staff Admin')->value('id'),
+            'department' => 'Student Registration and Records',
+            'status' => 'approved',
+        ]);
+    }
+
     private function makeConcern(array $o = []): Concern
     {
         return Concern::create(array_merge([
@@ -38,9 +53,12 @@ class VisibilityTest extends TestCase
     {
         // Against an Admin: the dashboard is Admin-only, so asserting privacy
         // against a staff account only proved that a 403 contains no names.
-        $staff = $this->u('staff@cspc.edu.ph');
-        $this->makeConcern(['category'=>'Administrative','is_anonymous'=>true,'assigned_to'=>$staff->id]);
-        $resp = $this->actingAs($this->u('admin@cspc.edu.ph'))->get('/dashboard');
+        $admin = $this->u('admin@cspc.edu.ph');
+        // Assigned to the admin. Since Admin was split, a System Admin has no
+        // standing view of any category -- only what was handed to them -- so
+        // anything else would leave the Recent list empty and pass on nothing.
+        $this->makeConcern(['category'=>'Administrative','is_anonymous'=>true,'assigned_to'=>$admin->id]);
+        $resp = $this->actingAs($admin)->get('/dashboard');
         $resp->assertOk();
         $leak = str_contains($resp->getContent(), 'John Student');
         fwrite(STDERR, "  [privacy] dashboard shows anon name: ".($leak?'YES (LEAK)':'NO')."\n");
@@ -63,14 +81,27 @@ class VisibilityTest extends TestCase
     /** Admin DOES see Administrative concerns */
     public function test_admin_sees_administrative_concerns(): void
     {
-        // Administrative routes to Admin again now the Registrar role is gone,
-        // so Admin has to be able to READ that category -- a concern assigned
-        // to an office that cannot open it is worse than an unassigned one,
-        // because the queue looks handled.
+        // Administrative routes to the OFFICE, so the office has to be able to
+        // read that category -- a concern assigned to somebody who cannot open
+        // it is worse than an unassigned one, because the queue looks handled.
+        //
+        // And the people who run the system do NOT read it. That window
+        // existed only because one Admin role did both jobs; splitting it into
+        // System Admin and Staff Admin removed the reason, and this is the
+        // narrowest the operational role has ever been.
         $a = $this->makeConcern(['category'=>'Administrative']);
-        $admin = $this->u('admin@cspc.edu.ph');
-        $this->assertTrue(Concern::whereKey($a->id)->visibleTo($admin)->exists());
-        fwrite(STDERR, "  [routing] admin sees Administrative case: YES\n");
+
+        $this->assertTrue(
+            Concern::whereKey($a->id)->visibleTo($this->staffAdmin())->exists(),
+            'the administrative office must be able to read what routes to it'
+        );
+
+        $this->assertFalse(
+            Concern::whereKey($a->id)->visibleTo($this->u('admin@cspc.edu.ph'))->exists(),
+            'a System Admin has no standing view of any category'
+        );
+
+        fwrite(STDERR, "  [routing] the office reads Administrative, the System Admin does not: YES\n");
     }
 
     /**
@@ -101,25 +132,25 @@ class VisibilityTest extends TestCase
         fwrite(STDERR, "  [counselor] sees Mental Health: YES\n");
     }
 
-    /** REFERRAL: staff refers an Academic case to Admin -> admin can now see it */
+    /** REFERRAL: staff refers an Academic case to the office -> it can now see it */
     public function test_referral_to_admin_grants_visibility(): void
     {
         $staff = $this->u('staff@cspc.edu.ph');
-        $admin = $this->u('admin@cspc.edu.ph');
+        $admin = $this->staffAdmin();
         $c = $this->makeConcern(['category'=>'Academic','assigned_to'=>$staff->id]);
 
-        // before referral, admin cannot see this Academic case
+        // before referral, the office cannot see this Academic case
         $this->assertFalse(Concern::whereKey($c->id)->visibleTo($admin)->exists());
 
         // staff refers it to Admin via the update endpoint
         $this->actingAs($staff)->patch("/concerns/{$c->id}", [
             'status' => 'referred',
-            'referred_to' => 'Admin',
+            'referred_to' => 'Staff Admin',
         ]);
         $c->refresh();
         fwrite(STDERR, "  [referral] status={$c->status} referred_to=".var_export($c->referred_to,true)."\n");
 
-        $this->assertEquals('Admin', $c->referred_to);
+        $this->assertEquals('Staff Admin', $c->referred_to);
         $this->assertTrue(Concern::whereKey($c->id)->visibleTo($admin)->exists(),
             'Admin should see a case referred to Admin');
     }

@@ -123,7 +123,7 @@ class OfficeRoleRoutingTest extends TestCase
         // production shape, since CSPC has not named a Head of School here.
         $student = $this->student();
         $officer = $this->officer('General Services', 'gsu.test@cspc.edu.ph');
-        $admin = $this->officer('Admin', 'sysadmin@cspc.edu.ph');
+        $admin = $this->officer('Staff Admin', 'staffadmin@cspc.edu.ph');
 
         $this->actingAs($student)->post('/concerns', [
             'category' => 'Facilities',

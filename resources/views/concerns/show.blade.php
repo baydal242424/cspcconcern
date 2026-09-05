@@ -332,7 +332,7 @@
          entries), which is the single faithful record of every hand-off. --}}
 
     @php $viewerRole = optional(Auth::user()->role)->name; @endphp
-    @if ($concern->status !== 'resolved' && (Auth::user()->id === $concern->assigned_to || $viewerRole === 'Admin' || $viewerRole === 'Dean' || ($concern->referred_to !== null && $viewerRole === $concern->referred_to)))
+    @if ($concern->status !== 'resolved' && (Auth::user()->id === $concern->assigned_to || in_array($viewerRole, ['System Admin', 'Staff Admin', 'Dean'], true) || ($concern->referred_to !== null && $viewerRole === $concern->referred_to)))
         <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
         <div>
             <h2 class="section-title" style="margin-bottom: 1.5rem;">Update Concern Status</h2>

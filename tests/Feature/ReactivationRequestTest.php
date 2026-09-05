@@ -116,7 +116,7 @@ class ReactivationRequestTest extends TestCase
         }
 
         $this->assertSame(
-            User::whereHas('role', fn ($q) => $q->where('name', 'Admin'))->count(),
+            User::whereHas('role', fn ($q) => $q->where('name', 'System Admin'))->count(),
             Notification::where('type', 'reactivation_request')->count(),
             'three presses must leave one request per admin, not three'
         );

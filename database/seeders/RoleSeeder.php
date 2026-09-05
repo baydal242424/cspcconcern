@@ -69,8 +69,17 @@ class RoleSeeder extends Seeder
                 'description' => 'Oversees the academic division; receives concerns the Administration cannot handle itself',
             ],
             [
-                'name' => 'Admin',
-                'description' => 'System administrator with full access',
+                'name' => 'System Admin',
+                'description' => 'Runs the system: accounts, roles, bans, and the start-of-year promotion',
+            ],
+            [
+                // The administrative OFFICE, not the system operators. It
+                // receives Administrative concerns -- enrolment, records, ID,
+                // clearance, fees -- and refers on to whichever office owns
+                // the request. Split out of the single Admin role, which had
+                // been doing both jobs.
+                'name' => 'Staff Admin',
+                'description' => 'The administrative office; handles Administrative concerns and refers them on',
             ],
             [
                 'name' => 'Head of School',
