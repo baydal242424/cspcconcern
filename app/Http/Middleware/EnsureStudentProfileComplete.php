@@ -25,7 +25,14 @@ class EnsureStudentProfileComplete
         /** @var User|null $user */
         $user = Auth::user();
 
-        if ($user && $user->needsProfileCompletion() && ! $request->routeIs('profile.complete*')) {
+        // Staff are held by the same gate now. An employee account arrives
+        // knowing only the email address, so without this it reached the app
+        // with no college -- and findHandler() prefers a handler from the
+        // reporter's own college, so a staff member with none was skipped by
+        // routing while appearing perfectly set up.
+        $incomplete = $user && ($user->needsProfileCompletion() || $user->needsStaffProfile());
+
+        if ($incomplete && ! $request->routeIs('profile.complete*')) {
             return redirect()->route('profile.complete');
         }
 

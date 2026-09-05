@@ -91,6 +91,8 @@ Route::middleware(['auth', 'track.last_seen', 'profile.complete'])->group(functi
     // from what it recorded.
     Route::post('/admin/students/promote', [AdminController::class, 'promoteYearLevels'])->name('admin.students.promote');
     Route::post('/admin/students/promote/undo', [AdminController::class, 'undoPromotion'])->name('admin.students.promote.undo');
+    // Grant or refuse the role a staff member asked for when they signed up.
+    Route::post('/admin/users/{user}/role-request', [AdminController::class, 'decideRoleRequest'])->name('admin.users.roleRequest');
     // The irregular student's way back in after their year was closed.
     Route::post('/admin/users/{user}/reactivate', [AdminController::class, 'reactivate'])->name('admin.users.reactivate');
     Route::delete('/admin/users/{user}', [AdminController::class, 'destroy'])->name('admin.users.destroy');

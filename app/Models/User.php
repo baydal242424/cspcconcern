@@ -47,7 +47,7 @@ use Illuminate\Notifications\Notifiable;
  */
 #[Fillable(['name', 'email', 'password', 'role_id', 'department', 'student_id', 'course',
     // The student's class section, e.g. 3A. Staff leave it null.
-    'section', 'google_id', 'status', 'approved_by', 'approved_at', 'last_seen_at', 'banned_by', 'banned_at', 'ban_reason', 'email_verified_at'])]
+    'section', 'google_id', 'status', 'requested_role_id', 'role_requested_at', 'approved_by', 'approved_at', 'last_seen_at', 'banned_by', 'banned_at', 'ban_reason', 'email_verified_at'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -234,6 +234,51 @@ class User extends Authenticatable
     {
         return $this->last_seen_at !== null
             && $this->last_seen_at->gt(now()->subMinutes(self::ONLINE_THRESHOLD_MINUTES));
+    }
+
+    /**
+     * The roles a staff member may ask for on first sign-in.
+     *
+     * Every one of these still needs an administrator to grant it -- asking is
+     * not becoming. The two admin roles are absent on purpose: those are the
+     * keys to the system, and nobody hands themselves the keys, not even as a
+     * request sitting in a queue where a tired admin might wave it through.
+     * Head of School and the VPAA are absent for the same reason.
+     *
+     * @var list<string>
+     */
+    public const REQUESTABLE_ROLES = [
+        'Instructor',
+        'Program Chair',
+        'Dean',
+        'Guidance Counselor',
+        'Gender and Development',
+        'General Services',
+        'Faculty/Staff',
+    ];
+
+    /** The role this person has asked an administrator to grant them. */
+    public function requestedRole()
+    {
+        return $this->belongsTo(Role::class, 'requested_role_id');
+    }
+
+    /**
+     * Whether a staff member still has to say where they work.
+     *
+     * Students have their own version of this (needsProfileCompletion). This
+     * is the employee side: an account auto-provisioned by a cspc.edu.ph
+     * sign-in knows only the address, so it has no college, no programme, and
+     * the lowest staff role until the person fills it in.
+     *
+     * Answered once. Somebody who has given a department is done, whether or
+     * not their role request has been granted yet -- the wait is the admin's
+     * to clear, and blocking the app on it would lock a real instructor out of
+     * a system they are supposed to be handling concerns in.
+     */
+    public function needsStaffProfile(): bool
+    {
+        return $this->isEmployee() && blank($this->department);
     }
 
     /**

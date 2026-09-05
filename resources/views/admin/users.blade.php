@@ -59,6 +59,15 @@
 
     .no-match{color:var(--muted); font-size:.9rem; padding:1rem 0}
 
+    /* A pending role request. Amber rather than red: somebody asking to be an
+       instructor is the system working, not a problem to clear. */
+    .role-request{width:100%; display:flex; flex-wrap:wrap; gap:.6rem; align-items:center;
+        justify-content:space-between; margin-top:.5rem;
+        background:var(--warn-bg); border:1px solid #f3dca0; color:#7a5200;
+        border-radius:9px; padding:.55rem .75rem; font-size:.85rem}
+    .role-request-actions{display:flex; gap:.45rem; flex:0 0 auto}
+    .role-request-actions form{margin:0}
+
     @media (max-width:560px){
         .user-card{padding:.9rem}
         .user-meta{margin-left:0; width:100%}
@@ -229,6 +238,36 @@
 
                         @if ($user->status === 'banned' && $user->ban_reason)
                             <span class="user-note">Banned: {{ $user->ban_reason }}</span>
+                        @endif
+
+                        {{-- A staff member filled in their own details on first
+                             sign-in. College, programme and section were saved
+                             as given; the role waited here, because role IS
+                             permission -- a self-granted Guidance Counselor
+                             would read every mental-health report in the
+                             college. One press either way. --}}
+                        @if ($user->requested_role_id)
+                            <div class="role-request">
+                                <span>
+                                    Asked to be <strong>{{ optional($user->requestedRole)->name }}</strong>
+                                    @if ($user->role_requested_at)
+                                        · {{ $user->role_requested_at->diffForHumans() }}
+                                    @endif
+                                </span>
+                                <span class="role-request-actions">
+                                    <form action="{{ route('admin.users.roleRequest', $user) }}" method="POST"
+                                          onsubmit="return confirm('Make {{ $user->name }} a {{ optional($user->requestedRole)->name }}? This decides which concerns they can read.')">
+                                        @csrf
+                                        <input type="hidden" name="decision" value="grant">
+                                        <button type="submit" class="btn btn-success">Grant</button>
+                                    </form>
+                                    <form action="{{ route('admin.users.roleRequest', $user) }}" method="POST">
+                                        @csrf
+                                        <input type="hidden" name="decision" value="refuse">
+                                        <button type="submit" class="btn btn-muted">Refuse</button>
+                                    </form>
+                                </span>
+                            </div>
                         @endif
                     </div>
 

@@ -67,6 +67,32 @@ class AuthController extends Controller
     ];
 
     /**
+     * Offices and units, offered beside the six colleges when a staff member
+     * says where they work.
+     *
+     * A department is not a fixed list in this system -- it holds colleges and
+     * units in the same column -- so this is the starting set a new employee
+     * can pick from without typing. An admin can still set anything else on
+     * the Manage Users page.
+     *
+     * @var list<string>
+     */
+    public const UNITS = [
+        'Office of the President',
+        'Academic Affairs',
+        'Graduate School',
+        'Student Registration and Records',
+        'Guidance Office',
+        'General Services Unit',
+        'Health Services Unit',
+        'Information and Communications Technology Unit',
+        'Information and Alumni Affairs Unit',
+        'Center for Gender and Development',
+        'Center for Human Rights Education',
+        'Legal Affairs Office',
+    ];
+
+    /**
      * Show the login form.
      */
     public function showLogin()
@@ -157,6 +183,87 @@ class AuthController extends Controller
 
         return redirect()->route('concerns.index')
             ->with('success', 'Signed in as '.$user->name.' ('.$user->role->name.'). This is a demo account.');
+    }
+
+    /**
+     * A staff member says where they work and what they do.
+     *
+     * College, programme and section are stored as given: they describe where
+     * somebody works and grant nothing. Role is stored as a REQUEST.
+     *
+     * That split is the whole design. Role IS permission here --
+     * Concern::scopeVisibleTo() reads nothing else -- so a self-assigned one
+     * would let anybody holding a cspc.edu.ph address pick Guidance Counselor
+     * and read every mental-health and harassment report in the college. The
+     * domain proves employment; it cannot tell a dean from an instructor.
+     *
+     * So they keep Faculty/Staff, which receives only what is deliberately
+     * referred to it, until an administrator grants what they asked for.
+     */
+    private function completeStaffProfile(Request $request, User $user): RedirectResponse
+    {
+        $requestable = Role::whereIn('name', User::REQUESTABLE_ROLES)->pluck('id')->all();
+        $departments = array_merge(array_keys(User::COURSES_BY_COLLEGE), self::UNITS);
+
+        $validated = $request->validate([
+            'requested_role_id' => ['required', Rule::in($requestable)],
+            'department' => ['required', 'string', Rule::in($departments)],
+            // Only a Program Chair covers one programme. Validated against the
+            // chosen college so a hand-posted form cannot file a Computer
+            // Studies chair under BS Nursing.
+            'course' => ['nullable', 'string', Rule::in(User::allCourses()),
+                function ($attribute, $value, $fail) use ($request) {
+                    $offered = User::COURSES_BY_COLLEGE[$request->input('department')] ?? [];
+
+                    if (! in_array($value, $offered, true)) {
+                        $fail('That programme is not offered by the college you selected.');
+                    }
+                },
+            ],
+            // The section they advise, if any. Same shape as a student's.
+            'section' => ['nullable', 'string', 'max:12', 'regex:/^[1-6][A-Za-z]$/'],
+        ], [
+            'requested_role_id.required' => 'Please choose the role you are asking for.',
+            'requested_role_id.in' => 'That role cannot be requested here. Ask an administrator directly.',
+            'department.required' => 'Please choose your college or office.',
+            'section.regex' => 'Use the year and section together, like 3A.',
+        ]);
+
+        $user->forceFill([
+            'department' => $validated['department'],
+            'course' => $validated['course'] ?? null,
+            'section' => isset($validated['section']) ? strtoupper($validated['section']) : null,
+            'requested_role_id' => $validated['requested_role_id'],
+            'role_requested_at' => now(),
+        ])->save();
+
+        $asked = Role::find($validated['requested_role_id']);
+
+        // Tell the administrators there is something waiting. Without this the
+        // request sits in the database until somebody happens to open Manage
+        // Users, and a new instructor waits days for a role they need to do
+        // the job they were hired for.
+        $admins = User::whereHas('role', fn ($q) => $q->whereIn('name', ['System Admin', 'Staff Admin']))
+            ->where('status', 'approved')
+            ->get();
+
+        foreach ($admins as $admin) {
+            Notification::create([
+                'user_id' => $admin->id,
+                'type' => 'role_request',
+                'title' => 'Role request',
+                'message' => $user->name.' ('.$user->email.') set themselves up as '
+                    .$validated['department'].' and is asking for the '
+                    .optional($asked)->name.' role.',
+                'is_read' => false,
+            ]);
+        }
+
+        return redirect()->route('concerns.index')->with(
+            'success',
+            'Thanks — your details are saved. An administrator has to approve the '
+            .optional($asked)->name.' role before you can act on concerns as one.'
+        );
     }
 
     /**
@@ -338,6 +445,18 @@ class AuthController extends Controller
         /** @var User $user */
         $user = Auth::user();
 
+        // Staff get their own form: they pick a role and an office, not a
+        // student number and a section.
+        if ($user->needsStaffProfile()) {
+            return view('auth.complete-staff-profile', [
+                'collegeCourses' => User::COURSES_BY_COLLEGE,
+                'units' => self::UNITS,
+                'roles' => Role::whereIn('name', User::REQUESTABLE_ROLES)
+                    ->orderBy('name')
+                    ->get(),
+            ]);
+        }
+
         if (! $user->needsProfileCompletion()) {
             return redirect()->route('concerns.index');
         }
@@ -354,6 +473,10 @@ class AuthController extends Controller
     {
         /** @var User $user */
         $user = Auth::user();
+
+        if ($user->isEmployee()) {
+            return $this->completeStaffProfile($request, $user);
+        }
 
         $validated = $request->validate([
             'student_id' => 'required|string|max:50',

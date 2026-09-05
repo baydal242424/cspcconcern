@@ -45,7 +45,7 @@ class AdminController extends Controller
     {
         $this->authorizeAdmin();
 
-        $users = User::with(['role', 'bannedBy'])
+        $users = User::with(['role', 'requestedRole', 'bannedBy'])
             ->orderByDesc('last_seen_at')
             ->orderByDesc('created_at')
             ->get();
@@ -189,6 +189,77 @@ class AdminController extends Controller
         }
 
         return back()->with('success', $message);
+    }
+
+    /**
+     * Grant or refuse the role a staff member asked for when they signed up.
+     *
+     * The person filled in their own college, programme and section -- those
+     * were saved as given, because they describe where somebody works and
+     * grant nothing. The role waited here, because role IS permission: a
+     * self-granted Guidance Counselor would read every mental-health and
+     * harassment report in the college.
+     *
+     * Granting is one press rather than re-picking from a dropdown, so the
+     * common case -- the request is correct -- costs an admin nothing. Getting
+     * it wrong is what the Role field below is still for.
+     */
+    public function decideRoleRequest(Request $request, User $user)
+    {
+        $this->authorizeAdmin();
+
+        $validated = $request->validate([
+            'decision' => ['required', Rule::in(['grant', 'refuse'])],
+        ]);
+
+        if (! $user->requested_role_id) {
+            return back()->with('error', 'That account has no role request waiting.');
+        }
+
+        $asked = Role::find($user->requested_role_id);
+
+        // A Staff Admin cannot grant what they could not assign directly --
+        // otherwise the request queue becomes a way around guardSystemAdmin.
+        $this->guardSystemAdmin($user, optional($asked)->name);
+
+        $granted = $validated['decision'] === 'grant';
+
+        $user->forceFill(array_merge(
+            // Cleared either way: the request has been answered, and leaving
+            // it would keep the account in the pending list forever.
+            ['requested_role_id' => null, 'role_requested_at' => null],
+            $granted ? ['role_id' => $asked->id] : []
+        ))->save();
+
+        AuditLog::create([
+            'user_id' => Auth::id(),
+            'action' => $granted ? 'role_request_granted' : 'role_request_refused',
+            'changes' => json_encode(['user_id' => $user->id, 'role' => optional($asked)->name]),
+            'description' => ($granted ? 'Granted ' : 'Refused ').optional($asked)->name
+                .' to '.$user->name,
+            'ip_address' => $request->ip(),
+        ]);
+
+        Notification::create([
+            'user_id' => $user->id,
+            'type' => $granted ? 'role_granted' : 'role_refused',
+            'title' => $granted ? 'Your role was approved' : 'Your role request was not approved',
+            'message' => $granted
+                ? 'You are now recorded as '.optional($asked)->name.'. Concerns for this role will start reaching you.'
+                : 'An administrator did not approve the '.optional($asked)->name
+                    .' role. Contact them if you think this is a mistake.',
+            'is_read' => false,
+        ]);
+
+        // Everyone else's copy of the request is done with.
+        Notification::where('type', 'role_request')
+            ->where('message', 'like', '%('.$user->email.')%')
+            ->where('is_read', false)
+            ->update(['is_read' => true, 'read_at' => now()]);
+
+        return back()->with('success', $granted
+            ? $user->name.' is now '.optional($asked)->name.'.'
+            : 'The request from '.$user->name.' was refused; their role is unchanged.');
     }
 
     /**
