@@ -19,6 +19,12 @@
 
     .user-card{border:1px solid var(--line); border-radius:12px; background:var(--surface);
         padding:1rem 1.1rem; display:flex; flex-direction:column; gap:.85rem}
+    /* The search hides a card with card.hidden = true, and [hidden] only gets
+       display:none from the user-agent stylesheet -- which the display:flex
+       above outranks. Without this the filter counted correctly and hid
+       nothing: searching a name left every account on screen beside a count
+       saying "1 account". Same collision as .field[hidden] below. */
+    .user-card[hidden]{display:none}
     .user-card.is-self{border-color:var(--brand); background:var(--brand-50)}
 
     .user-head{display:flex; flex-wrap:wrap; gap:.4rem .75rem; align-items:baseline}

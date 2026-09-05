@@ -278,6 +278,13 @@
             display:flex; align-items:flex-start; gap:.55rem;
             padding:.45rem .75rem; font-weight:400; cursor:pointer;
         }
+        /* The name filter and the "other colleges" fold both hide rows with
+           row.hidden = true, and [hidden] only carries display:none from the
+           user-agent stylesheet -- which the display:flex above outranks.
+           Without this the search box narrowed nothing and the fold showed all
+           368 instructors anyway. The headings are <p> elements, so they hide
+           on their own; only the rows needed rescuing. */
+        .people-picker .person[hidden]{display:none}
         /* 44px of tappable height per row: a phone is the common case. */
         .people-picker .person span{min-height:1.6rem; line-height:1.6}
         .people-picker .person:hover{background:#f7f9ff}
