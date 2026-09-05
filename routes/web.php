@@ -77,5 +77,13 @@ Route::middleware(['auth', 'track.last_seen', 'profile.complete'])->group(functi
     Route::post('/admin/users/{user}/ban', [AdminController::class, 'ban'])->name('admin.users.ban');
     Route::post('/admin/users/{user}/unban', [AdminController::class, 'unban'])->name('admin.users.unban');
     Route::post('/admin/users/{user}/role', [AdminController::class, 'updateRole'])->name('admin.users.role');
+    // Start of the school year: move every student up a year level in one
+    // action, rather than editing a digit on 500-odd accounts by hand. Both
+    // are POST because they change data, and the undo reverses the last run
+    // from what it recorded.
+    Route::post('/admin/students/promote', [AdminController::class, 'promoteYearLevels'])->name('admin.students.promote');
+    Route::post('/admin/students/promote/undo', [AdminController::class, 'undoPromotion'])->name('admin.students.promote.undo');
+    // The irregular student's way back in after their year was closed.
+    Route::post('/admin/users/{user}/reactivate', [AdminController::class, 'reactivate'])->name('admin.users.reactivate');
     Route::delete('/admin/users/{user}', [AdminController::class, 'destroy'])->name('admin.users.destroy');
 });

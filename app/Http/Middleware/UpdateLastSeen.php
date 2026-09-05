@@ -25,9 +25,16 @@ class UpdateLastSeen
             $request->session()->regenerateToken();
 
             return redirect()->route('login')->withErrors([
-                'email' => $user->status === 'banned'
-                    ? 'Your account has been banned. Contact the admin for details.'
-                    : 'Your account access was not approved. Contact the admin for details.',
+                'email' => match ($user->status) {
+                    'banned' => 'Your account has been banned. Contact the admin for details.',
+                    // Closed by the start-of-year promotion. An irregular
+                    // student still finishing subjects looks exactly like a
+                    // graduate here, so say how to get back rather than
+                    // stopping at "not approved".
+                    'graduated' => 'Your account was closed at the end of the school year. '
+                        .'If you are still enrolled, ask the admin to reactivate it.',
+                    default => 'Your account access was not approved. Contact the admin for details.',
+                },
             ]);
         }
 

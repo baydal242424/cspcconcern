@@ -336,6 +336,13 @@ class AuthController extends Controller
         $message = match ($user->status) {
             'pending' => 'Your account is pending admin approval. Please check back later.',
             'banned' => 'Your account has been banned. Contact the admin for details.',
+            // Closed by the start-of-year promotion, which marks every
+            // final-year account graduated. Nothing here distinguishes a
+            // graduate from an irregular student still finishing subjects, so
+            // the message has to tell the second kind how to get back in
+            // rather than reading as a dead end.
+            'graduated' => 'Your account was closed at the end of the school year. '
+                .'If you are still enrolled, ask the admin to reactivate it.',
             default => 'Your account access was not approved. Contact the admin for details.',
         };
 

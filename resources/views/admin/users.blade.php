@@ -61,6 +61,29 @@
         .user-actions form{width:100%}
         .ban-reason{flex:1 1 100%}
     }
+
+    /* Start-of-year promotion. Set apart from the account list because it acts
+       on every student at once rather than on one row. */
+    .promote-panel{
+        display:flex; gap:1.5rem; align-items:flex-start; flex-wrap:wrap;
+        justify-content:space-between;
+        border:1px solid var(--line); border-left:3px solid var(--brand);
+        border-radius:10px; padding:1.1rem 1.25rem; margin-bottom:1.5rem;
+        background:var(--brand-50);
+    }
+    .promote-copy{flex:1 1 420px; min-width:0}
+    .promote-panel h2{font-size:1.02rem; margin:0 0 .3rem}
+    .promote-panel p{margin:0; color:var(--muted); font-size:.88rem}
+    .promote-counts{margin:.6rem 0 0; padding-left:1.1rem; font-size:.88rem; color:var(--ink)}
+    .promote-counts li{margin:.15rem 0}
+    .promote-last{margin-top:.7rem !important; font-size:.82rem !important; color:var(--muted)}
+    .promote-actions{display:flex; flex-direction:column; gap:.5rem; flex:0 0 auto}
+    .promote-actions .btn{width:100%; justify-content:center}
+    .promote-actions button[disabled]{opacity:.5; cursor:not-allowed}
+
+    @media (max-width:768px){
+        .promote-actions{width:100%}
+    }
 </style>
 
 <div class="card">
@@ -69,6 +92,72 @@
         <p style="color:var(--muted); margin-top:.5rem;">
             Every registered account, who's currently online, and when everyone else was last active.
         </p>
+    </div>
+
+    {{-- Start of the school year. Editing a digit on 500-odd accounts by hand
+         is not something anybody actually does, so sections went stale -- and
+         a stale section is worse than none, because it routes a student's
+         academic concerns to the adviser of the class they left last year.
+
+         The counts are shown BEFORE the button, so nobody has to press it to
+         find out what it touches. --}}
+    <div class="promote-panel">
+        <div class="promote-copy">
+            <h2>Start of school year</h2>
+            <p>
+                Moves every student up one year level at once — 1A becomes 2A, 2A becomes 3A.
+                Their class letter stays the same.
+            </p>
+            <ul class="promote-counts">
+                <li><strong>{{ $promotion['moving'] }}</strong> students will move up</li>
+                @if ($promotion['graduating'] > 0)
+                    <li><strong>{{ $promotion['graduating'] }}</strong> are in their final year — their accounts close as graduated, and they can no longer sign in</li>
+                @endif
+                @if ($promotion['noSection'] > 0)
+                    <li><strong>{{ $promotion['noSection'] }}</strong> have no section recorded yet</li>
+                @endif
+                @if ($promotion['unreadable'] > 0)
+                    <li><strong>{{ $promotion['unreadable'] }}</strong> have a section that cannot be read and will be skipped</li>
+                @endif
+                @if ($promotion['closed'] > 0)
+                    <li><strong>{{ $promotion['closed'] }}</strong> accounts are already closed as graduated — search <em>graduated</em> below to reactivate one</li>
+                @endif
+            </ul>
+            @if ($promotion['graduating'] > 0)
+                <p class="promote-note">
+                    An irregular student still finishing subjects looks the same as a graduate here.
+                    If one needs to file a concern, they will be told to ask you, and you can reactivate
+                    their account from their card below.
+                </p>
+            @endif
+            @if ($lastPromotion)
+                <p class="promote-last">
+                    Last run {{ $lastPromotion->created_at->timezone('Asia/Manila')->format('M j, Y · g:i A') }}
+                    by {{ optional($lastPromotion->user)->name ?? 'a removed account' }} —
+                    {{ $lastPromotion->description }}
+                </p>
+            @endif
+        </div>
+
+        <div class="promote-actions">
+            <form action="{{ route('admin.students.promote') }}" method="POST"
+                  onsubmit="return confirm('Move {{ $promotion['moving'] }} students up one year level?\n\nThis changes every one of their records at once. You can undo it straight afterwards.');">
+                @csrf
+                <button type="submit" class="btn btn-primary" {{ $promotion['moving'] === 0 ? 'disabled' : '' }}>
+                    Move all students up a year
+                </button>
+            </form>
+
+            {{-- Only offered while the last thing that happened WAS a
+                 promotion. Once it has been undone, there is nothing to undo. --}}
+            @if ($lastPromotion && $lastPromotion->action === 'students_promoted')
+                <form action="{{ route('admin.students.promote.undo') }}" method="POST"
+                      onsubmit="return confirm('Put every student back a year level, exactly as they were before the last run?');">
+                    @csrf
+                    <button type="submit" class="btn btn-muted">Undo the last run</button>
+                </form>
+            @endif
+        </div>
     </div>
 
     @if ($users->isEmpty())
@@ -193,7 +282,17 @@
                         </form>
 
                         <div class="user-actions">
-                            @if ($user->status === 'banned')
+                            {{-- The irregular student's way back in. Their year
+                                 was closed by the start-of-year promotion, and
+                                 nothing in the data tells them apart from a
+                                 graduate -- so a person decides. --}}
+                            @if ($user->status === 'graduated')
+                                <form action="{{ route('admin.users.reactivate', $user) }}" method="POST"
+                                      onsubmit="return confirm('Reactivate {{ $user->name }}? They will be able to sign in and file concerns again.')">
+                                    @csrf
+                                    <button type="submit" class="btn btn-success">Reactivate</button>
+                                </form>
+                            @elseif ($user->status === 'banned')
                                 <form action="{{ route('admin.users.unban', $user) }}" method="POST"
                                       onsubmit="return confirm('Unban {{ $user->name }}?')">
                                     @csrf

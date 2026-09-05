@@ -49,7 +49,7 @@ class CcsFacultySeeder extends Seeder
     private const FACULTY = [
         // Information Systems Department. Instructor I, Rise Lab In-Charge.
         ['jeremyneo@cspc.edu.ph', 'Jeremy Jireh Neo', 'Instructor', null],
-
+       
         // Information Systems Department. BSIS Program Chair -- the
         // programme string must match User::COURSES_BY_COLLEGE exactly, or
         // findHandler() will not match him to a BSIS student and the

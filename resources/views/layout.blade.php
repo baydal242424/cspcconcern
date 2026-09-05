@@ -203,6 +203,9 @@
         .status-pending{background:var(--warn-bg); color:var(--warn-ink); border-color:#f3dca0}
         .status-banned{background:var(--danger-bg); color:var(--danger-ink); border-color:#f6c9cf}
         .status-rejected{background:var(--danger-bg); color:var(--danger-ink); border-color:#f6c9cf}
+        /* Closed at the end of the year, not disciplined -- so it must not
+           read like a ban sitting next to one in the same list. */
+        .status-graduated{background:#eef1f6; color:#5b6577; border-color:#dfe4ec}
         .urgency-low{background:#e6f0ff; color:#1d4ed8}
         .urgency-medium{background:#fff3d6; color:#8a5a00}
         .urgency-high{background:#ffe2e2; color:#b42318}

@@ -236,6 +236,27 @@ class User extends Authenticatable
     }
 
     /**
+     * How many year levels a programme runs for.
+     *
+     * Only used by the year-level promotion: it decides who moves up and who
+     * is already in their final year. A student in their last year is NOT
+     * promoted -- they are graduating, and "graduated" is not a section.
+     * Pushing them to a fifth year would invent a section nobody advises, and
+     * their concerns would fall out of adviser routing to the college
+     * fallback without anybody noticing.
+     *
+     * Four years unless listed here. Architecture is the five-year one.
+     */
+    public const YEARS_BY_COURSE = [
+        'BS Architecture' => 5,
+    ];
+
+    public static function finalYearFor(?string $course): int
+    {
+        return self::YEARS_BY_COURSE[$course] ?? 4;
+    }
+
+    /**
      * The programmes an instructor teaches, as rows of instructor_programmes.
      *
      * Separate from users.course, which holds ONE programme meaning "the

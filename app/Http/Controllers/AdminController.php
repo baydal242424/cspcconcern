@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\Referral;
 use App\Models\Role;
 use App\Models\User;
@@ -47,11 +48,254 @@ class AdminController extends Controller
 
         return view('admin.users', [
             'users' => $users,
+            'promotion' => $this->promotionPreview(),
+            'lastPromotion' => AuditLog::whereIn('action', ['students_promoted', 'students_promotion_undone'])
+                ->latest('id')
+                ->first(),
             'roles' => Role::orderBy('name')->get(),
             'colleges' => $colleges,
             'otherUnits' => $otherUnits,
             'courses' => User::COURSES_BY_COLLEGE,
         ]);
+    }
+
+    /**
+     * Move every student up one year level: 1A becomes 2A, 2A becomes 3A.
+     *
+     * Run once at the start of a school year. The alternative was an admin
+     * opening 500-odd accounts and editing a digit in each, which is not a
+     * thing anybody does -- so sections went stale, and a stale section is
+     * worse than none: it routes a student's academic concerns to the adviser
+     * of a class they left a year ago.
+     *
+     * Only the leading digit moves. The letter is the student's class within
+     * the year and does not change, so 1A follows 1A into 2A.
+     *
+     * Students in their FINAL year are not moved up -- there is no year above
+     * theirs, and inventing one would put them in a class nobody advises.
+     * They are marked 'graduated' instead, which closes the account: sign-in
+     * is refused and any open session ends on the next request.
+     *
+     * That is reversible on purpose. An irregular student still finishing
+     * subjects is indistinguishable from a graduate at this level -- the
+     * system knows a year and a section, not a curriculum -- so the account is
+     * closed rather than deleted, they are told to ask an Admin, and the Admin
+     * reactivates them in one click. Guessing the other way would leave real
+     * graduates able to file concerns for years.
+     *
+     * Everything is recorded in audit_logs, including the previous section and
+     * status of every account touched, which is what makes undoPromotion()
+     * able to put back exactly what changed.
+     */
+    public function promoteYearLevels(Request $request)
+    {
+        $this->authorizeAdmin();
+
+        $students = User::students()->whereNotNull('section')->get();
+
+        $moved = [];
+        $graduated = [];
+        $unreadable = 0;
+
+        foreach ($students as $student) {
+            // "3A" -> year 3, class A. Anything else is left untouched rather
+            // than guessed at.
+            if (! preg_match('/^([1-6])([A-Za-z])$/', trim($student->section), $parts)) {
+                $unreadable++;
+                continue;
+            }
+
+            [$year, $class] = [(int) $parts[1], strtoupper($parts[2])];
+
+            if ($year >= User::finalYearFor($student->course)) {
+                // Only accounts that are currently open. Re-running must not
+                // record 'banned' as something to restore later.
+                if ($student->status === 'approved') {
+                    $graduated[$student->id] = ['status' => $student->status];
+                }
+
+                continue;
+            }
+
+            $moved[$student->id] = ['from' => $student->section, 'to' => ($year + 1).$class];
+        }
+
+        if (empty($moved) && empty($graduated)) {
+            return back()->with('error', 'Nothing to do — no student has a section that can be moved.');
+        }
+
+        DB::transaction(function () use ($moved, $graduated, $unreadable, $request) {
+            // One UPDATE per target section rather than one per student.
+            //
+            // The id list is built by hand on purpose. Collection::groupBy()
+            // re-indexes by default, so grouping the id-keyed array and asking
+            // for its keys back gave 0, 1, 2 -- which whereIn() then matched
+            // against real user ids and rewrote the wrong people's sections.
+            $byTarget = [];
+
+            foreach ($moved as $id => $move) {
+                $byTarget[$move['to']][] = $id;
+            }
+
+            foreach ($byTarget as $to => $ids) {
+                User::whereIn('id', $ids)->update(['section' => $to]);
+            }
+
+            if (! empty($graduated)) {
+                User::whereIn('id', array_keys($graduated))->update(['status' => 'graduated']);
+            }
+
+            AuditLog::create([
+                'user_id' => Auth::id(),
+                'action' => 'students_promoted',
+                // The full before-and-after, so the change can be reversed
+                // exactly rather than by subtracting one from everybody --
+                // which would also hit students who were never moved.
+                'changes' => json_encode(['moved' => $moved, 'graduated' => $graduated]),
+                'description' => count($moved).' students moved up a year level; '
+                    .count($graduated).' final-year accounts closed as graduated'
+                    .($unreadable > 0 ? "; {$unreadable} skipped with an unreadable section" : ''),
+                'ip_address' => $request->ip(),
+            ]);
+        });
+
+        $message = count($moved).' students moved up a year level.';
+
+        if (! empty($graduated)) {
+            $message .= ' '.count($graduated).' final-year accounts were closed as graduated — '
+                .'anyone still enrolled can ask you to reactivate them.';
+        }
+
+        if ($unreadable > 0) {
+            $message .= " {$unreadable} had a section that could not be read and were skipped.";
+        }
+
+        return back()->with('success', $message);
+    }
+
+    /**
+     * Reopen a graduated account.
+     *
+     * The irregular student's way back in. Nothing in the data distinguishes
+     * them from a graduate -- the system holds a year and a section, not a
+     * curriculum -- so a person decides, and this records who.
+     */
+    public function reactivate(Request $request, User $user)
+    {
+        $this->authorizeAdmin();
+
+        if ($user->status !== 'graduated') {
+            return back()->with('error', 'That account is not closed as graduated.');
+        }
+
+        $user->forceFill(['status' => 'approved'])->save();
+
+        AuditLog::create([
+            'user_id' => Auth::id(),
+            'action' => 'student_reactivated',
+            'changes' => json_encode(['user_id' => $user->id, 'from' => 'graduated', 'to' => 'approved']),
+            'description' => "Reactivated {$user->name} after graduation was recorded",
+            'ip_address' => $request->ip(),
+        ]);
+
+        return back()->with('success', "{$user->name} can sign in again.");
+    }
+
+    /**
+     * Put back exactly what the last promotion changed.
+     *
+     * One button that rewrites every student row wants a way back. This
+     * reverses by the recorded before-and-after rather than by subtracting a
+     * year from everybody, so it cannot touch a student who was not part of
+     * that run.
+     *
+     * An account whose section has been edited since is left alone and
+     * counted: the admin's later edit is newer information than this undo.
+     */
+    public function undoPromotion(Request $request)
+    {
+        $this->authorizeAdmin();
+
+        $last = AuditLog::where('action', 'students_promoted')->latest('id')->first();
+
+        if (! $last) {
+            return back()->with('error', 'There is no promotion to undo.');
+        }
+
+        $record = json_decode($last->changes, true) ?: [];
+        $moved = $record['moved'] ?? [];
+        $graduated = $record['graduated'] ?? [];
+
+        $restored = 0;
+        $reopened = 0;
+        $changedSince = 0;
+
+        DB::transaction(function () use ($moved, $graduated, &$restored, &$reopened, &$changedSince, $last, $request) {
+            foreach ($moved as $id => $move) {
+                $affected = User::whereKey($id)
+                    ->where('section', $move['to'])
+                    ->update(['section' => $move['from']]);
+
+                $affected ? $restored++ : $changedSince++;
+            }
+
+            foreach ($graduated as $id => $was) {
+                // Only accounts still sitting where the promotion left them. An
+                // account banned since is left banned -- that decision is newer.
+                $affected = User::whereKey($id)
+                    ->where('status', 'graduated')
+                    ->update(['status' => $was['status']]);
+
+                $affected ? $reopened++ : $changedSince++;
+            }
+
+            AuditLog::create([
+                'user_id' => Auth::id(),
+                'action' => 'students_promotion_undone',
+                'changes' => json_encode(['undid_audit_log_id' => $last->id]),
+                'description' => "{$restored} students put back a year level, {$reopened} accounts reopened"
+                    .($changedSince > 0 ? "; {$changedSince} skipped, changed since" : ''),
+                'ip_address' => $request->ip(),
+            ]);
+        });
+
+        $message = "{$restored} students were put back a year level";
+        $message .= $reopened > 0 ? ", and {$reopened} graduated accounts were reopened." : '.';
+
+        if ($changedSince > 0) {
+            $message .= " {$changedSince} were left alone because they had been changed since.";
+        }
+
+        return back()->with('success', $message);
+    }
+
+    /**
+     * What a promotion would do, without doing it.
+     *
+     * Shown beside the button, because the admin should not have to press an
+     * irreversible-looking button on 500 accounts to find out what it touches.
+     *
+     * @return array{moving:int, graduating:int, unreadable:int, noSection:int, closed:int}
+     */
+    private function promotionPreview(): array
+    {
+        $preview = ['moving' => 0, 'graduating' => 0, 'unreadable' => 0, 'noSection' => 0, 'closed' => 0];
+
+        foreach (User::students()->get() as $student) {
+            if ($student->status === 'graduated') {
+                $preview['closed']++;
+            } elseif (blank($student->section)) {
+                $preview['noSection']++;
+            } elseif (! preg_match('/^([1-6])([A-Za-z])$/', trim($student->section), $parts)) {
+                $preview['unreadable']++;
+            } elseif ((int) $parts[1] >= User::finalYearFor($student->course)) {
+                $preview['graduating']++;
+            } else {
+                $preview['moving']++;
+            }
+        }
+
+        return $preview;
     }
 
     /**
