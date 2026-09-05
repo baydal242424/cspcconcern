@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
+use App\Models\Notification;
 use App\Models\Referral;
 use App\Models\Role;
 use App\Models\User;
@@ -189,6 +190,24 @@ class AdminController extends Controller
         }
 
         $user->forceFill(['status' => 'approved'])->save();
+
+        // Clear the request from every Admin's bell. Without this the badge
+        // keeps showing a request that has already been granted, and a second
+        // Admin opens it to find nothing to do.
+        Notification::where('type', 'reactivation_request')
+            ->where('message', 'like', '%('.$user->email.')%')
+            ->where('is_read', false)
+            ->update(['is_read' => true, 'read_at' => now()]);
+
+        // Waiting for them when they sign in, so they know it was acted on
+        // rather than having to keep trying the login page.
+        Notification::create([
+            'user_id' => $user->id,
+            'type' => 'account_reactivated',
+            'title' => 'Your account is open again',
+            'message' => 'An administrator reopened your account. You can file and track concerns as before.',
+            'is_read' => false,
+        ]);
 
         AuditLog::create([
             'user_id' => Auth::id(),

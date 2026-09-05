@@ -46,6 +46,13 @@ class NotificationController extends Controller
             return redirect()->route('concerns.show', $notification->concern_id);
         }
 
+        // A reactivation request is about an ACCOUNT, not a concern, so it
+        // opens the page where it can be acted on. Sending an Admin to the
+        // concern list would leave them hunting for the student by hand.
+        if ($notification->type === 'reactivation_request') {
+            return redirect()->route('admin.users');
+        }
+
         return redirect()->route('concerns.index');
     }
 

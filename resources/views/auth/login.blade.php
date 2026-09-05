@@ -68,6 +68,19 @@
         .alert-error ul{margin:0;padding-left:1.1rem}
         .alert-success{background:#e7f8ee;color:#137a3f;border:1px solid #bfe9cf;
             padding:.85rem 1rem;border-radius:11px;margin-bottom:1.3rem;font-size:.9rem}
+        /* The way out of a closed account. Warm rather than red: being
+           graduated is not a failure, and it sits directly under an error
+           box that already is red. */
+        .reactivate-ask{background:var(--warn-bg,#fff4d6);border:1px solid #f3dca0;
+            color:#7a5200;padding:.85rem 1rem;border-radius:11px;margin-bottom:1.3rem;font-size:.87rem}
+        .reactivate-ask strong{display:block;margin-bottom:.2rem}
+        .reactivate-ask p{margin:0 0 .7rem;line-height:1.45}
+        .reactivate-ask form{margin:0}
+        .btn-reactivate{width:100%;padding:.6rem .9rem;border:1px solid #b7822a;
+            background:#fff;color:#7a5200;border-radius:9px;cursor:pointer;
+            font-family:inherit;font-size:.86rem;font-weight:600}
+        .btn-reactivate:hover{background:#7a5200;color:#fff}
+        .reactivate-who{display:block;margin-top:.45rem;font-size:.78rem;opacity:.85}
         .forgot{display:block;text-align:right;font-size:.83rem;font-weight:600;color:var(--brand);
             text-decoration:none;margin:-.55rem 0 1.15rem}
         .forgot:hover{text-decoration:underline}
@@ -165,6 +178,31 @@
                                 <li>{{ $error }}</li>
                             @endforeach
                         </ul>
+
+                    </div>
+                @endif
+
+                {{-- "Ask the admin" with no way to ask is a dead end: the
+                     student is locked out, so they cannot reach anybody
+                     through the system, and an irregular student with a real
+                     concern would give up rather than hunt for an office.
+
+                     Outside the error box on purpose. The error only survives
+                     one redirect, so a reload took the way back off the page
+                     while the account was still closed.
+
+                     Who is asking comes from the session written by their own
+                     refused sign-in, never from this form, so the button
+                     cannot be aimed at another address. --}}
+                @if ($reactivationCandidate)
+                    <div class="reactivate-ask">
+                        <strong>Still enrolled?</strong>
+                        <p>If you are an irregular student still finishing subjects, ask an administrator to reopen your account.</p>
+                        <form action="{{ route('auth.reactivation.request') }}" method="POST">
+                            @csrf
+                            <button type="submit" class="btn-reactivate">Ask the admin to reactivate my account</button>
+                        </form>
+                        <span class="reactivate-who">Sent as {{ $reactivationCandidate->email }}</span>
                     </div>
                 @endif
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Notification;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -76,6 +77,13 @@ class AuthController extends Controller
 
         return view('auth.login', [
             'demoAccounts' => $this->demoAccounts(),
+            // Set by rejectIfNotApproved() when a graduated account just tried
+            // to sign in. Re-read from the database rather than trusted from
+            // the session, so an account reactivated in the meantime does not
+            // still offer to ask.
+            'reactivationCandidate' => User::whereKey(session('reactivation_candidate'))
+                ->where('status', 'graduated')
+                ->first(),
         ]);
     }
 
@@ -149,6 +157,75 @@ class AuthController extends Controller
 
         return redirect()->route('concerns.index')
             ->with('success', 'Signed in as '.$user->name.' ('.$user->role->name.'). This is a demo account.');
+    }
+
+    /**
+     * A graduated student asks an Admin to reopen their account.
+     *
+     * Reachable only straight after that person signed in with Google and was
+     * turned away: rejectIfNotApproved() puts their id in the session, and
+     * this reads it from there. Nothing is taken from the form, so the button
+     * cannot be pointed at somebody else's account, and it cannot be used to
+     * find out which addresses exist.
+     *
+     * The alternative was "ask the admin" with no way to ask — the student is
+     * locked out, so they cannot use the system to reach anybody, and an
+     * irregular student with a real concern would simply give up.
+     */
+    public function requestReactivation(Request $request)
+    {
+        $user = User::whereKey($request->session()->get('reactivation_candidate'))
+            ->where('status', 'graduated')
+            ->first();
+
+        if (! $user) {
+            return redirect()->route('login')->withErrors([
+                'email' => 'Sign in first, so we know whose account to ask about.',
+            ]);
+        }
+
+        $admins = User::whereHas('role', fn ($q) => $q->where('name', 'Admin'))
+            ->where('status', 'approved')
+            ->get();
+
+        if ($admins->isEmpty()) {
+            Log::warning('Reactivation requested with no Admin to receive it', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+            ]);
+
+            return redirect()->route('login')->withErrors([
+                'email' => 'There is no administrator to receive the request right now. Please contact your college office.',
+            ]);
+        }
+
+        // One open request per student. Pressing the button five times must
+        // not put five identical rows in every Admin's bell, which would bury
+        // the other four students asking the same thing.
+        $alreadyAsked = Notification::where('type', 'reactivation_request')
+            ->where('message', 'like', '%('.$user->email.')%')
+            ->where('is_read', false)
+            ->exists();
+
+        if ($alreadyAsked) {
+            return redirect()->route('login')
+                ->with('success', 'Your request is already with the admin. You will be able to sign in once they reopen your account.');
+        }
+
+        foreach ($admins as $admin) {
+            Notification::create([
+                'user_id' => $admin->id,
+                'type' => 'reactivation_request',
+                'title' => 'Reactivation requested',
+                'message' => $user->name.' ('.$user->email.') says they are still enrolled in '
+                    .($user->course ?: 'their programme').' '.($user->section ?: '')
+                    .' and is asking for their account to be reopened.',
+                'is_read' => false,
+            ]);
+        }
+
+        return redirect()->route('login')
+            ->with('success', 'Your request has been sent to the admin. You will be able to sign in once they reopen your account.');
     }
 
     /**
@@ -333,6 +410,17 @@ class AuthController extends Controller
 
         Auth::logout();
 
+        // A graduated account may be an irregular student who is still
+        // enrolled, so the login page offers them a button to ask an Admin.
+        //
+        // The id goes in the SESSION, never in the form. The only way it gets
+        // here is a completed Google sign-in as that person, so the request
+        // that follows cannot be forged for somebody else's address, and the
+        // button cannot be used to probe which accounts exist.
+        if ($user->status === 'graduated') {
+            session(['reactivation_candidate' => $user->id]);
+        }
+
         $message = match ($user->status) {
             'pending' => 'Your account is pending admin approval. Please check back later.',
             'banned' => 'Your account has been banned. Contact the admin for details.',
@@ -340,9 +428,10 @@ class AuthController extends Controller
             // final-year account graduated. Nothing here distinguishes a
             // graduate from an irregular student still finishing subjects, so
             // the message has to tell the second kind how to get back in
-            // rather than reading as a dead end.
+            // rather than reading as a dead end. The login page turns this
+            // into a button -- see the session key set below.
             'graduated' => 'Your account was closed at the end of the school year. '
-                .'If you are still enrolled, ask the admin to reactivate it.',
+                .'If you are still enrolled, you can ask the admin to reactivate it.',
             default => 'Your account access was not approved. Contact the admin for details.',
         };
 

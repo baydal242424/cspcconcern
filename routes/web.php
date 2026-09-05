@@ -29,6 +29,14 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 // set, so the route existing is not the same as the route working.
 Route::post('/auth/demo', [AuthController::class, 'demoLogin'])->name('auth.demo');
 
+// A graduated student asks an Admin to reopen their account. Public because
+// they are locked out by definition -- but it identifies them from the session
+// set by their just-refused Google sign-in, never from the form, so it cannot
+// be aimed at another address or used to probe which accounts exist.
+Route::post('/auth/request-reactivation', [AuthController::class, 'requestReactivation'])
+    ->middleware('throttle:5,60')
+    ->name('auth.reactivation.request');
+
 Route::get('/auth/google/redirect', [AuthController::class, 'redirectToGoogle'])->name('auth.google.redirect');
 Route::get('/auth/google/callback', [AuthController::class, 'handleGoogleCallback'])->name('auth.google.callback');
 
