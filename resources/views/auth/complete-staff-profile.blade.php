@@ -79,6 +79,16 @@
                 <p class="hint">Pending approval. Until then you can sign in, but you will not receive concerns as this role.</p>
             </div>
 
+            {{-- Their staff number. Asked for here because the person filling
+                 this in is the one who knows it, and CSPC's own records are
+                 keyed on it -- two people in this database already share a
+                 name, so it is what tells an admin which account is which. --}}
+            <div class="fg">
+                <label for="employee_id">Employee ID</label>
+                <input type="text" name="employee_id" id="employee_id" maxlength="50" required
+                       value="{{ old('employee_id') }}" placeholder="Your staff number">
+            </div>
+
             <div class="fg">
                 <label for="department">College or office</label>
                 <select name="department" id="department" required>
