@@ -87,7 +87,7 @@ class ReportingYourOwnAdviserTest extends TestCase
             'The student\'s own class adviser must be offered, whatever role they hold'
         );
 
-        $resp->assertSee('This concern is about my class adviser');
+        $resp->assertSee('This concern is about them');
         $resp->assertSee($adviser->name);
 
         fwrite(STDERR, "  [adviser] a Program Chair adviser is nameable: YES\n");
@@ -154,7 +154,7 @@ class ReportingYourOwnAdviserTest extends TestCase
         $resp->assertOk();
 
         $this->assertNull($resp->viewData('adviser'));
-        $resp->assertDontSee('This concern is about my class adviser');
+        $resp->assertDontSee('This concern is about them');
 
         fwrite(STDERR, "  [adviser] hidden when there is no adviser: YES\n");
     }

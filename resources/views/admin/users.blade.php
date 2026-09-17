@@ -49,6 +49,11 @@
         border-radius:9px; font-family:inherit; font-size:.86rem; background:#fcfdff; color:var(--ink)}
     .field select:focus{outline:none; border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-50)}
     .user-form .btn{flex:0 0 auto}
+    /* Year and section together make one short value ("3A"), so they sit side
+       by side at a narrow width instead of each claiming a full picker's room. */
+    .field.field-narrow{flex:0 1 96px}
+    .section-hint{flex:1 1 100%; margin:0; font-size:.8rem; color:var(--muted)}
+    .section-hint.is-warning{color:#7a5200}
 
     .user-actions{display:flex; flex-wrap:wrap; gap:.5rem; align-items:center;
         padding-top:.75rem; border-top:1px dashed var(--line)}
@@ -73,6 +78,7 @@
         .user-meta{margin-left:0; width:100%}
         .user-form .btn, .user-actions .btn{width:100%; justify-content:center}
         .field{flex:1 1 100%}
+        .field.field-narrow{flex:1 1 calc(50% - .3rem)}
         .user-actions form{width:100%}
         .ban-reason{flex:1 1 100%}
     }
@@ -108,6 +114,13 @@
             Every registered account, who's currently online, and when everyone else was last active.
         </p>
     </div>
+
+    {{-- The layout only shows flashed success and error messages, not
+         validation errors, so a refused update used to reload the page with
+         nothing changed and nothing said. --}}
+    @if ($errors->any())
+        <div class="alert alert-error" role="alert">{{ implode(' ', $errors->all()) }}</div>
+    @endif
 
     {{-- Start of the school year. Editing a digit on 500-odd accounts by hand
          is not something anybody actually does, so sections went stale -- and
@@ -210,6 +223,14 @@
                          $user->course,
                          $user->section,
                          $user->status,
+                         // The class advisers. Nearly all of them hold another
+                         // role -- Instructor, Program Chair, Dean -- so a search
+                         // for "adviser" found nobody, and neither did the
+                         // section they advise: the person to replace could not
+                         // be found from the one thing the admin knew about them.
+                         ! empty($advisedBy[$user->id])
+                             ? 'adviser class adviser advises '.implode(' ', $advisedBy[$user->id])
+                             : null,
                      ]))) }}">
 
                     <div class="user-head">
@@ -232,6 +253,7 @@
                                 {{ $user->department ?: 'No college set' }}
                                 @if ($user->course) · {{ $user->course }} @endif
                                 @if ($user->section) · Section {{ $user->section }} @endif
+                                @if (! empty($advisedBy[$user->id])) · Advises {{ implode(', ', $advisedBy[$user->id]) }} @endif
                                 @if (optional($user->role)->name === 'Student' && $user->student_id) · ID {{ $user->student_id }} @endif
                             </span>
                         @endif
@@ -276,8 +298,8 @@
                             <span style="color:var(--muted); font-size:.85rem;">This is your own account.</span>
                         </div>
                     @else
-                        <form action="{{ route('admin.users.role', $user) }}" method="POST" class="user-form"
-                              onsubmit="return confirm('Update {{ $user->name }}\'s role and college?')">
+                        <form action="{{ route('admin.users.role', $user) }}" method="POST" class="user-form" data-user-name="{{ $user->name }}"
+                              onsubmit="return confirm('Update {{ $user->name }}\'s role, college and section?')">
                             @csrf
 
                             <div class="field">
@@ -326,14 +348,15 @@
                                  rather than omitted, so promoting somebody TO Program Chair
                                  reveals it before they are saved. --}}
                             <div class="field js-course-wrap"
-                                 @unless (in_array($roleName, ['Program Chair', 'Student'], true)) hidden @endunless>
-                                <label for="course-{{ $user->id }}">Programme</label>
+                                 @unless (in_array($roleName, ['Program Chair', 'Adviser', 'Student'], true)) hidden @endunless>
+                                <label for="course-{{ $user->id }}">Program</label>
                                 <select name="course" id="course-{{ $user->id }}">
                                     <option value="">— not set —</option>
                                     @foreach ($courses as $college => $collegeCourses)
                                         <optgroup label="{{ $college }}">
                                             @foreach ($collegeCourses as $course)
-                                                <option value="{{ $course }}" {{ $user->course === $course ? 'selected' : '' }}>
+                                                <option value="{{ $course }}" data-years="{{ \App\Models\User::finalYearFor($course) }}"
+                                                        {{ $user->course === $course ? 'selected' : '' }}>
                                                     {{ $course }}
                                                 </option>
                                             @endforeach
@@ -342,7 +365,45 @@
                                 </select>
                             </div>
 
+                            {{-- Year and section as two dropdowns, not the typed "3A" from
+                                 sign-up. A student's section picks their class adviser, so a
+                                 slip there sends their academic concerns to another class's
+                                 adviser; this is where an admin puts it right. Shown for the
+                                 roles that carry one (see AdminController::SECTION_ROLES). --}}
+                            @php
+                                preg_match('/^([1-6])([A-Za-z])$/', trim((string) $user->section), $sectionParts);
+                                $currentYear = $sectionParts[1] ?? '';
+                                $currentLetter = strtoupper($sectionParts[2] ?? '');
+                                $carriesSection = in_array($roleName, $sectionRoles, true);
+                            @endphp
+                            <div class="field field-narrow js-section-wrap" @unless ($carriesSection) hidden @endunless>
+                                <label for="year-{{ $user->id }}">Year</label>
+                                <select name="year" id="year-{{ $user->id }}" class="js-year">
+                                    <option value="">—</option>
+                                    @foreach (range(1, 6) as $yearOption)
+                                        <option value="{{ $yearOption }}" {{ $currentYear === (string) $yearOption ? 'selected' : '' }}>{{ $yearOption }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div class="field field-narrow js-section-wrap" @unless ($carriesSection) hidden @endunless>
+                                <label for="letter-{{ $user->id }}">Section</label>
+                                <select name="section_letter" id="letter-{{ $user->id }}" class="js-letter">
+                                    <option value="">—</option>
+                                    @foreach (range('A', 'Z') as $letterOption)
+                                        <option value="{{ $letterOption }}" {{ $currentLetter === $letterOption ? 'selected' : '' }}>{{ $letterOption }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+
                             <button type="submit" class="btn btn-secondary">Update</button>
+
+                            {{-- Filled in by the script below: who advises the chosen
+                                 section, or that nobody does. data-stored carries a section
+                                 saved in a shape the dropdowns cannot show, so it is flagged
+                                 rather than silently blanked on the next update. --}}
+                            <p class="section-hint js-section-hint" hidden
+                               data-stored="{{ $user->section && $currentYear === '' ? $user->section : '' }}"></p>
                         </form>
 
                         <div class="user-actions">
@@ -395,19 +456,91 @@
         // it to the dropdown rather than to what is stored: an admin promoting
         // somebody to Program Chair has to set their programme in the same
         // action, not find out afterwards that it is missing.
-        var PROGRAMME_ROLES = ['Program Chair', 'Student'];
+        var PROGRAMME_ROLES = ['Program Chair', 'Adviser', 'Student'];
+        // The roles that carry a section, and who advises each section, so the
+        // hint can say where a student's academic concerns will go before the
+        // admin presses Update rather than after.
+        var SECTION_ROLES = @json($sectionRoles);
+        var ADVISERS = @json((object) $advisers);
 
         document.querySelectorAll('.js-role').forEach(function (roleEl) {
             var form = roleEl.closest('form');
             var wrap = form && form.querySelector('.js-course-wrap');
             if (!wrap) return;
 
+            var courseEl = form.querySelector('select[name="course"]');
+            var yearEl = form.querySelector('.js-year');
+            var letterEl = form.querySelector('.js-letter');
+            var sectionWraps = form.querySelectorAll('.js-section-wrap');
+            var hint = form.querySelector('.js-section-hint');
+
+            function say(text, warning) {
+                hint.textContent = text || '';
+                hint.hidden = !text;
+                hint.classList.toggle('is-warning', !!warning);
+            }
+
             function sync() {
                 var name = roleEl.options[roleEl.selectedIndex].getAttribute('data-role-name');
                 wrap.hidden = PROGRAMME_ROLES.indexOf(name) === -1;
+
+                var carriesSection = SECTION_ROLES.indexOf(name) !== -1;
+                Array.prototype.forEach.call(sectionWraps, function (el) { el.hidden = !carriesSection; });
+                if (!carriesSection) return say('');
+
+                // Grey out years the chosen programme does not run to, the same
+                // rule the server refuses on. Four years unless the programme
+                // says otherwise -- Architecture runs five.
+                var course = wrap.hidden ? '' : courseEl.value;
+                var years = course
+                    ? parseInt(courseEl.options[courseEl.selectedIndex].getAttribute('data-years'), 10)
+                    : 6;
+                Array.prototype.forEach.call(yearEl.options, function (option) {
+                    option.disabled = option.value !== '' && parseInt(option.value, 10) > years;
+                });
+
+                var year = yearEl.value;
+                var letter = letterEl.value;
+                var stored = hint.getAttribute('data-stored');
+
+                if (!year && !letter) {
+                    return say(stored
+                        ? 'Saved section "' + stored + '" is not a year and section this form can read. Choose them, or it is cleared on update.'
+                        : '', true);
+                }
+                if (!year || !letter) return say('Choose both a year and a section, or leave both unset.', true);
+                if (parseInt(year, 10) > years) return say(course + ' runs for ' + years + ' years.', true);
+
+                // Only a student's section decides who handles their concerns.
+                // Making somebody an Adviser writes them into that section. Say
+                // so, and name whoever they replace, before Update is pressed --
+                // replacing a class's adviser should never be a surprise.
+                if (name === 'Adviser' && course) {
+                    var holder = ADVISERS[course + '|' + year + letter];
+                    var self = form.getAttribute('data-user-name');
+
+                    if (holder && holder !== self) {
+                        return say('Saving makes them the class adviser of ' + course + ' ' + year + letter
+                            + ', replacing ' + holder + '.', true);
+                    }
+
+                    return say('Saving makes them the class adviser of ' + course + ' ' + year + letter + '.');
+                }
+
+                if (name !== 'Student' || !course) return say('');
+
+                var adviser = ADVISERS[course + '|' + year + letter];
+                if (adviser) {
+                    say('Class adviser for ' + course + ' ' + year + letter + ': ' + adviser + '.');
+                } else {
+                    say('No class adviser is on record for ' + course + ' ' + year + letter
+                        + '. Academic concerns will go to an instructor in the college instead.', true);
+                }
             }
 
-            roleEl.addEventListener('change', sync);
+            [roleEl, courseEl, yearEl, letterEl].forEach(function (el) {
+                el.addEventListener('change', sync);
+            });
             sync();
         });
 

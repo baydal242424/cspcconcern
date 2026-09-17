@@ -126,6 +126,11 @@
             border-radius:9px;font-family:inherit;font-size:.88rem;background:#fcfdff;color:inherit}
         .demo-signin select:focus{outline:none;border-color:var(--brand);
             box-shadow:0 0 0 4px rgba(47,91,234,.12)}
+        .demo-signin input[type="search"]{width:100%;padding:.55rem .7rem;border:1.5px solid #e7ebf1;
+            border-radius:9px;font-family:inherit;font-size:.85rem;background:#fcfdff;color:inherit}
+        .demo-signin input[type="search"]:focus{outline:none;border-color:var(--brand);
+            box-shadow:0 0 0 4px rgba(47,91,234,.12)}
+        .demo-count{font-size:.72rem;color:var(--muted);margin-top:-.35rem}
         .demo-btn{padding:.6rem .9rem;border:1px solid #cbd5e1;border-radius:9px;
             background:#eef1f6;color:#475569;font-family:inherit;font-size:.85rem;
             font-weight:600;cursor:pointer;transition:background .15s}
@@ -235,6 +240,14 @@
                         </div>
 
                         <label class="demo-lab" for="demo_user">Sign in as a demo account</label>
+                        {{-- Several hundred accounts in one dropdown is a list
+                             nobody reads to the end. Typing narrows it by name,
+                             by role and by college, because which of those a
+                             person remembers varies: "Nursing", "Dean" and
+                             "Rosel" all have to find the same row. --}}
+                        <input type="search" id="demo-search" autocomplete="off"
+                               placeholder="Search name, role or college"
+                               aria-label="Search demo accounts" aria-describedby="demo-count">
                         <select name="user_id" id="demo_user" required>
                             <option value="">Choose a role to preview…</option>
                             @foreach ($demoAccounts as $roleName => $people)
@@ -248,8 +261,95 @@
                             @endforeach
                         </select>
 
+                        <span class="demo-count" id="demo-count"></span>
+
                         <button type="submit" class="demo-btn">Sign in as this account</button>
                     </form>
+
+                    <script>
+                        // The select is REBUILT on every keystroke rather than
+                        // having its options hidden: hiding an <option> is not
+                        // honoured everywhere, and a filter that silently leaves
+                        // the list intact is worse than none. The full set is
+                        // snapshotted once, so nothing is lost as it narrows.
+                        (function () {
+                            var select = document.getElementById('demo_user');
+                            var search = document.getElementById('demo-search');
+                            var count = document.getElementById('demo-count');
+                            if (!select || !search) return;
+
+                            var groups = Array.prototype.map.call(select.querySelectorAll('optgroup'), function (group) {
+                                return {
+                                    label: group.label,
+                                    options: Array.prototype.map.call(group.querySelectorAll('option'), function (option) {
+                                        var text = option.textContent.trim();
+
+                                        return {
+                                            value: option.value,
+                                            text: text,
+                                            // The role comes from the group heading, so it
+                                            // is searchable even though it is not in the row.
+                                            haystack: (group.label + ' ' + text).toLowerCase()
+                                        };
+                                    })
+                                };
+                            });
+
+                            var placeholder = select.querySelector('option').textContent;
+                            var total = groups.reduce(function (n, group) { return n + group.options.length; }, 0);
+
+                            function render(query) {
+                                var q = query.trim().toLowerCase();
+                                // Keep the chosen account if the filter leaves it.
+                                var chosen = select.value;
+                                var shown = 0;
+
+                                select.textContent = '';
+
+                                var first = document.createElement('option');
+                                first.value = '';
+                                first.textContent = placeholder;
+                                select.appendChild(first);
+
+                                groups.forEach(function (group) {
+                                    var matches = group.options.filter(function (option) {
+                                        return !q || option.haystack.indexOf(q) !== -1;
+                                    });
+
+                                    if (!matches.length) return;
+
+                                    var groupEl = document.createElement('optgroup');
+                                    groupEl.label = group.label;
+
+                                    matches.forEach(function (option) {
+                                        var optionEl = document.createElement('option');
+                                        optionEl.value = option.value;
+                                        optionEl.textContent = option.text;
+                                        groupEl.appendChild(optionEl);
+                                        shown++;
+                                    });
+
+                                    select.appendChild(groupEl);
+                                });
+
+                                if (!shown) {
+                                    var none = document.createElement('option');
+                                    none.value = '';
+                                    none.disabled = true;
+                                    none.textContent = 'No account matches that';
+                                    select.appendChild(none);
+                                }
+
+                                select.value = chosen;
+                                count.textContent = shown === total
+                                    ? total + ' accounts'
+                                    : shown + ' of ' + total + ' accounts';
+                            }
+
+                            search.addEventListener('input', function () { render(this.value); });
+                            render('');
+                        })();
+                    </script>
                 @endif
 
                 {{-- There is no registration form. A student's first CSPC Mail

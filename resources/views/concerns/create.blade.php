@@ -114,8 +114,15 @@
              Each control is disabled while its row is closed, so the browser
              never submits it, and nothing is submitted at all with JavaScript
              off. --}}
+        {{-- Hidden until a category is chosen, and only for the categories
+             where naming somebody makes sense. A counselling or safeguarding
+             case is not filed against a colleague from a picker -- Mental
+             Health, Personal, Bullying, Harassment, Physical and Safety go to
+             the Guidance Office or the adviser on their own -- and offering
+             the list there invited a student to name a person the office
+             would then be walled off from handling. --}}
         @php $namedSubjects = collect(old('about_staff_id', []))->map(fn ($id) => (int) $id); @endphp
-        <div class="form-group">
+        <div class="form-group" id="about-person-group" style="display:none;">
             <label>
                 <input type="checkbox" id="about_instructor_toggle" class="about-toggle" data-target="about_instructor_wrap" data-select="about_instructor_id">
                 <span style="font-weight: normal; margin-left: 0.5rem;">This concern is about a specific instructor</span>
@@ -154,41 +161,14 @@
                 <p style="font-size: 0.82rem; color: #666; margin-top: 0.4rem;">To avoid a conflict of interest, this concern will <strong>not</strong> be assigned to anyone named here. It will be routed to a higher authority instead.</p>
             </div>
 
-            {{-- The class adviser gets a row of their own, naming them.
-                 Advising is not a role, so the adviser is whoever holds the
-                 section: 14 of the 105 assignments belong to a Program Chair,
-                 a Dean or Faculty/Staff, who appear in no picker built from
-                 the Instructor role. Those students could not name their own
-                 adviser at all.
-
-                 It matters most here of anywhere on this form. Academic,
-                 Physical, Safety and Others route to the class adviser FIRST,
-                 so a concern about the adviser that fails to name them is
-                 handed straight to the person it is about. routeConcern()
-                 steps past an adviser who is the named subject -- but only if
-                 the student could name them.
-
-                 Named rather than listed because there is exactly one, and
-                 because plenty of students do not know who theirs is. A
-                 dropdown would ask them to recognise a name; this tells them
-                 one. --}}
-            @if ($adviser)
-                <label style="display:block; margin-top:0.7rem;">
-                    <input type="checkbox" id="about_adviser_toggle" class="about-toggle" data-target="about_adviser_wrap" data-select="about_adviser_id">
-                    <span style="font-weight: normal; margin-left: 0.5rem;">This concern is about my class adviser</span>
-                </label>
-                <div id="about_adviser_wrap" style="display:none; margin-top:0.6rem; padding-left:1.6rem;">
-                    {{-- No list to choose from: one adviser, held in a hidden
-                         field that the shared toggle script fills in from
-                         data-value when this row is the active one. --}}
-                    <input type="hidden" name="about_staff_id[]" id="about_adviser_id" data-value="{{ $adviser->id }}" value="{{ $namedSubjects->contains($adviser->id) ? $adviser->id : '' }}" disabled>
-                    <p style="margin:0; font-weight:600;">{{ $adviser->name }}</p>
-                    {{-- The student's section, not the adviser's own column,
-                         which is a student field and empty on staff. --}}
-                    <p style="margin:0.1rem 0 0; font-size:0.85rem; color:#555;">{{ $adviser->department }}@if (auth()->user()->section) · your adviser for section {{ auth()->user()->section }}@endif</p>
-                    <p style="font-size: 0.82rem; color: #666; margin-top: 0.4rem;">To avoid a conflict of interest, this concern will <strong>not</strong> be assigned to the person named here. It will be routed to a higher authority instead.</p>
-                </div>
-            @elseif ($adviserUnknown)
+            {{-- The class adviser is not named here any more. "This concern is
+                 about my class adviser" and "I do not want this to go to my
+                 class adviser" read as one question asked twice, one box above
+                 the other -- and every student who reports their adviser wants
+                 it routed away from them anyway. They are a single control
+                 further down the form now, the narrower case nested inside the
+                 broader one. --}}
+            @if ($adviserUnknown)
                 {{-- Say why the row is absent. It used to just not be there,
                      which reads as a fault in the form -- a student comparing
                      theirs with a classmate's could not tell whether they had
@@ -224,7 +204,31 @@
                                 {{-- The programme for a chair, who heads exactly one:
                                      "Program Chair" alone does not say which of the
                                      four in a college the student means. --}}
-                                <span>{{ $member->name }} — {{ optional($member->role)->name }}@if ($member->course), {{ $member->course }}@endif</span>
+                                {{-- Role and programme, minus anything the name already says.
+                                     An office account is named for its post -- "BS Civil
+                                     Engineering Program Chair" -- so spelling it out again gave
+                                     "BS Civil Engineering Program Chair — Program Chair, BS Civil
+                                     Engineering", and five such lines read as one programme
+                                     repeated rather than five different ones.
+
+                                     A chair with no programme at all still says so: with four in
+                                     one college, "which one" is the question the line has to
+                                     answer. --}}
+                                @php
+                                    $memberRole = optional($member->role)->name;
+                                    $bits = [];
+
+                                    if ($memberRole && ! Str::contains($member->name, $memberRole)) {
+                                        $bits[] = $memberRole;
+                                    }
+
+                                    if ($member->course && ! Str::contains($member->name, $member->course)) {
+                                        $bits[] = $member->course;
+                                    } elseif (! $member->course && $memberRole === 'Program Chair') {
+                                        $bits[] = 'programme not recorded';
+                                    }
+                                @endphp
+                                <span>{{ $member->name }}{{ $bits ? ' — '.implode(', ', $bits) : '' }}</span>
                             </label>
                         @endforeach
                     @endforeach
@@ -239,6 +243,86 @@
                 <div style="color: #dc3545; font-size: 0.85rem; margin-top: 0.25rem;">{{ $message }}</div>
             @enderror
         </div>
+
+        {{-- Not an accusation, a preference. Academic, Physical, Safety and
+             Others reach the class adviser first, which is right until the
+             student does not want that particular person reading it -- and
+             the only way to say so was to report them, which is a far bigger
+             thing to write down than "send this to somebody else".
+
+             Hidden for the categories that never reach an adviser (Facilities
+             goes to General Services), and the server clears the flag for
+             those too, so a stale tick cannot travel with the form. --}}
+        <div class="form-group" id="skip-adviser-group">
+            <label style="display:block;">
+                {{-- Ticked on a failed submit when the adviser is still named
+                     below: the nested box cannot be the only thing holding that
+                     answer, or the form would reopen showing an accusation with
+                     nothing on screen saying where it routes. --}}
+                <input type="checkbox" name="skip_adviser" id="skip_adviser" value="1" {{ old('skip_adviser') || ($adviser && $namedSubjects->contains($adviser->id)) ? 'checked' : '' }}>
+                <span style="font-weight: normal; margin-left: 0.5rem;">I do not want this to go to my class adviser</span>
+            </label>
+            <p style="font-size: 0.82rem; color: #666; margin-top: 0.4rem; padding-left: 1.6rem;">
+                It goes to the <strong>Program Chair</strong> of your program instead &mdash; and to the <strong>Dean</strong> if your concern is about a Program Chair. You do not have to say why.
+            </p>
+
+            @if ($adviser)
+                {{-- Reporting the adviser is the narrower case, so it sits
+                     inside the broader one. Ticking it also records them as a
+                     subject, which is the part routing alone does not do: it
+                     walls them off from reading the concern and stops anybody
+                     referring it back to them. --}}
+                <div id="adviser-subject-wrap" style="display:none; margin-top:0.7rem; padding-left:1.6rem;">
+                    <p style="margin:0; font-weight:600;">{{ $adviser->name }}</p>
+                    {{-- The student's section, not the adviser's own column,
+                         which is a student field and empty on staff. --}}
+                    <p style="margin:0.1rem 0 0; font-size:0.85rem; color:#555;">{{ $adviser->department }}@if (auth()->user()->section) · your adviser for section {{ auth()->user()->section }}@endif</p>
+
+                    <label style="display:block; margin-top:0.55rem;">
+                        <input type="checkbox" id="about_adviser_toggle" class="about-toggle" data-target="about_adviser_wrap" data-select="about_adviser_id">
+                        <span style="font-weight: normal; margin-left: 0.5rem;">This concern is about them</span>
+                    </label>
+                    <div id="about_adviser_wrap" style="display:none; padding-left:1.6rem;">
+                        {{-- No list to choose from: one adviser, held in a hidden
+                             field the shared toggle script fills from data-value
+                             while this row is open. --}}
+                        <input type="hidden" name="about_staff_id[]" id="about_adviser_id" data-value="{{ $adviser->id }}" value="{{ $namedSubjects->contains($adviser->id) ? $adviser->id : '' }}" disabled>
+                        <p style="font-size: 0.82rem; color: #666; margin-top: 0.4rem;">Recorded as a concern about {{ $adviser->name }}. They will not be able to read it, and nobody can refer it back to them.</p>
+                    </div>
+                </div>
+            @endif
+        </div>
+
+        <script>
+            // The nested row follows the box it lives in, and unticks itself on
+            // the way closed -- a student who changed their mind about the
+            // routing would otherwise still have reported their adviser, with
+            // the row that said so hidden from them.
+            (function () {
+                const skip = document.getElementById('skip_adviser');
+                const wrap = document.getElementById('adviser-subject-wrap');
+                const about = document.getElementById('about_adviser_toggle');
+                if (!skip || !wrap) return;
+
+                function sync() {
+                    wrap.style.display = skip.checked ? 'block' : 'none';
+
+                    if (!skip.checked && about && about.checked) {
+                        about.checked = false;
+                        // Handed to the shared row script, which is what
+                        // disables the hidden field so it is not submitted.
+                        about.dispatchEvent(new Event('change'));
+                    }
+                }
+
+                skip.addEventListener('change', sync);
+                // Changing category can untick the box from updateHelpers(),
+                // and a property set by script fires no event of its own.
+                const category = document.getElementById('category');
+                if (category) category.addEventListener('change', sync);
+                sync();
+            })();
+        </script>
 
         <div class="form-group">
             <label for="attachments">Attach evidence <span style="font-weight:normal;color:#666;">(optional)</span></label>
@@ -462,6 +546,47 @@
                         helperEl.style.display = 'block';
                     } else {
                         helperEl.style.display = 'none';
+                    }
+
+                    // The bypass only exists where there is an adviser tier to
+                    // bypass. Unticked on the way out, so switching to
+                    // Facilities cannot submit a preference that no longer
+                    // applies -- the server clears it as well, but a box
+                    // ticked out of sight is its own bug report.
+                    // Naming a person: for the categories that can be about
+                    // one. The adviser bypass below follows its own rule --
+                    // Physical and Safety still reach the class adviser, so
+                    // the student can still ask for somebody else.
+                    const NAMEABLE = ['Academic', 'Administrative', 'Facilities', 'Equipment', 'Others'];
+                    const aboutGroup = document.getElementById('about-person-group');
+
+                    if (aboutGroup) {
+                        const canName = NAMEABLE.indexOf(cat) !== -1;
+                        aboutGroup.style.display = canName ? 'block' : 'none';
+
+                        // Closing it takes the names with it. A student who
+                        // picked an instructor and then switched to Mental
+                        // Health would otherwise still be reporting them, from
+                        // a row no longer on screen.
+                        if (!canName) {
+                            Array.prototype.forEach.call(
+                                aboutGroup.querySelectorAll('.about-toggle'),
+                                function (toggle) {
+                                    if (!toggle.checked) return;
+                                    toggle.checked = false;
+                                    toggle.dispatchEvent(new Event('change'));
+                                }
+                            );
+                        }
+                    }
+
+                    const skipGroup = document.getElementById('skip-adviser-group');
+                    if (skipGroup) {
+                        const adviserCategory = !cat || target === 'your class adviser';
+                        skipGroup.style.display = adviserCategory ? 'block' : 'none';
+                        if (!adviserCategory) {
+                            document.getElementById('skip_adviser').checked = false;
+                        }
                     }
 
                     // "Others" has to explain itself before anything else can.

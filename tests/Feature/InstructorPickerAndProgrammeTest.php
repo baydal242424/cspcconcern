@@ -36,6 +36,55 @@ class InstructorPickerAndProgrammeTest extends TestCase
     }
 
     /**
+     * The staff picker is the student's own college, plus the central offices.
+     *
+     * A BSIS student cannot be taught, handled or answered by the dean of
+     * another college; those names were a screenful of noise in front of their
+     * own. Offices that serve the whole school are a different matter -- any
+     * student may need to report the Guidance Office or Records -- so those
+     * stay whoever is looking.
+     */
+    public function test_the_staff_picker_holds_their_own_college_and_the_central_offices(): void
+    {
+        $student = $this->student();
+        $student->forceFill(['department' => 'College of Computer Studies'])->save();
+
+        $ownDean = User::where('email', 'ccs@cspc.edu.ph')->firstOrFail();
+
+        $foreignDean = User::create([
+            'name' => 'Dean of Health Sciences',
+            'email' => 'chs.picker@cspc.edu.ph',
+            'password' => \Illuminate\Support\Facades\Hash::make('not-used'),
+            'role_id' => \App\Models\Role::where('name', 'Dean')->firstOrFail()->id,
+            'department' => 'College of Health Sciences',
+            'status' => 'approved',
+            'email_verified_at' => now(),
+        ]);
+
+        $office = User::create([
+            'name' => 'The Guidance Office',
+            'email' => 'guidance.picker@cspc.edu.ph',
+            'password' => \Illuminate\Support\Facades\Hash::make('not-used'),
+            'role_id' => \App\Models\Role::where('name', 'Guidance Counselor')->firstOrFail()->id,
+            'department' => 'Guidance Office',
+            'status' => 'approved',
+            'email_verified_at' => now(),
+        ]);
+
+        $offered = $this->actingAs($student->refresh())->get('/concerns/create')
+            ->assertOk()
+            ->viewData('otherStaffByOffice')
+            ->flatten()
+            ->pluck('id');
+
+        $this->assertTrue($offered->contains($ownDean->id), 'their own dean');
+        $this->assertTrue($offered->contains($office->id), 'a central office');
+        $this->assertFalse($offered->contains($foreignDean->id), 'never another college');
+
+        fwrite(STDERR, "  [picker] own college + central offices, no other college: YES\n");
+    }
+
+    /**
      * "Which instructor is this concern about?" must list instructors. It listed
      * office staff instead: the partition still split on 'Faculty/Staff', which
      * after the split means unit heads.

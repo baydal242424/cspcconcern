@@ -212,6 +212,20 @@ class ConcernController extends Controller
             fn (User $u) => optional($u->role)->name === 'Instructor'
         );
 
+        // What counts as a college, for "show me my own college's people".
+        // COURSES_BY_COLLEGE names the six that enrol undergraduates; the
+        // Graduate School has a dean and no entry there, and was reaching
+        // every undergraduate's picker as though it were a central office.
+        // Anywhere a dean sits is a college.
+        $colleges = array_unique(array_merge(
+            array_keys(User::COURSES_BY_COLLEGE),
+            User::whereHas('role', fn ($q) => $q->where('name', 'Dean'))
+                ->whereNotNull('department')
+                ->distinct()
+                ->pluck('department')
+                ->all()
+        ));
+
         // The student's own class adviser, offered first and by name.
         //
         // Advising is not a role, so the adviser is whoever holds the section
@@ -276,8 +290,26 @@ class ConcernController extends Controller
             // identically -- the same lawyer heads Human Rights Education and
             // the Legal Affairs Office under two accounts, and the only thing
             // separating them on screen was a role name.
+            // Their own college's people, plus every central office.
+            //
+            // A BSIS student has no business naming the dean of Health
+            // Sciences or a chair from Engineering: those people cannot teach
+            // them, cannot handle their concern, and scrolling past them to
+            // reach their own college was the whole list's worth of noise.
+            // Offices that serve the whole school -- Guidance, Registrar,
+            // Gender and Development, the ICT Unit, the administration -- are
+            // not a college and stay for everybody, because any student may
+            // need to report one.
             'otherStaffByOffice' => $otherStaff
                 ->reject(fn (User $u) => $adviser && $u->id === $adviser->id)
+                ->filter(function (User $u) use ($colleges) {
+                    // Not a college? A central office: keep it.
+                    if (! in_array($u->department, $colleges, true)) {
+                        return true;
+                    }
+
+                    return $u->department === auth()->user()->department;
+                })
                 ->groupBy(fn (User $u) => $u->department ?: 'Other')
                 ->sortKeys(),
         ]);
@@ -335,6 +367,10 @@ class ConcernController extends Controller
             ],
             // Optional evidence files. Whitelisted types only, validated by real
             // MIME content (not just extension), max 5 MB each, max 5 files.
+            // The student's own way past their class adviser. A checkbox, not
+            // an accusation: they need not report the adviser to ask that
+            // somebody else read this.
+            'skip_adviser' => ['nullable', 'boolean'],
             'attachments' => ['nullable', 'array', 'max:5'],
             'attachments.*' => ['file', 'mimes:jpg,jpeg,png,pdf', 'mimetypes:image/jpeg,image/png,application/pdf', 'max:5120'],
         ], [
@@ -367,6 +403,13 @@ class ConcernController extends Controller
         // the Head of School's identity-reveal feature for them) are
         // untouched.
         $validated['is_anonymous'] = false;
+
+        // Only meaningful where the adviser is the first handler. Cleared
+        // everywhere else so a hand-posted form cannot mark a Facilities
+        // concern as skipping a tier it never had.
+        $validated['skip_adviser'] = (self::CATEGORY_ROUTING[$validated['category']] ?? 'Adviser') === 'Adviser'
+            ? (bool) ($validated['skip_adviser'] ?? false)
+            : false;
 
         // Only "Others" carries a label. The form clears the field when the
         // category changes, but that is a convenience, not a rule -- a direct
@@ -448,7 +491,10 @@ class ConcernController extends Controller
             abort(403, 'Unauthorized');
         }
 
-        $concern->load('user', 'assignedUser', 'auditLogs.user', 'attachments');
+        // Roles come along for the detail panel: a name on its own does not
+        // say which office is holding the concern, or what the person it is
+        // about does here.
+        $concern->load('user', 'assignedUser.role', 'subjects.role', 'auditLogs.user', 'attachments');
 
         // Named people the viewer may hand this concern to, grouped by office.
         // Empty for a student (they never see the update form) and empty for
@@ -1022,7 +1068,13 @@ class ConcernController extends Controller
     {
         $targetRoleName = self::CATEGORY_ROUTING[$concern->category] ?? 'Adviser';
 
-        $targetUser = $this->findHandler($targetRoleName, $concern);
+        // The Adviser role never reaches outside the student's own college.
+        // findHandler()'s last tier is "anybody in the role": with a single
+        // Adviser account on record, every Academic concern from every college
+        // whose section has no adviser would have gone to that one person.
+        $targetUser = $targetRoleName === 'Adviser'
+            ? $this->findHandlerInCollege('Adviser', $concern)
+            : $this->findHandler($targetRoleName, $concern);
 
         // Conflict-of-interest escalation: if we couldn't find an untainted
         // handler in the target role (e.g. the reported person was the only
@@ -1055,22 +1107,87 @@ class ConcernController extends Controller
         // Every exclusion still applies afterwards: an adviser who is the
         // subject of the concern, or its reporter, is not eligible to handle
         // it however well they know the student.
+        // A concern that NAMES a Program Chair goes to the Dean, with no
+        // checkbox to tick. Both tiers under a chair are disqualified by rank
+        // rather than by conflict: the class adviser is usually an instructor,
+        // and an instructor cannot investigate the chair of their own
+        // programme -- handing it to them puts a junior colleague in charge of
+        // a complaint about their senior, which is how a complaint quietly
+        // goes nowhere.
+        //
+        // Read from the subject list, not about_staff_id: a concern naming two
+        // chairs and one instructor must still reach the dean.
+        $chairIsSubject = User::whereIn('id', $concern->subjectIds())
+            ->whereHas('role', fn ($q) => $q->where('name', 'Program Chair'))
+            ->exists();
+
+        // And a Dean among them sends it to the VPAA. Excluding the named dean
+        // is not enough on its own: findHandler() falls back to anybody in the
+        // role, so a complaint about the Computer Studies dean was landing on
+        // the dean of Health Sciences -- a colleague of equal rank with no
+        // standing over them, in a college with nothing to do with it. The
+        // first office above a dean is the VPAA.
+        $deanIsSubject = User::whereIn('id', $concern->subjectIds())
+            ->whereHas('role', fn ($q) => $q->where('name', 'Dean'))
+            ->exists();
+
+        $adviserRefused = false;
+
         if ($targetRoleName === 'Adviser') {
             $sectionAdviser = \App\Models\Section::adviserFor($concern->course, $concern->section);
 
-            if ($sectionAdviser
+            // The adviser tier is spent when the student asks to skip it, or
+            // when the concern is about the adviser. Same outcome either way:
+            // a student who does not want their adviser reading this should
+            // not have to accuse them of something to be heard elsewhere.
+            $adviserRefused = (bool) $concern->skip_adviser
+                || $chairIsSubject
+                || $deanIsSubject
+                || ($sectionAdviser && in_array($sectionAdviser->id, $concern->subjectIds(), true));
+
+            if ($adviserRefused) {
+                // findHandler() may already have found somebody holding the
+                // Adviser role. That whole tier is refused, not just the
+                // student's own adviser -- an adviser is no better placed to
+                // investigate a Program Chair than the adviser who was skipped.
+                $targetUser = null;
+            } elseif ($sectionAdviser
                 && $sectionAdviser->id !== (int) $concern->user_id
-                && ! in_array($sectionAdviser->id, $concern->subjectIds(), true)
                 && $sectionAdviser->status !== 'banned') {
                 $targetUser = $sectionAdviser;
             }
         }
 
-        // No adviser in that college yet? Try the tier below before climbing.
-        // An instructor is closer to the student than a dean is, and a college
-        // that has not named its advisers should not have every academic
-        // concern land on its dean in the meantime.
-        if (! $targetUser && $targetRoleName === 'Adviser') {
+        // Past the adviser: the Program Chair of the student's own programme,
+        // and the Dean instead when a chair is the person being reported.
+        // Upward, never down to an instructor -- an instructor is junior to
+        // the adviser just stepped over, so dropping there would land the
+        // concern below the tier the student was trying to leave.
+        if (! $targetUser && $adviserRefused) {
+            if ($deanIsSubject) {
+                $targetUser = $this->findHandler('Vice President for Academic Affairs', $concern);
+            } elseif ($chairIsSubject) {
+                $targetUser = $this->findHandlerInCollege('Dean', $concern)
+                    ?: $this->findHandler('Dean', $concern);
+            } else {
+                // The student's OWN college, then that college's dean. Not
+                // findHandler() here: its last tier is "anybody in the role",
+                // which sent a BS Nursing concern to a Computer Studies chair
+                // -- a stranger to the student, to the programme and to the
+                // people involved. Health Sciences and Engineering have no
+                // chair on record at all, so this is the common case there,
+                // and their dean is the right next stop.
+                $targetUser = $this->findHandlerInCollege('Program Chair', $concern)
+                    ?: $this->findHandlerInCollege('Dean', $concern)
+                    ?: $this->findHandler('Dean', $concern);
+            }
+        }
+
+        // No adviser named for that section yet, and nobody refused one: try
+        // the tier below before climbing. An instructor is closer to the
+        // student than a dean is, and a college that has not named its
+        // advisers should not have every academic concern land on its dean.
+        if (! $targetUser && $targetRoleName === 'Adviser' && ! $adviserRefused) {
             $targetUser = $this->findHandler('Instructor', $concern);
         }
 
@@ -1101,6 +1218,13 @@ class ConcernController extends Controller
             $chain = in_array($targetRoleName, ['Staff Admin', 'System Admin'], true)
                 ? ['Vice President for Academic Affairs', 'Head of School', 'Dean']
                 : ['Dean', 'Head of School', 'Vice President for Academic Affairs', 'Staff Admin'];
+
+            // A concern about a dean never climbs back down to one. Deans are
+            // peers: the college is different, the rank is not, and "someone
+            // else's dean" is not an independent reviewer of this one.
+            if ($deanIsSubject) {
+                $chain = array_values(array_diff($chain, ['Dean']));
+            }
 
             foreach ($chain as $escalationRole) {
                 $escalated = $this->findHandler($escalationRole, $concern);
@@ -1180,6 +1304,37 @@ class ConcernController extends Controller
             ->orderBy('name')
             ->get()
             ->groupBy(fn (User $candidate) => $candidate->role->name);
+    }
+
+    /**
+     * The same as findHandler(), minus its last resort.
+     *
+     * findHandler() ends with "anybody in the role", which is right when the
+     * alternative is an unassigned concern -- and wrong when there is a tier
+     * above to climb to instead. A chair of another college is not a smaller
+     * version of the right chair: they hold no authority over the programme,
+     * the people or the student. Returning nobody lets the caller go up to the
+     * dean, who does.
+     */
+    private function findHandlerInCollege(string $roleName, Concern $concern): ?User
+    {
+        $candidates = User::whereHas('role', fn ($q) => $q->where('name', $roleName))
+            ->whereNotIn('id', $concern->subjectIds())
+            ->where('id', '!=', $concern->user_id);
+
+        if ($concern->course) {
+            $sameCourse = (clone $candidates)->where('course', $concern->course)->first();
+
+            if ($sameCourse) {
+                return $sameCourse;
+            }
+        }
+
+        if ($concern->department) {
+            return (clone $candidates)->where('department', $concern->department)->first();
+        }
+
+        return null;
     }
 
     private function findHandler(string $roleName, Concern $concern): ?User

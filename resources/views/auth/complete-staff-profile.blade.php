@@ -59,7 +59,7 @@
              a request rather than a fact, and somebody who is not told will
              assume they are a dean the moment they press the button. --}}
         <div class="note">
-            Your college and programme are saved as you enter them. <strong>The role is a request</strong> — an administrator has to approve it, because a role decides which concerns you can read.
+            Your college and program are saved as you enter them. <strong>The role is a request</strong> — an administrator has to approve it, because a role decides which concerns you can read.
         </div>
 
         <form method="POST" action="{{ route('profile.complete.post') }}">
@@ -101,9 +101,9 @@
                  is worse than clutter: findHandler() would start preferring
                  them for that programme's concerns. --}}
             <div class="fg" id="course-group" hidden>
-                <label for="course">Programme you chair</label>
+                <label for="course">Program you chair</label>
                 <select name="course" id="course">
-                    <option value="">— select a programme —</option>
+                    <option value="">— select a program —</option>
                     @foreach ($collegeCourses as $college => $courses)
                         <optgroup label="{{ $college }}">
                             @foreach ($courses as $course)

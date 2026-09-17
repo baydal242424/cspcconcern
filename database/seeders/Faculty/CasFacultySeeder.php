@@ -41,27 +41,50 @@ class CasFacultySeeder extends Seeder
     /**
      * [name, programme]
      *
-     * Programmes are left null. The chart's chairs cover Development
-     * Communication, Human Services, AB English, Public Administration,
-     * Mathematics and Applied Mathematics, and none of those strings are in
-     * User::COURSES_BY_COLLEGE for this college -- a chair pinned to a
-     * programme no student's profile stores matches nobody, and the referral
-     * falls back to college level looking as though it worked. College-level
-     * routing reaches them correctly; add the programmes to COURSES_BY_COLLEGE
-     * first if programme-level referral is wanted here.
+     * The programmes come from the college's own faculty roster
+     * (cspc.edu.ph/academics/cas/faculty-roster-2), which names a chair per
+     * programme -- the organisational chart this list was first built from
+     * named the chairs without saying what each one chairs, so every CAS
+     * programme escalated to whichever chair sorted first.
+     *
+     * The roster writes two of them differently from the way the system does:
+     * "AB English Language Studies" is BA English Language Studies here, and
+     * "Bachelor in Public Administration" is BS Public Administration. The
+     * system's spelling is what students' profiles store, so that is what
+     * routing has to match.
+     *
+     * Two names the chart called chairs are instructors on the roster -- Dr.
+     * Janessa Angustia M. Malaya (Instructor II) and Rowel S. Ramos
+     * (Instructor III) -- so they are seeded under FACULTY below instead.
+     *
+     * Development Communication is chaired by Gigi V. Severo, who is seeded
+     * elsewhere as the Center for Gender and Development. An account carries
+     * one role and one office, and GAD is the one that receives referrals, so
+     * she is left there and the programme has no chair of its own.
      */
     private const CHAIRS = [
         ['Rosanova B. Oliveros', null],
-        ['Ma. Francia S. Dechavez', null],
-        ['Dr. Janessa Angustia M. Malaya', null],
-        ['Renato A. Adriano III', null],
-        ['Alex Ralph B. Nieva', null],
-        ['Joel Mark D. Jasmes', null],
-        ['Rowel S. Ramos', null],
+        ['Ma. Francia S. Dechavez', 'Bachelor in Human Services'],
+        ['Renato A. Adriano III', 'BS Public Administration'],
+        ['Alex Ralph B. Nieva', 'BS Mathematics'],
+        // The roster spells this "Jiel Mark D. Jagmis"; the chart spelled it
+        // as below, and it is the same chair of Applied Mathematics.
+        ['Joel Mark D. Jasmes', 'BS Applied Mathematics'],
+        // Listed under teaching faculty until the roster showed the chair.
+        // The roster spells the middle name "Fereth".
+        ['Dr. Dan Pereth R. Fajardo', 'BA English Language Studies'],
     ];
 
     /** Teaching faculty, grouped as the chart groups them. */
     private const FACULTY = [
+        // Chairs on the old organisational chart, instructors on the college's
+        // own roster: Instructor II and Instructor III respectively, neither
+        // holding a programme. Seeding them as chairs gave Arts and Sciences
+        // two chairs more than it has programmes, and put two people in the
+        // escalation tier above their own.
+        'Dr. Janessa Angustia M. Malaya',
+        'Rowel S. Ramos',
+
         // Development Communication
         'Filmor J. Murillo',
 
@@ -72,7 +95,6 @@ class CasFacultySeeder extends Seeder
         'Patricia Marielle R. Estrella',
 
         // AB English
-        'Dr. Dan Pereth R. Fajardo',
         'Nicky Gem M. Rivera',
         'Dr. Nel Michael B. Buena',
         'Jayvee M. Layson',

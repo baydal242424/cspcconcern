@@ -56,6 +56,92 @@
                     @endif
                 </dd>
 
+                {{-- Programme and section as they were when the concern was filed
+                     (snapshotted on the concern, so a later year-level promotion
+                     does not rewrite it). They decided which class adviser it
+                     reached, so the handler should be able to see them.
+
+                     Same visibility as the name above. A section is a class of
+                     forty; "BS Information Technology 1F" beside an anonymous
+                     submission would all but name the student. --}}
+                @php
+                    $reporterVisible = ! $concern->is_anonymous
+                        || Auth::id() === $concern->user_id
+                        || (optional(Auth::user()->role)->name === 'Head of School' && $concern->identityIsRevealed());
+                    $sectionParts = [];
+                    preg_match('/^([1-6])([A-Za-z])$/', trim((string) $concern->section), $sectionParts);
+
+                    // Advising is a section assignment, not a role, so the
+                    // class adviser of 4A shows as "Instructor" -- beside a
+                    // concern that reached them precisely BECAUSE they advise
+                    // 4A, which reads as the wrong person having it. Said
+                    // first, before the role, because it is the reason they
+                    // are on this concern at all.
+                    //
+                    // Read from the section as it stands now rather than from
+                    // the concern: if the section has since changed hands, the
+                    // person holding it today is who the label is true of.
+                    $sectionAdviserId = optional(\App\Models\Section::adviserFor($concern->course, $concern->section))->id;
+
+                    // Who somebody is, in one line: their part in this concern,
+                    // then their role, then where they sit. A name alone leaves
+                    // the reader guessing whether the concern is with a chair, a
+                    // counselor or the dean's office.
+                    $describe = function ($person) use ($sectionAdviserId) {
+                        // "Class adviser" REPLACES the role rather than sitting
+                        // beside it. Advising is what puts them on this concern,
+                        // and "Class adviser · Instructor" invited the reading
+                        // that two different people were meant. Their role is
+                        // still on their account, and Manage Users still shows
+                        // it; this line answers "who is this to me?".
+                        $role = $person->id === $sectionAdviserId
+                            ? 'Class adviser'
+                            : optional($person->role)->name;
+
+                        return implode(' · ', array_filter([
+                            $role,
+                            $person->department,
+                            // Dropped when the name already carries it: an office
+                            // account named "BS Nursing Program Chair" does not
+                            // need "· BS Nursing" after it.
+                            $person->course && ! str_contains($person->name, $person->course)
+                                ? $person->course
+                                : null,
+                        ]));
+                    };
+                @endphp
+                @if ($concern->course || $concern->section)
+                    @if ($reporterVisible)
+                        @if ($concern->course)
+                            <dt>Program</dt>
+                            <dd>{{ $concern->course }}</dd>
+                        @endif
+
+                        @if ($concern->section)
+                            <dt>Year &amp; section</dt>
+                            <dd>
+                                @if ($sectionParts)
+                                    Year {{ $sectionParts[1] }} &middot; Section {{ strtoupper($sectionParts[2]) }}
+                                    <span style="color:var(--muted);">({{ strtoupper($concern->section) }})</span>
+                                @else
+                                    {{ $concern->section }}
+                                @endif
+                            </dd>
+                        @endif
+                    @else
+                        <dt>Year &amp; section</dt>
+                        <dd><span style="color:#999;">Withheld &mdash; anonymous submission</span></dd>
+                    @endif
+                @endif
+
+                {{-- Why this skipped a tier. The chair who receives it should
+                     not have to guess whether the adviser was bypassed on
+                     purpose or simply missing. --}}
+                @if ($concern->skip_adviser)
+                    <dt>Class adviser</dt>
+                    <dd><span style="color:#b45309;">Skipped at the student's request</span></dd>
+                @endif
+
                 @if ($concern->about_staff_id)
                     {{-- Every named person, not just the first: the handler
                          has to know who is walled out of this concern, and
@@ -64,17 +150,28 @@
                     @php $named = $concern->subjects; @endphp
                     <dt>Concern is about</dt>
                     <dd>
-                        @if ($named->isEmpty())
-                            {{ optional($concern->aboutStaff)->name ?? 'A staff member' }}
-                        @else
-                            {{ $named->pluck('name')->join(', ', ' and ') }}
-                        @endif
+                        @php $about = $named->isEmpty() ? collect([$concern->aboutStaff])->filter() : $named; @endphp
+                        @forelse ($about as $person)
+                            <div>
+                                {{ $person->name }}
+                                <span style="color:var(--muted);">&mdash; {{ $describe($person) ?: 'no role recorded' }}</span>
+                            </div>
+                        @empty
+                            A staff member
+                        @endforelse
                         <span style="color:#b45309; font-size:0.85em;">(routed to a higher authority to avoid a conflict of interest)</span>
                     </dd>
                 @endif
 
                 <dt>Assigned to</dt>
-                <dd>{{ $concern->assignedUser->name ?? 'Unassigned' }}</dd>
+                <dd>
+                    @if ($concern->assignedUser)
+                        {{ $concern->assignedUser->name }}
+                        <span style="color:var(--muted);">&mdash; {{ $describe($concern->assignedUser) ?: 'no role recorded' }}</span>
+                    @else
+                        Unassigned
+                    @endif
+                </dd>
 
                 @if ($concern->status === 'referred' && $concern->referred_to)
                     <dt>Referred to</dt>
@@ -423,14 +520,23 @@
                                              programme, so the label should show what the
                                              system is matching on. Everyone else keeps the
                                              college, which is what distinguishes them. --}}
-                                        {{ $person->name }}@if ($person->course) — {{ $person->course }}@elseif ($person->department) — {{ $person->department }}@endif
+                                        {{-- And the class adviser is marked as one. The list
+                                             groups by office, so the adviser of the reporter's
+                                             section sits under "Instructor" like any other --
+                                             the one name in there with a standing claim on this
+                                             concern, and nothing to say so. --}}
+                                        {{-- One expression rather than a run of @if/@endif:
+                                             Blade does not compile a directive that starts
+                                             immediately after @endif, so the second condition
+                                             printed as literal text in the dropdown. --}}
+                                        {{ $person->name }}{{ $person->course ? ' — '.$person->course : ($person->department ? ' — '.$person->department : '') }}{{ $person->id === $sectionAdviserId ? ' · class adviser' : '' }}
                                     </option>
                                 @endforeach
                             @endforeach
                         </select>
                         <div style="color:var(--muted); font-size:0.82rem; margin-top:0.25rem;">
-                            Pre-filled with the handler for the reporter's own programme, or
-                            their college where no one covers the programme. Change it to send
+                            Pre-filled with the handler for the reporter's own program, or
+                            their college where no one covers the program. Change it to send
                             this to somebody else in that office.
                         </div>
                         @error('referred_to_user_id')

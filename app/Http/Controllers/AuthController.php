@@ -216,7 +216,7 @@ class AuthController extends Controller
                     $offered = User::COURSES_BY_COLLEGE[$request->input('department')] ?? [];
 
                     if (! in_array($value, $offered, true)) {
-                        $fail('That programme is not offered by the college you selected.');
+                        $fail('That program is not offered by the college you selected.');
                     }
                 },
             ],
@@ -325,7 +325,7 @@ class AuthController extends Controller
                 'type' => 'reactivation_request',
                 'title' => 'Reactivation requested',
                 'message' => $user->name.' ('.$user->email.') says they are still enrolled in '
-                    .($user->course ?: 'their programme').' '.($user->section ?: '')
+                    .($user->course ?: 'their program').' '.($user->section ?: '')
                     .' and is asking for their account to be reopened.',
                 'is_read' => false,
             ]);

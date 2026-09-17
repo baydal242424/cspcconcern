@@ -203,6 +203,8 @@ class Concern extends Model
         'investigation_notes',
         'status',
         'is_anonymous',
+        // The student asked for this NOT to go to their class adviser.
+        'skip_adviser',
         'assigned_to',
         'about_staff_id',
         'referred_to',
@@ -220,6 +222,7 @@ class Concern extends Model
         'closed_at' => 'datetime',
         'identity_revealed_at' => 'datetime',
         'is_anonymous' => 'boolean',
+        'skip_adviser' => 'boolean',
     ];
 
     /**

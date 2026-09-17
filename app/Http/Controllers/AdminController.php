@@ -6,9 +6,11 @@ use App\Models\AuditLog;
 use App\Models\Notification;
 use App\Models\Referral;
 use App\Models\Role;
+use App\Models\Section;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -39,6 +41,15 @@ class AdminController extends Controller
     private const ADMIN_ROLES = ['System Admin', 'Staff Admin'];
 
     /**
+     * Roles that carry a section: a student's own class, and the one an
+     * Instructor or Program Chair advises -- the same two staff roles the
+     * sign-up form asks. Everyone else has none, and it is cleared.
+     *
+     * @var list<string>
+     */
+    private const SECTION_ROLES = ['Student', 'Adviser', 'Instructor', 'Program Chair'];
+
+    /**
      * List every registered account.
      */
     public function index()
@@ -64,6 +75,17 @@ class AdminController extends Controller
             ->pluck('department')
             ->all();
 
+        // Who advises each section in the newest term that names someone --
+        // the same order Section::adviserFor() reads -- resolved once for the
+        // whole page rather than once per card.
+        $currentSections = Section::with('adviser:id,name')
+            ->whereNotNull('adviser_id')
+            ->orderByDesc('school_year')
+            ->orderByDesc('semester')
+            ->orderByDesc('id')
+            ->get()
+            ->unique(fn (Section $s) => $s->course.'|'.$s->section);
+
         return view('admin.users', [
             'users' => $users,
             'promotion' => $this->promotionPreview(),
@@ -74,6 +96,20 @@ class AdminController extends Controller
             'colleges' => $colleges,
             'otherUnits' => $otherUnits,
             'courses' => User::COURSES_BY_COLLEGE,
+            'sectionRoles' => self::SECTION_ROLES,
+            // Who advises each section, keyed "BS Nursing|1A", for the hint
+            // under a student's section picker. Same newest-term-wins order as
+            // Section::adviserFor(), resolved once here rather than per card.
+            'advisers' => $currentSections
+                ->mapWithKeys(fn (Section $s) => [$s->course.'|'.$s->section => optional($s->adviser)->name])
+                ->all(),
+            // The other direction, for each card: the sections this person
+            // advises right now. Their role alone does not say -- advising is a
+            // section assignment, held by instructors, chairs and deans alike.
+            'advisedBy' => $currentSections
+                ->groupBy('adviser_id')
+                ->map(fn ($rows) => $rows->map(fn (Section $s) => $s->course.' '.$s->section)->sort()->values()->all())
+                ->all(),
         ]);
     }
 
@@ -470,6 +506,11 @@ class AdminController extends Controller
             'role_id' => 'required|exists:roles,id',
             'department' => 'nullable|string|max:255',
             'course' => ['nullable', 'string', Rule::in(User::allCourses())],
+            // Year and section arrive from two dropdowns rather than a typed
+            // "3A", so a slip like "3 A" or "BSIT-3A" cannot be stored. They
+            // are joined into one value by sectionFrom().
+            'year' => ['nullable', 'integer', 'between:1,6'],
+            'section_letter' => ['nullable', 'string', Rule::in(range('A', 'Z'))],
         ]);
 
         $changes = ['role_id' => $validated['role_id']];
@@ -493,9 +534,14 @@ class AdminController extends Controller
         // promoting a BSIS student to Instructor carried their programme along
         // with them and quietly made them the preferred handler for every BSIS
         // concern in the college.
-        $programmeScoped = Role::whereKey($validated['role_id'])
-            ->whereIn('name', ['Student', 'Program Chair'])
-            ->exists();
+        $roleName = Role::whereKey($validated['role_id'])->value('name');
+        // An Adviser carries a programme too: with the year and section it
+        // names the one class they advise.
+        $programmeScoped = in_array($roleName, ['Student', 'Adviser', 'Program Chair'], true);
+
+        // Captured before anything changes, so moving an adviser from one
+        // section to another can release the one they are leaving.
+        $previous = ['course' => $user->course, 'section' => $user->section];
 
         if (! $programmeScoped) {
             $changes['course'] = null;
@@ -503,9 +549,121 @@ class AdminController extends Controller
             $changes['course'] = $validated['course'] ?? null;
         }
 
+        // The section: the class a student is in, or the one an instructor or
+        // chair advises. A student's decides whose queue their academic
+        // concerns reach first, so a mistyped one at sign-up quietly sends
+        // them to another class's adviser -- this is where it gets corrected.
+        //
+        // Cleared for every other role, the same as the programme, so a
+        // student made Dean does not carry "3A" along. Left alone when the
+        // form did not send it, so a role-only post changes nothing.
+        if (! in_array($roleName, self::SECTION_ROLES, true)) {
+            $changes['section'] = null;
+        } elseif ($request->has('year') || $request->has('section_letter')) {
+            $course = array_key_exists('course', $changes) ? $changes['course'] : $user->course;
+            $changes['section'] = $this->sectionFrom($user, $validated, $course);
+        }
+
+        // A programme belongs to one college. Without this, an adviser could be
+        // filed under Computer Studies while advising BS Nursing 1A: the
+        // section row would say one thing and every college-scoped lookup
+        // another, and the concern would reach neither college's staff.
+        $finalCourse = array_key_exists('course', $changes) ? $changes['course'] : $user->course;
+        $finalDepartment = array_key_exists('department', $changes) ? $changes['department'] : $user->department;
+
+        if ($programmeScoped && $finalCourse && isset(User::COURSES_BY_COLLEGE[$finalDepartment])
+            && ! in_array($finalCourse, User::COURSES_BY_COLLEGE[$finalDepartment], true)) {
+            throw ValidationException::withMessages([
+                'course' => "{$finalCourse} is not offered by {$finalDepartment}. Choose one of its programs, or change the college.",
+            ]);
+        }
+
         $user->update($changes);
 
+        // An Adviser's programme and section are not a description of the
+        // account -- routing never reads them from here. It reads the sections
+        // table, so the assignment is written there too. This is the step that
+        // actually makes the person the class adviser of BSIS 4A.
+        if ($roleName === 'Adviser' && $user->course && $user->section) {
+            $this->assignAdviser($user, $previous);
+        }
+
+        // A student advises nobody. Turning an account back into a student
+        // releases every section it held, or a student would go on receiving
+        // the academic concerns of a class they sit in.
+        if ($roleName === 'Student') {
+            Section::where('adviser_id', $user->id)->update(['adviser_id' => null]);
+        }
+
         return back()->with('success', "{$user->name} has been updated.");
+    }
+
+    /**
+     * Record this person as the class adviser of their chosen section.
+     *
+     * Written to the newest term on record, so Section::adviserFor() -- which
+     * reads the newest term first -- returns them at once. A section moved
+     * from 4A to 3B releases 4A when it was theirs; any OTHER section they
+     * advise is left alone, because an adviser can hold several and this form
+     * edits one at a time.
+     */
+    private function assignAdviser(User $user, array $previous): void
+    {
+        $term = Section::orderByDesc('school_year')->orderByDesc('semester')->first();
+        $schoolYear = $term->school_year ?? now()->year.'-'.(now()->year + 1);
+        $semester = $term->semester ?? 'First';
+
+        $moved = $previous['course'] && $previous['section']
+            && ($previous['course'] !== $user->course || $previous['section'] !== $user->section);
+
+        if ($moved) {
+            Section::where('course', $previous['course'])
+                ->where('section', $previous['section'])
+                ->where('adviser_id', $user->id)
+                ->update(['adviser_id' => null]);
+        }
+
+        Section::updateOrCreate(
+            [
+                'course' => $user->course,
+                'section' => $user->section,
+                'school_year' => $schoolYear,
+                'semester' => $semester,
+            ],
+            ['adviser_id' => $user->id]
+        );
+    }
+
+    /**
+     * Join the year and section dropdowns into the stored "3A".
+     *
+     * Both or neither: a year with no letter is not a class anybody is in,
+     * and storing just the digit would be read as unreadable by the year-level
+     * promotion. And never a year the programme does not run to -- a fifth
+     * year of a four-year course is a section nobody advises.
+     */
+    private function sectionFrom(User $user, array $validated, ?string $course): ?string
+    {
+        $year = $validated['year'] ?? null;
+        $letter = $validated['section_letter'] ?? null;
+
+        if (! $year && ! $letter) {
+            return null;
+        }
+
+        if (! $year || ! $letter) {
+            throw ValidationException::withMessages([
+                'section_letter' => "Choose both a year and a section for {$user->name}, or leave both unset.",
+            ]);
+        }
+
+        if ($course && $year > User::finalYearFor($course)) {
+            throw ValidationException::withMessages([
+                'year' => "{$course} runs for ".User::finalYearFor($course)." years, so {$user->name} cannot be in year {$year}.",
+            ]);
+        }
+
+        return $year.$letter;
     }
 
     /**

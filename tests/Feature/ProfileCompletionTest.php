@@ -90,7 +90,7 @@ class ProfileCompletionTest extends TestCase
      * one is asked for it.
      *
      * Section was optional, and a student who skipped it reached a filing form
-     * with the "This concern is about my class adviser" row silently absent --
+     * with the "This concern is about them" row silently absent --
      * the adviser is found through the section, so with no section there was
      * nobody to name and nothing on screen explaining the gap. Their Academic,
      * Physical, Safety and Others concerns also fell to college-level routing

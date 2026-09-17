@@ -125,4 +125,28 @@ class DemoLoginTest extends TestCase
 
         fwrite(STDERR, "  [junk] unknown id refused cleanly: YES\n");
     }
+
+    /**
+     * The list runs to several hundred accounts, which is more than anybody
+     * reads to the end of, so it is searchable -- and the search belongs to
+     * the panel, appearing and disappearing with it rather than sitting on the
+     * sign-in page when demo mode is off.
+     */
+    public function test_the_account_list_is_searchable_only_while_demo_is_on(): void
+    {
+        $this->enable();
+
+        $this->get('/login')
+            ->assertOk()
+            ->assertSee('id="demo-search"', false)
+            ->assertSee('Search name, role or college');
+
+        config(['auth.demo_login' => false]);
+
+        $this->get('/login')
+            ->assertOk()
+            ->assertDontSee('id="demo-search"', false);
+
+        fwrite(STDERR, "  [search] the demo account list has a search box, and it goes with the panel: YES\n");
+    }
 }
