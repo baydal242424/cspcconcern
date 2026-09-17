@@ -235,6 +235,12 @@ class AdminController extends Controller
             ['adviser_id' => $user->id]
         );
 
+        // The class they named at sign-up, now confirmed: the suggestion has
+        // done its job and should stop asking to be confirmed.
+        if ($user->advises_request === $validated['course'].'|'.$section) {
+            $user->forceFill(['advises_request' => null])->save();
+        }
+
         AuditLog::create([
             'user_id' => Auth::id(),
             'action' => 'section_adviser_assigned',

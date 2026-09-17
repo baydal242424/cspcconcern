@@ -78,6 +78,10 @@
     .advises-remove:hover{text-decoration:underline}
     .advises-add{display:flex; flex-wrap:wrap; gap:.6rem; align-items:flex-end; margin:0}
     .advises-add .btn{flex:0 0 auto}
+    /* What they said at sign-up, waiting to be confirmed. Amber, like a role
+       request: something for the admin to act on, not an error. */
+    .advises-suggested{margin:0 0 .6rem; padding:.45rem .65rem; font-size:.84rem;
+        background:var(--warn-bg); border:1px solid #f3dca0; border-radius:8px; color:#7a5200}
 
     /* A pending role request. Amber rather than red: somebody asking to be an
        instructor is the system working, not a problem to clear. */
@@ -462,6 +466,18 @@
                                     @endif
                                 </div>
 
+                                {{-- The class they named when they signed up. It routes
+                                     nothing until confirmed, and Add class below comes
+                                     pre-filled with it, so confirming is one press. --}}
+                                @php
+                                    [$suggestedCourse, $suggestedSection] = array_pad(explode('|', (string) $user->advises_request, 2), 2, null);
+                                    $suggestedYear = $suggestedSection ? substr($suggestedSection, 0, 1) : null;
+                                    $suggestedLetter = $suggestedSection ? substr($suggestedSection, 1, 1) : null;
+                                @endphp
+                                @if ($user->advises_request)
+                                    <p class="advises-suggested">Says they advise <strong>{{ $suggestedCourse }} {{ $suggestedSection }}</strong> — check it, then press <strong>Add class</strong> to confirm.</p>
+                                @endif
+
                                 @if ($user->advisedSections->isNotEmpty())
                                     <ul class="advises-list">
                                         @foreach ($user->advisedSections as $advised)
@@ -489,7 +505,7 @@
                                             @foreach ($courses as $college => $collegeCourses)
                                                 <optgroup label="{{ $college }}">
                                                     @foreach ($collegeCourses as $course)
-                                                        <option value="{{ $course }}">{{ $course }}</option>
+                                                        <option value="{{ $course }}" {{ $suggestedCourse === $course ? 'selected' : '' }}>{{ $course }}</option>
                                                     @endforeach
                                                 </optgroup>
                                             @endforeach
@@ -499,7 +515,7 @@
                                         <label for="adv-year-{{ $user->id }}">Year</label>
                                         <select name="year" id="adv-year-{{ $user->id }}" required>
                                             @foreach (range(1, 6) as $year)
-                                                <option value="{{ $year }}">{{ $year }}</option>
+                                                <option value="{{ $year }}" {{ (string) $suggestedYear === (string) $year ? 'selected' : '' }}>{{ $year }}</option>
                                             @endforeach
                                         </select>
                                     </div>
@@ -507,7 +523,7 @@
                                         <label for="adv-class-{{ $user->id }}">Class</label>
                                         <select name="section_letter" id="adv-class-{{ $user->id }}" required>
                                             @foreach (range('A', 'H') as $letter)
-                                                <option value="{{ $letter }}">{{ $letter }}</option>
+                                                <option value="{{ $letter }}" {{ $suggestedLetter === $letter ? 'selected' : '' }}>{{ $letter }}</option>
                                             @endforeach
                                         </select>
                                     </div>

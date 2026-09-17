@@ -74,13 +74,15 @@ class StaffSignsThemselvesUpTest extends TestCase
             'requested_role_id' => $instructor,
             'employee_id' => '2019-00456',
             'department' => 'College of Computer Studies',
-            'section' => '3a',
+            'advises_course' => 'BS Information Systems',
+            'advises_year' => '3',
+            'advises_letter' => 'a',
         ])->assertRedirect(route('concerns.index'));
 
         $staff->refresh();
 
         $this->assertSame('College of Computer Studies', $staff->department);
-        $this->assertSame('3A', $staff->section, 'the section is normalised');
+        $this->assertSame('BS Information Systems|3A', $staff->advises_request, 'the class they advise is kept as a suggestion');
         $this->assertSame('2019-00456', $staff->employee_id, 'their own staff number, as they entered it');
 
         $this->assertSame('Faculty/Staff', $staff->role->name, 'the role is NOT granted by asking');
@@ -145,25 +147,26 @@ class StaffSignsThemselvesUpTest extends TestCase
     }
 
     /**
-     * The staff number is asked for, not optional.
+     * The staff number is asked for, but optional.
      *
-     * CSPC's own records key on it, and two people in this database already
-     * share a name -- so it is what tells an admin which account is which. The
-     * person signing up is the one who knows it.
+     * A new employee often does not have it yet on their first day, and a
+     * required field there turned them away from the whole app. The role and
+     * the college are what routing and permissions need; the number can be
+     * added by an administrator later.
      */
-    public function test_the_employee_id_is_required(): void
+    public function test_the_employee_id_is_optional(): void
     {
         $staff = $this->newStaff();
 
         $this->actingAs($staff)->post(route('profile.complete.post'), [
             'requested_role_id' => Role::where('name', 'Instructor')->value('id'),
             'department' => 'College of Computer Studies',
-        ])->assertSessionHasErrors('employee_id');
+        ])->assertSessionHasNoErrors();
 
         $this->assertNull($staff->fresh()->employee_id);
-        $this->assertNull($staff->fresh()->department, 'nothing is saved when the form is refused');
+        $this->assertSame('College of Computer Studies', $staff->fresh()->department, 'saved without it');
 
-        fwrite(STDERR, "  [signup] the employee ID is required: YES\n");
+        fwrite(STDERR, "  [signup] the employee ID is optional: YES\n");
     }
 
     /** A programme has to belong to the college they picked. */

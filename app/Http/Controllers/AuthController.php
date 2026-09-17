@@ -233,10 +233,11 @@ class AuthController extends Controller
 
         $validated = $request->validate([
             'requested_role_id' => ['required', Rule::in($requestable)],
-            // Their staff number. Required: CSPC records key on it, two people
-            // in this database already share a name, and the person filling
-            // this in is the one who knows it.
-            'employee_id' => ['required', 'string', 'max:50'],
+            // Their staff number, if they have it to hand. Optional: a new
+            // employee often does not know it yet on their first day, and a
+            // required field there turned them away from the whole app. An
+            // administrator can add it later from Manage Users.
+            'employee_id' => ['nullable', 'string', 'max:50'],
             'department' => ['required', 'string', Rule::in($departments)],
             // Only a Program Chair covers one programme. Validated against the
             // chosen college so a hand-posted form cannot file a Computer
@@ -250,21 +251,54 @@ class AuthController extends Controller
                     }
                 },
             ],
-            // The section they advise, if any. Same shape as a student's.
-            'section' => ['nullable', 'string', 'max:12', 'regex:/^[1-6][A-Za-z]$/'],
+            // The class they say they advise, if any: a programme, a year and a
+            // class letter, all three or none. Checked together below.
+            'advises_course' => ['nullable', 'string', Rule::in(User::allCourses())],
+            'advises_year' => ['nullable', 'integer', 'between:1,6'],
+            'advises_letter' => ['nullable', 'string', 'regex:/^[A-Za-z]$/'],
         ], [
             'requested_role_id.required' => 'Please choose the role you are asking for.',
-            'employee_id.required' => 'Please enter your employee ID.',
             'requested_role_id.in' => 'That role cannot be requested here. Ask an administrator directly.',
             'department.required' => 'Please choose your college or office.',
-            'section.regex' => 'Use the year and section together, like 3A.',
+            'advises_letter.regex' => 'The class is a single letter, like A.',
         ]);
 
+        // A suggestion, not an assignment. It is kept apart from the sections
+        // table and from their programme, because either would start routing
+        // a class's concerns to them on nobody's word but their own -- an
+        // administrator confirms it from Manage Users with Add class.
+        $advisesRequest = null;
+        $advisesParts = array_filter([
+            $validated['advises_course'] ?? null,
+            $validated['advises_year'] ?? null,
+            $validated['advises_letter'] ?? null,
+        ], fn ($value) => $value !== null && $value !== '');
+
+        if ($advisesParts) {
+            // Half a class names no class: "4" with no letter matches nothing
+            // an administrator could confirm.
+            if (count($advisesParts) < 3) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'advises_course' => 'To name the class you advise, choose its program, year and class — or leave all three empty.',
+                ]);
+            }
+
+            $finalYear = User::finalYearFor($validated['advises_course']);
+
+            if ((int) $validated['advises_year'] > $finalYear) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'advises_year' => "{$validated['advises_course']} runs for {$finalYear} years.",
+                ]);
+            }
+
+            $advisesRequest = $validated['advises_course'].'|'.$validated['advises_year'].strtoupper($validated['advises_letter']);
+        }
+
         $user->forceFill([
-            'employee_id' => $validated['employee_id'],
+            'employee_id' => $validated['employee_id'] ?? null,
             'department' => $validated['department'],
             'course' => $validated['course'] ?? null,
-            'section' => isset($validated['section']) ? strtoupper($validated['section']) : null,
+            'advises_request' => $advisesRequest,
             'requested_role_id' => $validated['requested_role_id'],
             'role_requested_at' => now(),
         ])->save();

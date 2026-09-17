@@ -84,8 +84,8 @@
                  keyed on it -- two people in this database already share a
                  name, so it is what tells an admin which account is which. --}}
             <div class="fg">
-                <label for="employee_id">Employee ID</label>
-                <input type="text" name="employee_id" id="employee_id" maxlength="50" required
+                <label for="employee_id">Employee ID <span style="font-weight:400;color:var(--muted);">(optional)</span></label>
+                <input type="text" name="employee_id" id="employee_id" maxlength="50"
                        value="{{ old('employee_id') }}" placeholder="Your staff number">
             </div>
 
@@ -125,11 +125,40 @@
                 </select>
             </div>
 
-            <div class="fg" id="section-group" hidden>
-                <label for="section">Section you advise <span style="font-weight:400;color:var(--muted);">(optional)</span></label>
-                <input type="text" name="section" id="section" maxlength="12"
-                       value="{{ old('section') }}" placeholder="e.g. 3A">
-                <p class="hint">Leave blank if you do not advise a class. Academic concerns from a section reach its adviser first.</p>
+            {{-- Any role can advise a class -- instructors mostly, but chairs and
+                 deans do too -- so this is offered to everybody. It is a
+                 suggestion for an administrator, not an assignment: nothing is
+                 routed to them until Add class confirms it on Manage Users.
+                 Three dropdowns rather than a typed "3A", which invited "3-A"
+                 and "III-A" that nothing could match. --}}
+            <div class="fg" id="advises-group">
+                <label for="advises_course">Class you advise <span style="font-weight:400;color:var(--muted);">(optional)</span></label>
+                <select name="advises_course" id="advises_course">
+                    <option value="">— program —</option>
+                    @foreach ($collegeCourses as $college => $courses)
+                        <optgroup label="{{ $college }}">
+                            @foreach ($courses as $course)
+                                <option value="{{ $course }}" data-college="{{ $college }}"
+                                    {{ old('advises_course') === $course ? 'selected' : '' }}>{{ $course }}</option>
+                            @endforeach
+                        </optgroup>
+                    @endforeach
+                </select>
+                <div style="display:flex; gap:.6rem; margin-top:.6rem;">
+                    <select name="advises_year" id="advises_year" aria-label="Year">
+                        <option value="">— year —</option>
+                        @foreach (range(1, 5) as $yearOption)
+                            <option value="{{ $yearOption }}" {{ (string) old('advises_year') === (string) $yearOption ? 'selected' : '' }}>Year {{ $yearOption }}</option>
+                        @endforeach
+                    </select>
+                    <select name="advises_letter" id="advises_letter" aria-label="Class">
+                        <option value="">— class —</option>
+                        @foreach (range('A', 'H') as $letterOption)
+                            <option value="{{ $letterOption }}" {{ old('advises_letter') === $letterOption ? 'selected' : '' }}>Class {{ $letterOption }}</option>
+                        @endforeach
+                    </select>
+                </div>
+                <p class="hint">Leave all three empty if you do not advise a class. An administrator confirms it before that class's concerns reach you.</p>
             </div>
 
             <button type="submit" class="btn">Save and continue</button>
@@ -147,7 +176,6 @@
             var role = document.getElementById('requested_role_id');
             var dept = document.getElementById('department');
             var courseGroup = document.getElementById('course-group');
-            var sectionGroup = document.getElementById('section-group');
             var course = document.getElementById('course');
 
             function chosenRole() {
@@ -159,19 +187,31 @@
                 var name = chosenRole();
 
                 courseGroup.hidden = name !== 'Program Chair';
-                sectionGroup.hidden = !(name === 'Instructor' || name === 'Program Chair');
 
                 // A hidden field still posts its value, so clear what is no
                 // longer being asked for. Otherwise switching from Program
                 // Chair to Instructor carries a programme along and quietly
                 // makes them the preferred handler for it.
                 if (courseGroup.hidden) course.value = '';
-                if (sectionGroup.hidden) document.getElementById('section').value = '';
 
                 Array.prototype.forEach.call(course.options, function (option) {
                     var belongs = !option.value || option.getAttribute('data-college') === dept.value;
                     option.hidden = !belongs;
                     if (!belongs && option.selected) course.value = '';
+                });
+
+                // The class they advise is in their own college. Somebody who
+                // picked an office rather than a college keeps every program on
+                // offer, since the office is not where the class is.
+                var advises = document.getElementById('advises_course');
+                var picksCollege = Array.prototype.some.call(advises.options, function (option) {
+                    return option.getAttribute('data-college') === dept.value;
+                });
+
+                Array.prototype.forEach.call(advises.options, function (option) {
+                    var belongs = !option.value || !picksCollege || option.getAttribute('data-college') === dept.value;
+                    option.hidden = !belongs;
+                    if (!belongs && option.selected) advises.value = '';
                 });
             }
 

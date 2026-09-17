@@ -225,6 +225,10 @@ class User extends Authenticatable
             'approved_at' => 'datetime',
             'last_seen_at' => 'datetime',
             'banned_at' => 'datetime',
+            // Shown as "2 hours ago" beside a pending role request. Without the
+            // cast it came back as a string, and Manage Users threw a 500 the
+            // first time any staff member asked for a role.
+            'role_requested_at' => 'datetime',
             'password' => 'hashed',
         ];
     }
