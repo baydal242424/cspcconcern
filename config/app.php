@@ -72,6 +72,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Temporary advisers on the live site
+    |--------------------------------------------------------------------------
+    |
+    | TemporarySectionAdvisersSeeder hands every class with no adviser to an
+    | instructor of its college -- names nobody has confirmed. It refuses to
+    | run on production unless this is switched on, so it can only reach real
+    | students' concerns on purpose. Read through config() rather than env()
+    | in the seeder, because a deployed app caches its config and env() then
+    | returns nothing.
+    |
+    */
+
+    'allow_temporary_advisers' => (bool) env('ALLOW_TEMPORARY_ADVISERS', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |
