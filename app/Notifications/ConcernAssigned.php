@@ -29,6 +29,16 @@ class ConcernAssigned extends Notification
         return ['mail'];
     }
 
+    /**
+     * The concern's page on the live site, whatever machine sent the email.
+     * route() alone takes its host from the request or APP_URL, which is
+     * localhost wherever the app is being tested.
+     */
+    public static function publicLink(Concern $concern): string
+    {
+        return rtrim((string) config('app.public_url'), '/').route('concerns.show', $concern, false);
+    }
+
     public function toMail(object $notifiable): MailMessage
     {
         $urgency = $this->concern->urgency ?? 'untriaged';
@@ -37,7 +47,7 @@ class ConcernAssigned extends Notification
             ->subject("A concern has been assigned to you (#{$this->concern->id})")
             ->greeting("Hi {$notifiable->name},")
             ->line("Concern #{$this->concern->id} has been assigned to you. Urgency: {$urgency}.")
-            ->action('Sign in to review it', route('concerns.show', $this->concern))
+            ->action('Sign in to review it', self::publicLink($this->concern))
             ->line('Details are only available after you sign in.')
             ->salutation('— CSPC Report Concern');
     }

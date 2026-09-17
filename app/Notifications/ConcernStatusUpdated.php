@@ -45,7 +45,7 @@ class ConcernStatusUpdated extends Notification
             ->greeting("Hi {$notifiable->name},")
             ->line("Your concern #{$this->concern->id} is now: {$this->statusLabel}.")
             ->line($this->explanation)
-            ->action('Sign in to view it', route('concerns.show', $this->concern))
+            ->action('Sign in to view it', ConcernAssigned::publicLink($this->concern))
             ->line('For your privacy, the details of your concern are never included in this email. Sign in to read them.')
             ->salutation('— CSPC Report Concern');
     }

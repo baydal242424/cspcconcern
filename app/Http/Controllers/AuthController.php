@@ -465,7 +465,11 @@ class AuthController extends Controller
 
         request()->session()->regenerate();
 
-        return redirect()->route('concerns.index')->with('success', 'Logged in successfully!');
+        // Back to the page that asked them to sign in. Somebody opening
+        // "concern #8" from an email was sent to sign in, and then landed on
+        // their list with no idea which of the rows the email meant -- the
+        // link worked, and still did not take them anywhere.
+        return redirect()->intended(route('concerns.index'))->with('success', 'Logged in successfully!');
     }
 
     /**

@@ -56,6 +56,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Public URL
+    |--------------------------------------------------------------------------
+    |
+    | Where the app is reached from somebody else's inbox. Links in emails use
+    | this, not APP_URL: a copy running on a laptop has APP_URL pointed at
+    | localhost -- Google sign-in has to come back there -- and every email it
+    | sent carried a localhost link that opened nothing on the recipient's
+    | phone. Point this at the live site and the laptop's emails link to it.
+    | Defaults to APP_URL, so the live site needs nothing extra.
+    |
+    */
+
+    'public_url' => env('APP_PUBLIC_URL', env('APP_URL', 'http://localhost')),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |
