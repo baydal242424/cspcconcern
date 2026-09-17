@@ -127,10 +127,14 @@ class AdminEditsStudentDetailsTest extends TestCase
 
         $student->refresh();
 
-        $this->assertNull($student->student_id);
+        // A my.cspc.edu.ph address keeps its student number: a student given a
+        // staff role is usually being used to try the role out, and clearing it
+        // made setting them back to Student lose the number for good. A staff
+        // address still holds one number only (StudentTriesAdviserRoleTest).
+        $this->assertSame('231002370', $student->student_id);
         $this->assertSame('2019-00456', $student->employee_id);
 
-        fwrite(STDERR, "  [admin] student number cleared, employee number set: YES\n");
+        fwrite(STDERR, "  [admin] student address keeps its number, employee number set: YES\n");
     }
 
     /** And the other way: a staff member made a student loses the staff one. */

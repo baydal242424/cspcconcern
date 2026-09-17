@@ -616,7 +616,14 @@ class AdminController extends Controller
             // student number left on a staff account would return them when an
             // admin searches for a student by id, which is the exact confusion
             // the number exists to prevent.
-            $changes['student_id'] = null;
+            //
+            // Except on a student ADDRESS. A my.cspc.edu.ph account given a
+            // staff role is a student being used to try a role out, and
+            // wiping the number made the round trip lossy: set back to Student
+            // afterwards, they returned with no student number at all.
+            if (! str_ends_with(strtolower((string) $user->email), '@my.cspc.edu.ph')) {
+                $changes['student_id'] = null;
+            }
 
             if ($request->has('employee_id')) {
                 $changes['employee_id'] = $validated['employee_id'] ?? null;
@@ -640,6 +647,14 @@ class AdminController extends Controller
         }
 
         $user->update($changes);
+
+        // A student advises nobody. An account turned back into a student --
+        // after trying the Adviser role out, say -- releases every class it
+        // was given, or it would go on receiving its own classmates' concerns
+        // with nothing on its card to show why.
+        if ($isStudent) {
+            Section::where('adviser_id', $user->id)->update(['adviser_id' => null]);
+        }
 
         return back()->with('success', "{$user->name} has been updated.");
     }
