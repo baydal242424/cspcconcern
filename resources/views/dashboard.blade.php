@@ -84,6 +84,73 @@
         </div>
     </div>
 
+    {{-- What is stuck, rather than what was filed. Each row is a thing an
+         administrator can act on today, and each says what happens if nobody
+         does. --}}
+    <div class="card" style="padding: 1.5rem; margin-top: 2rem;">
+        <h3 style="margin-bottom: 0.25rem;">Needs Attention</h3>
+        <p style="color:#94a3b8; font-size:0.8rem; margin-bottom: 1rem;">Open work waiting on somebody</p>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:1rem;">
+            <div>
+                <div style="font-size:1.8rem; font-weight:700; color:{{ $unassignedOpen > 0 ? '#b42318' : 'inherit' }};">{{ $unassignedOpen }}</div>
+                <div style="font-size:0.85rem; font-weight:600;">Unassigned concerns</div>
+                <p style="color:#94a3b8; font-size:0.78rem; margin:0;">Nobody can see these but the student who filed them.</p>
+            </div>
+            <div>
+                <div style="font-size:1.8rem; font-weight:700; color:{{ $pendingRoleRequests > 0 ? '#8a5a00' : 'inherit' }};">{{ $pendingRoleRequests }}</div>
+                <div style="font-size:0.85rem; font-weight:600;">Staff waiting for a role</div>
+                <p style="color:#94a3b8; font-size:0.78rem; margin:0;">They receive nothing until granted, in Manage Users.</p>
+            </div>
+            <div>
+                <div style="font-size:1.8rem; font-weight:700; color:{{ $classesWithoutAdviser > 0 ? '#8a5a00' : 'inherit' }};">{{ $classesWithoutAdviser }}</div>
+                <div style="font-size:0.85rem; font-weight:600;">Classes with no adviser</div>
+                <p style="color:#94a3b8; font-size:0.78rem; margin:0;">Of {{ $classesThisTerm }} this term. Their concerns drop to a college instructor.</p>
+            </div>
+            <div>
+                <div style="font-size:1.8rem; font-weight:700;">{{ $averageResolutionHours !== null ? $averageResolutionHours.'h' : '—' }}</div>
+                <div style="font-size:0.85rem; font-weight:600;">Average time to resolve</div>
+                <p style="color:#94a3b8; font-size:0.78rem; margin:0;">From filing to resolved, across every resolved concern.</p>
+            </div>
+        </div>
+    </div>
+
+    {{-- Where concerns go after their first handler: handed to another office,
+         or lifted above the adviser because of who they are about. --}}
+    <div class="card" style="padding: 1.5rem; margin-top: 2rem;">
+        <h3 style="margin-bottom: 0.25rem;">Referrals &amp; Escalations</h3>
+        <p style="color:#94a3b8; font-size:0.8rem; margin-bottom: 1rem;">Concerns that moved on from the office they first reached</p>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:1rem; margin-bottom:1.25rem;">
+            <div>
+                <div style="font-size:1.8rem; font-weight:700;">{{ $referredOpen }}</div>
+                <div style="font-size:0.85rem; font-weight:600;">Currently referred</div>
+            </div>
+            <div>
+                <div style="font-size:1.8rem; font-weight:700;">{{ $aboutStaffCount }}</div>
+                <div style="font-size:0.85rem; font-weight:600;">Name a staff member</div>
+                <p style="color:#94a3b8; font-size:0.78rem; margin:0;">Routed above the person named.</p>
+            </div>
+            <div>
+                <div style="font-size:1.8rem; font-weight:700;">{{ $adviserBypassed }}</div>
+                <div style="font-size:0.85rem; font-weight:600;">Adviser skipped by the student</div>
+                <p style="color:#94a3b8; font-size:0.78rem; margin:0;">Went to the Program Chair instead.</p>
+            </div>
+        </div>
+
+        @if (count($referralsByOffice) > 0)
+            <p style="font-size:0.8rem; font-weight:600; color:#64748b; margin-bottom:0.5rem;">Referred to</p>
+            @foreach ($referralsByOffice as $office => $count)
+                <div style="display:flex; justify-content:space-between; padding:0.4rem 0; border-bottom:1px solid #eef1f6;">
+                    <span>{{ $office }}</span>
+                    <strong>{{ $count }}</strong>
+                </div>
+            @endforeach
+        @else
+            <p style="color:#666; margin:0;">Nothing is with another office right now.</p>
+        @endif
+    </div>
+
     <div class="card" style="padding: 1.5rem; margin-top: 2rem;">
         <h3 style="margin-bottom: 0.25rem;">Reporter Satisfaction</h3>
         <p style="color:#94a3b8; font-size:0.8rem; margin-bottom: 1rem;">Average rating left on resolved concerns</p>

@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Concern;
 use App\Models\Feedback;
+use App\Models\Section;
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -109,6 +111,72 @@ class DashboardController extends Controller
         $feedbackCount = Feedback::count();
 
         // ------------------------------------------------------------------
+        // WHAT NEEDS SOMEBODY TODAY
+        // ------------------------------------------------------------------
+        // The counts above describe what has been filed; these describe what
+        // is stuck. An unassigned open concern is the worst case in the whole
+        // system -- it is visible to nobody but the student who filed it, and
+        // nothing else on this page would show it.
+        $unassignedOpen = (clone $analyticsBase)
+            ->whereNull('assigned_to')
+            ->whereNotIn('status', Concern::TERMINAL_STATUSES)
+            ->count();
+
+        // Staff waiting to be given the role they asked for at sign-up. Until
+        // an admin decides, they hold Faculty/Staff and receive nothing.
+        $pendingRoleRequests = User::whereNotNull('requested_role_id')->count();
+
+        // Classes with nobody advising them. Their Academic, Physical, Safety
+        // and Others concerns fall past the adviser tier to an instructor of
+        // the college, which works but is not what the student expects.
+        $term = Section::currentTerm();
+        $classesThisTerm = Section::where('school_year', $term['school_year'])
+            ->where('semester', $term['semester'])
+            ->count();
+        $classesWithoutAdviser = Section::where('school_year', $term['school_year'])
+            ->where('semester', $term['semester'])
+            ->whereNull('adviser_id')
+            ->count();
+
+        // ------------------------------------------------------------------
+        // REFERRALS AND ESCALATIONS
+        // ------------------------------------------------------------------
+        // A referral is recorded on the concern itself -- status 'referred'
+        // and the office it went to -- so these read from there rather than
+        // from the referrals table.
+        $referredOpen = (clone $analyticsBase)->where('status', 'referred')->count();
+
+        $referralsByOffice = (clone $analyticsBase)
+            ->where('status', 'referred')
+            ->whereNotNull('referred_to')
+            ->select('referred_to', DB::raw('count(*) as count'))
+            ->groupBy('referred_to')
+            ->orderByDesc('count')
+            ->pluck('count', 'referred_to')
+            ->all();
+
+        // Concerns that named a member of staff, and concerns where the
+        // student asked not to reach their class adviser. Both mean somebody
+        // senior is holding the case, and both are worth watching as a rate
+        // rather than reading one by one.
+        $aboutStaffCount = (clone $analyticsBase)->whereNotNull('about_staff_id')->count();
+        $adviserBypassed = (clone $analyticsBase)->where('skip_adviser', true)->count();
+
+        // How long a resolved concern took, start to finish. Averaged in PHP
+        // rather than SQL: the date arithmetic differs between MySQL and the
+        // SQLite the tests run on.
+        $resolvedConcerns = (clone $analyticsBase)
+            ->whereNotNull('resolved_at')
+            ->get(['created_at', 'resolved_at']);
+
+        $averageResolutionHours = $resolvedConcerns->isEmpty()
+            ? null
+            // Absolute: a row whose resolved_at somehow precedes its
+            // created_at would otherwise subtract from the average and show a
+            // negative number of hours on the page.
+            : round($resolvedConcerns->avg(fn ($c) => $c->created_at->diffInMinutes($c->resolved_at, true)) / 60, 1);
+
+        // ------------------------------------------------------------------
         // RECENT CONCERNS (per-record access controlled by visibleTo)
         // ------------------------------------------------------------------
         $recentConcerns = Concern::query()
@@ -131,6 +199,15 @@ class DashboardController extends Controller
             'trendingDepartments',
             'averageRating',
             'feedbackCount',
+            'unassignedOpen',
+            'pendingRoleRequests',
+            'classesThisTerm',
+            'classesWithoutAdviser',
+            'referredOpen',
+            'referralsByOffice',
+            'aboutStaffCount',
+            'adviserBypassed',
+            'averageResolutionHours',
             'recentConcerns'
         ));
     }
