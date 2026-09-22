@@ -16,7 +16,11 @@
             @else
                 <a href="{{ route('concerns.index', ['show_resolved' => 1]) }}" class="btn btn-muted">Show resolved</a>
             @endif
-            @if (optional(Auth::user()->role)->name === 'Student')
+            {{-- Only once there is a list to sit above. With nothing filed,
+                 the empty state below has its own button, and two identical
+                 buttons on one screen read as two different things -- students
+                 in the survey kept asking which one to press. --}}
+            @if (optional(Auth::user()->role)->name === 'Student' && $concerns->count() > 0)
                 <a href="{{ route('concerns.create') }}" class="btn btn-primary">+ New Concern</a>
             @endif
         </div>
