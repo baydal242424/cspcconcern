@@ -93,16 +93,23 @@ class ReportingYourOwnAdviserTest extends TestCase
         fwrite(STDERR, "  [adviser] a Program Chair adviser is nameable: YES\n");
     }
 
-    /** Nobody should appear twice on one form -- it reads as two people. */
-    public function test_the_adviser_is_not_also_listed_among_the_instructors(): void
+    /**
+     * Nobody should appear twice on one form -- it reads as two people.
+     *
+     * This used to guard against the adviser sitting in the instructor picker
+     * as well as their own row. That picker is gone, so what is left to check
+     * is that an adviser who teaches does not turn up in the staff picker
+     * beside the deans and offices.
+     */
+    public function test_the_adviser_is_offered_once_and_only_once(): void
     {
         $adviser = $this->adviserOfTheStudentsSection('Instructor');
 
         $resp = $this->actingAs($this->student()->refresh())->get('/concerns/create');
 
         $this->assertFalse(
-            $resp->viewData('instructorsByCollege')->flatten()->contains('id', $adviser->id),
-            'The adviser has their own row; they must not also be in the instructor list'
+            $resp->viewData('otherStaffByOffice')->flatten()->contains('id', $adviser->id),
+            'The adviser has their own row; they must not also be in the staff picker'
         );
 
         fwrite(STDERR, "  [adviser] listed once, not twice: YES\n");

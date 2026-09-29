@@ -104,9 +104,13 @@
             @enderror
         </div>
 
-        {{-- Three ways to name the people a concern is about, and they combine:
-             an instructor, the class adviser and a dean can all be named on
-             one concern. They were mutually exclusive while about_staff_id
+        {{-- Two ways to name the people a concern is about, and they combine:
+             the class adviser and a dean can both be named on one concern.
+             Instructors are no longer offered here at all -- the picker of
+             every teacher has been removed -- so a concern about a teacher who
+             is not the student's adviser is described in the text instead.
+
+             The two that remain were mutually exclusive while about_staff_id
              held a single id, so a complaint about two people could only name
              one -- and the other stayed eligible to receive it, read it, and
              resolve a complaint about themselves.
@@ -123,43 +127,6 @@
              would then be walled off from handling. --}}
         @php $namedSubjects = collect(old('about_staff_id', []))->map(fn ($id) => (int) $id); @endphp
         <div class="form-group" id="about-person-group" style="display:none;">
-            <label>
-                <input type="checkbox" id="about_instructor_toggle" class="about-toggle" data-target="about_instructor_wrap" data-select="about_instructor_id">
-                <span style="font-weight: normal; margin-left: 0.5rem;">This concern is about a specific instructor</span>
-            </label>
-            <div id="about_instructor_wrap" style="display:none; margin-top:0.6rem;">
-                <label style="font-size:0.9rem;">Which instructor is this concern about? You can pick more than one.</label>
-                {{-- Checkboxes, not a multi-select. Choosing several from a
-                     <select multiple> means Ctrl-clicking, and a phone has no
-                     Ctrl key -- most students file from a phone, so the
-                     multi-select made the second name unreachable for exactly
-                     the people most likely to need it. A checkbox is one tap
-                     on every device. --}}
-                <input type="search" class="people-filter" data-list="about_instructor_id" placeholder="Type a name to narrow the list" aria-label="Search instructors" style="width:100%; margin:0.4rem 0;">
-                {{-- Opens on the student's own college and folds the other
-                     five away. Every college at once is 368 names, and the
-                     order was whatever the name sort produced -- a Computer
-                     Studies student scrolled past 170 Health Sciences
-                     instructors to reach their own. Searching still looks
-                     everywhere, since general-education subjects are taught
-                     across colleges. --}}
-                <div id="about_instructor_id" class="people-picker" data-name="about_staff_id[]">
-                    @foreach ($instructorsByCollege as $college => $members)
-                        <p class="people-group" data-own="{{ $college === $ownCollege ? '1' : '0' }}">{{ $college }}@if ($college === $ownCollege) <span style="font-weight:400; color:#64748b;">· your college</span>@endif</p>
-                        @foreach ($members as $member)
-                            <label class="person" data-own="{{ $college === $ownCollege ? '1' : '0' }}">
-                                <input type="checkbox" name="about_staff_id[]" value="{{ $member->id }}" {{ $namedSubjects->contains($member->id) ? 'checked' : '' }} disabled>
-                                <span>{{ $member->name }}</span>
-                            </label>
-                        @endforeach
-                    @endforeach
-                </div>
-                @php $elsewhere = $instructorsByCollege->reject(fn ($m, $c) => $c === $ownCollege)->flatten()->count(); @endphp
-                @if ($elsewhere)
-                    <button type="button" class="show-all-people" data-list="about_instructor_id" data-count="{{ $elsewhere }}" style="margin-top:.4rem;">Show instructors from other colleges ({{ $elsewhere }})</button>
-                @endif
-                <p style="font-size: 0.82rem; color: #666; margin-top: 0.4rem;">To avoid a conflict of interest, this concern will <strong>not</strong> be assigned to anyone named here. It will be routed to a higher authority instead.</p>
-            </div>
 
             {{-- The class adviser is not named here any more. "This concern is
                  about my class adviser" and "I do not want this to go to my
@@ -176,7 +143,7 @@
                      not published that section's adviser. Most sections are in
                      this state today. --}}
                 <p style="font-size:0.82rem; color:#666; margin-top:0.7rem;">
-                    No class adviser is recorded for {{ auth()->user()->course }} section {{ auth()->user()->section }} yet, so this form cannot offer them by name. If your concern is about your adviser, find them under <strong>a specific instructor</strong> above.
+                    No class adviser is recorded for {{ auth()->user()->course }} section {{ auth()->user()->section }} yet, so this form cannot offer them by name. If your concern is about your adviser, tick <strong>&ldquo;I do not want this to go to my class adviser&rdquo;</strong> below and it will go to your Program Chair instead.
                 </p>
             @endif
 

@@ -278,12 +278,18 @@ class ConcernController extends Controller
             // tells four chairs of one college apart.
         })->orderBy('name')->get(['id', 'name', 'department', 'course', 'role_id']);
 
-        // Splits on Instructor. This read 'Faculty/Staff' until that role was
-        // divided in two, at which point the two lists silently swapped: the
-        // "which instructor" picker filled up with unit heads -- ICT, Records,
-        // Health Services -- while the actual teachers dropped into the
-        // other-staff list. Nothing errored; the names were just wrong.
-        [$instructors, $otherStaff] = $staffMembers->partition(
+        // Instructors are dropped rather than offered. The form used to carry
+        // a picker of every instructor so a student could name the teacher a
+        // concern was about; it is gone, and this is what keeps those names
+        // out of the staff picker below, which is for deans, program chairs,
+        // counselors and offices.
+        //
+        // The split reads 'Instructor' and not 'Faculty/Staff': when that role
+        // was divided in two the two lists silently swapped, filling the
+        // teacher picker with unit heads -- ICT, Records, Health Services --
+        // while the actual teachers fell into the staff list. Nothing errored;
+        // the names were simply wrong.
+        $otherStaff = $staffMembers->reject(
             fn (User $u) => optional($u->role)->name === 'Instructor'
         );
 
@@ -337,26 +343,7 @@ class ConcernController extends Controller
             // general-education subjects are taught across colleges.
             'adviser' => $adviser,
             'adviserUnknown' => $adviserUnknown,
-            // The student's own college, so the form can open on it and keep
-            // the other five folded away. A Computer Studies student was
-            // scrolling past 170 Health Sciences names to reach their own
-            // college, in a list whose group order was whatever the name sort
-            // happened to produce.
-            'ownCollege' => auth()->user()->department,
-            // The adviser has a row of their own, so they come out of both
-            // lists. One person offered in two places on one form reads as
-            // two different people, and the student cannot tell which choice
-            // the system will treat as "my adviser".
-            'instructorsByCollege' => $instructors
-                ->reject(fn (User $u) => $adviser && $u->id === $adviser->id)
-                ->groupBy(fn (User $u) => $u->department ?: 'Other')
-                // The reporter's own college first. Group order was otherwise
-                // whatever the name sort produced, which put Health Sciences
-                // and its 170 instructors at the top for everybody.
-                ->sortBy(fn ($members, $college) => [
-                    $college === auth()->user()->department ? 0 : 1,
-                    $college,
-                ]),
+
             // Grouped by office for the same reason, and for one more: this
             // list was a flat "Name -- Role", and "Faculty/Staff" names no
             // office at all. It covers the ICT Unit, Records, Health Services

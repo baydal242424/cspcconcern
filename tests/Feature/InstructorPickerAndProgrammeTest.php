@@ -85,11 +85,15 @@ class InstructorPickerAndProgrammeTest extends TestCase
     }
 
     /**
-     * "Which instructor is this concern about?" must list instructors. It listed
-     * office staff instead: the partition still split on 'Faculty/Staff', which
-     * after the split means unit heads.
+     * The instructor picker has been removed from the form.
+     *
+     * It offered every teacher so a student could name the one a concern was
+     * about. What has to hold now is that they are not quietly offered
+     * somewhere else instead: the staff picker is for deans, program chairs,
+     * counselors and offices, and an instructor falling into it would put the
+     * whole list back on the page under another heading.
      */
-    public function test_the_instructor_picker_lists_instructors(): void
+    public function test_instructors_are_not_offered_on_the_form(): void
     {
         $instructor = User::where('email', 'jeremyneo@cspc.edu.ph')->firstOrFail();
         $this->assertSame('Instructor', $instructor->role->name);
@@ -100,20 +104,23 @@ class InstructorPickerAndProgrammeTest extends TestCase
         $resp = $this->actingAs($this->student())->get('/concerns/create');
         $resp->assertOk();
 
-        $byCollege = $resp->viewData('instructorsByCollege')->flatten();
+        // The view data behind the picker is gone entirely.
+        $this->assertArrayNotHasKey('instructorsByCollege', $resp->viewData());
+
         $other = $resp->viewData('otherStaffByOffice')->flatten();
 
-        $this->assertTrue(
-            $byCollege->contains('id', $instructor->id),
-            'An Instructor must appear in the instructor picker'
-        );
         $this->assertFalse(
-            $byCollege->contains('id', $officeStaff->id),
-            'A unit head must not appear in the instructor picker'
+            $other->contains('id', $instructor->id),
+            'An instructor must not reappear in the staff picker'
         );
+
+        // The office staff the picker is actually for are still there.
         $this->assertTrue($other->contains('id', $officeStaff->id));
 
-        fwrite(STDERR, "  [picker] instructors listed as instructors, unit heads as other staff: YES\n");
+        $resp->assertDontSee('This concern is about a specific instructor');
+        $resp->assertDontSee($instructor->name);
+
+        fwrite(STDERR, "  [picker] instructors are offered nowhere on the form: YES\n");
     }
 
     /**
@@ -160,8 +167,15 @@ class InstructorPickerAndProgrammeTest extends TestCase
         fwrite(STDERR, "  [picker] office staff grouped under their office: YES\n");
     }
 
-    /** A newly promoted instructor shows up in the picker straight away. */
-    public function test_a_promoted_student_appears_as_an_instructor(): void
+    /**
+     * Promotion must not be a way back onto the form.
+     *
+     * A promoted student holds the Instructor role, and the staff picker is
+     * built by rejecting that role -- so the moment the promotion lands they
+     * drop out of the form, rather than appearing in the office list beside
+     * the deans.
+     */
+    public function test_a_promoted_instructor_is_not_offered_on_the_form(): void
     {
         $person = $this->student();
         $this->assertSame('Student', $person->role->name);
@@ -174,12 +188,12 @@ class InstructorPickerAndProgrammeTest extends TestCase
         $resp = $this->actingAs(User::where('email', 'student2@my.cspc.edu.ph')->firstOrFail())
             ->get('/concerns/create');
 
-        $this->assertTrue(
-            $resp->viewData('instructorsByCollege')->flatten()->contains('id', $person->id),
-            'Someone promoted to Instructor should be offered immediately'
+        $this->assertFalse(
+            $resp->viewData('otherStaffByOffice')->flatten()->contains('id', $person->id),
+            'Someone promoted to Instructor must not appear in the staff picker'
         );
 
-        fwrite(STDERR, "  [picker] newly promoted instructor offered immediately: YES\n");
+        fwrite(STDERR, "  [picker] a newly promoted instructor is not offered either: YES\n");
     }
 
     /**
