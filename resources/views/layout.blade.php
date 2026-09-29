@@ -212,6 +212,64 @@
         .urgency-critical{background:linear-gradient(180deg,#a40e1f,#7d0a17); color:#fff}
         .urgency-pending,.urgency-{background:#eef1f6; color:#64748b; border-color:#e2e7ef}
 
+        /* Concern list filter toolbar.
+           The first version was a grey panel holding seven labelled boxes. It
+           wrapped onto two ragged rows, orphaned the last two controls, and
+           drew more attention than the table it was there to filter. This is
+           one line: search, the two filters people actually reach for, and the
+           rest behind "More". Applied filters appear as chips underneath, each
+           removable on its own, so the current view is readable at a glance
+           instead of having to be reconstructed from seven boxes. */
+        .filters{display:flex; gap:.5rem; align-items:center; flex-wrap:wrap; margin-bottom:1.1rem}
+        .filters input[type="text"],.filters input[type="date"],.filters select{
+            width:auto; padding:.52rem .7rem; border-radius:10px; border-width:1px;
+            font-size:.86rem; background:#fff}
+        .filters .search{flex:1 1 210px; min-width:150px}
+        .filters select{cursor:pointer}
+        /* The filters open in a dialog rather than a dropdown panel.
+           As a panel they had two faults: it floated over the table, hiding
+           the very rows being filtered, and because each control applied on
+           change the page reloaded and the panel shut -- so setting a date and
+           a sort order meant opening it twice. A dialog holds still while
+           several choices are made, and Done applies them together. */
+        .filters .filter-btn{display:inline-flex; align-items:center; gap:.45rem; white-space:nowrap}
+        .filters .filter-btn svg{width:15px; height:15px}
+        .filter-dialog{border:none; padding:0; border-radius:16px; color:var(--ink);
+            width:min(430px,calc(100vw - 2rem)); box-shadow:0 26px 60px -18px rgba(15,23,42,.45)}
+        .filter-dialog::backdrop{background:rgba(11,23,51,.45)}
+        .filter-dialog .fd-head{display:flex; align-items:flex-start; justify-content:space-between;
+            gap:1rem; padding:1.05rem 1.25rem .9rem}
+        .filter-dialog .fd-head h3{margin:0 0 .2rem; font-size:1.05rem}
+        .filter-dialog .fd-head p{margin:0; font-size:.82rem; color:var(--muted)}
+        .filter-dialog .fd-close{flex:none; background:#eef1f6; border:none; cursor:pointer; color:#475569;
+            width:30px; height:30px; border-radius:50%; font-size:1.05rem; line-height:1}
+        .filter-dialog .fd-close:hover{background:#e0e5ee}
+        .filter-dialog .fd-body{padding:.25rem 1.25rem 1.15rem; display:grid; gap:.8rem;
+            border-bottom:1px solid var(--line)}
+        .filter-dialog .fd-row{display:grid; grid-template-columns:92px 1fr; align-items:center; gap:.9rem}
+        .filter-dialog .fd-row label{margin:0; font-size:.88rem; color:#475569}
+        .filter-dialog .fd-row select,.filter-dialog .fd-row input{width:100%; padding:.55rem .7rem;
+            font-size:.88rem; border-radius:10px; border-width:1px; background:#fff}
+        .filter-dialog .fd-foot{display:flex; align-items:center; justify-content:flex-end; gap:1.1rem;
+            padding:.95rem 1.25rem}
+        .filter-dialog .fd-foot a{color:var(--brand); font-weight:600; font-size:.9rem; text-decoration:none}
+        .filter-dialog .fd-foot a:hover{text-decoration:underline}
+        @media(max-width:480px){
+            .filter-dialog .fd-row{grid-template-columns:1fr; gap:.3rem}
+            .filter-dialog .fd-row label{font-size:.8rem; font-weight:600}
+        }
+        .filter-chips{display:flex; gap:.45rem; flex-wrap:wrap; align-items:center;
+            margin:-.35rem 0 1.15rem; font-size:.8rem; color:var(--muted)}
+        .filter-chip{display:inline-flex; align-items:center; gap:.4rem; font-weight:600;
+            background:var(--brand-50); color:var(--brand-600); border:1px solid #dde4fb;
+            border-radius:999px; padding:.24rem .5rem .24rem .68rem}
+        .filter-chip a{color:inherit; text-decoration:none; opacity:.6; line-height:1; font-size:1rem}
+        .filter-chip a:hover{opacity:1}
+        @media(max-width:640px){
+            .filters .search{flex:1 1 100%}
+            .filters select{flex:1 1 calc(50% - .25rem)}
+        }
+
         .table{width:100%; border-collapse:separate; border-spacing:0; margin-top:1rem;
             border:1px solid var(--line); border-radius:14px; overflow:hidden}
         .table th{background:#f7f9fd; padding:.85rem 1rem; text-align:left; font-size:.78rem;

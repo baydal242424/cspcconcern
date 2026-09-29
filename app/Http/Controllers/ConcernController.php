@@ -172,20 +172,95 @@ class ConcernController extends Controller
         // clogged. A "Show resolved" toggle (?show_resolved=1) brings them back.
         $showResolved = $request->boolean('show_resolved');
 
+        // Filters. Every one of these is read from the query string and
+        // whitelisted against the model's own constants: an unknown value is
+        // dropped rather than passed to the query, so a hand-edited URL cannot
+        // filter on a column that does not exist or error the page.
+        //
+        // They are applied AFTER visibleTo(), which is the whole safety
+        // property -- a filter can only ever narrow what a role may already
+        // see, never reach past it. "Show me Harassment" from an Instructor
+        // returns their own visible rows, not the Guidance Office's.
+        $filters = [
+            'category' => in_array($request->query('category'), Concern::CATEGORIES, true)
+                ? $request->query('category')
+                : null,
+            'status' => array_key_exists($request->query('status'), Concern::STATUS_LABELS)
+                ? $request->query('status')
+                : null,
+            'urgency' => in_array($request->query('urgency'), ['Low', 'Medium', 'High', 'Critical'], true)
+                ? $request->query('urgency')
+                : null,
+            'from' => $this->parseFilterDate($request->query('from')),
+            'to' => $this->parseFilterDate($request->query('to')),
+            'q' => trim((string) $request->query('q')) !== '' ? trim((string) $request->query('q')) : null,
+            'sort' => $request->query('sort') === 'oldest' ? 'oldest' : 'newest',
+        ];
+
+        // Asking for a finished status IS asking to see finished concerns, so
+        // the hide-resolved default must stand aside. Without this, filtering
+        // to "Resolved" returned an empty list and looked like a bug.
+        $statusIsTerminal = $filters['status'] !== null
+            && in_array($filters['status'], Concern::TERMINAL_STATUSES, true);
+
         $concerns = Concern::visibleTo($user)
-            ->when(! $showResolved, function ($q) {
+            ->when(! $showResolved && ! $statusIsTerminal, function ($q) {
                 // Hides finished cases of BOTH kinds -- resolved and closed
                 // without action. A closed concern is just as done as a
                 // resolved one, so leaving it in the active list would keep
                 // dead cases in front of staff forever.
                 $q->whereNotIn('status', Concern::TERMINAL_STATUSES);
             })
+            ->when($filters['category'], fn ($q, $category) => $q->where('category', $category))
+            ->when($filters['status'], fn ($q, $status) => $q->where('status', $status))
+            ->when($filters['urgency'], fn ($q, $urgency) => $q->where('urgency', $urgency))
+            ->when($filters['from'], fn ($q, $from) => $q->where('created_at', '>=', $from->startOfDay()))
+            ->when($filters['to'], fn ($q, $to) => $q->where('created_at', '<=', $to->endOfDay()))
+            ->when($filters['q'], function ($q, $term) {
+                // A concern number or words from the description. Grouped so
+                // the OR cannot escape the visibility and filter clauses
+                // around it -- ungrouped, "or id = 4" would have returned
+                // concern #4 to anybody who typed it.
+                $q->where(function ($sub) use ($term) {
+                    $sub->where('description', 'like', '%'.$term.'%');
+
+                    if (is_numeric($digits = ltrim($term, '#'))) {
+                        $sub->orWhere('id', (int) $digits);
+                    }
+                });
+            })
             ->with('user', 'assignedUser')
-            ->latest()
+            ->orderBy('created_at', $filters['sort'] === 'oldest' ? 'asc' : 'desc')
             ->paginate(10)
             ->withQueryString();
 
-        return view('concerns.index', compact('concerns', 'showResolved'));
+        $activeFilterCount = count(array_filter([
+            $filters['category'], $filters['status'], $filters['urgency'],
+            $filters['from'], $filters['to'], $filters['q'],
+        ]));
+
+        return view('concerns.index', compact('concerns', 'showResolved', 'filters', 'activeFilterCount'));
+    }
+
+    /**
+     * A date from the filter bar, or null.
+     *
+     * Anything unparseable is dropped rather than thrown: the date inputs are
+     * <input type="date">, but a typed or shared URL can carry anything, and a
+     * concern list is not the place to show a validation error over a query
+     * string the reader did not write.
+     */
+    private function parseFilterDate(?string $value): ?\Illuminate\Support\Carbon
+    {
+        if (blank($value)) {
+            return null;
+        }
+
+        try {
+            return \Illuminate\Support\Carbon::parse($value);
+        } catch (\Exception $e) {
+            return null;
+        }
     }
 
     /**
