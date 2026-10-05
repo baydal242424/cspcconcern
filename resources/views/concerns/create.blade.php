@@ -539,9 +539,13 @@
                 // -- the concern still goes to the chair, and a name has been
                 // attached to a case it has nothing to do with.
                 //
-                // Facilities and Equipment reach the General Services Unit,
-                // so its people are the ones involved. Others has no fixed
-                // handler, so it offers everybody.
+                // Others has no fixed handler, so it offers everybody.
+                //
+                // Facilities and Equipment have no entry because they can no
+                // longer name anybody at all -- see NAMEABLE below. They used
+                // to offer the General Services staff, the Dean and the Staff
+                // Admin, which put the people who FIX the thing on a list
+                // headed "this concern is about a particular person".
                 const NAMEABLE_ROLES = {
                     'Academic': ['Program Chair', 'Dean', 'Vice President for Academic Affairs'],
                     // Physical and Safety reach the class adviser too, so a
@@ -549,8 +553,6 @@
                     // the chair of their programme, their dean, the VPAA.
                     'Physical': ['Program Chair', 'Dean', 'Vice President for Academic Affairs'],
                     'Safety': ['Program Chair', 'Dean', 'Vice President for Academic Affairs'],
-                    'Facilities': ['General Services', 'Dean', 'Staff Admin'],
-                    'Equipment': ['General Services', 'Dean', 'Staff Admin'],
                 };
 
                 // The student's own college, whose people stay offered
@@ -621,7 +623,19 @@
                     // one. The adviser bypass below follows its own rule --
                     // Physical and Safety still reach the class adviser, so
                     // the student can still ask for somebody else.
-                    const NAMEABLE = ['Academic', 'Physical', 'Safety', 'Facilities', 'Equipment', 'Others'];
+                    //
+                    // Facilities and Equipment are deliberately absent. They
+                    // describe a thing that is broken, not somebody's
+                    // conduct, and naming a subject is not a small act: it
+                    // walls that person out of the case and routes it over
+                    // their head. Offered under a broken chair, it invites a
+                    // report against whoever last answered about the chair.
+                    //
+                    // A complaint about how an office TREATED somebody is a
+                    // different thing, and still has a home: it is about
+                    // conduct, so it goes under a category that still offers
+                    // the box rather than under the broken item.
+                    const NAMEABLE = ['Academic', 'Physical', 'Safety', 'Others'];
 
                     // Who can be named, per category. An Academic concern
                     // climbs one ladder -- the chair of the student's

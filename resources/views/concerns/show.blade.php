@@ -213,6 +213,19 @@
                     </dd>
                 @endif
 
+                {{-- When the desk holding it received it, which is not the
+                     filing date once a case has moved: a concern filed a
+                     fortnight ago may have reached its present handler an
+                     hour ago, and "how long have you had this" is the
+                     question that matters to whoever is waiting. --}}
+                @if ($concern->assignedUser)
+                    <dt>Received</dt>
+                    <dd>
+                        {{ $concern->receivedAt()->local()->format('M d, Y · g:i A') }}
+                        <span style="color:var(--muted);">({{ $concern->receivedAt()->diffForHumans() }})</span>
+                    </dd>
+                @endif
+
                 @if ($concern->resolved_at)
                     <dt>Resolved</dt>
                     <dd>{{ $concern->resolved_at->local()->format('M d, Y · g:i A') }}</dd>

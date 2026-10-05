@@ -429,6 +429,30 @@ class Concern extends Model
     }
 
     /**
+     * When the desk now holding this concern received it.
+     *
+     * Derived rather than stored: there is no assigned_at column, and the
+     * audit log already records every hand-off with the time it happened.
+     * The most recent one is when the present holder got it; with no
+     * hand-off at all, they have had it since it was filed.
+     *
+     * This is the question "how long has this been sitting with you" asks,
+     * and it is not the same as the filing date once a case has moved -- a
+     * concern filed a fortnight ago may have reached its current handler an
+     * hour ago.
+     */
+    public function receivedAt()
+    {
+        $handover = $this->auditLogs
+            ->where('action', 'status_updated')
+            ->filter(fn (AuditLog $log) => str_starts_with((string) $log->description, 'Referred to'))
+            ->sortByDesc('id')
+            ->first();
+
+        return $handover ? $handover->created_at : $this->created_at;
+    }
+
+    /**
      * The activity timeline, as this viewer is allowed to read it.
      *
      * Staff see the audit log in full: every hand-off, every name, every note

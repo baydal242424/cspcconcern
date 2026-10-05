@@ -204,7 +204,10 @@ class TheAcademicLadderTest extends TestCase
 
         $page = $this->actingAs($student)->get('/concerns/create')->assertOk();
 
-        $page->assertSee("const NAMEABLE = ['Academic', 'Physical', 'Safety', 'Facilities', 'Equipment', 'Others']", false)
+        // Facilities and Equipment were dropped: they describe a thing
+        // that is broken, not somebody's conduct, so there is nobody for a
+        // student to name under either.
+        $page->assertSee("const NAMEABLE = ['Academic', 'Physical', 'Safety', 'Others']", false)
             ->assertSee("'Physical': ['Program Chair', 'Dean', 'Vice President for Academic Affairs']", false)
             ->assertSee("'Safety': ['Program Chair', 'Dean', 'Vice President for Academic Affairs']", false);
 
