@@ -254,13 +254,36 @@
                                 <optgroup label="{{ $roleName }}">
                                     @foreach ($people as $person)
                                         @php
-                                            // A student is told apart by their CLASS, not their
-                                            // college -- six hundred of them share the college, and
-                                            // the class is what decides which adviser their concern
-                                            // reaches. Staff have no class, so they keep the office.
-                                            $detail = $person->course && $person->section
-                                                ? $person->course.' '.$person->section
-                                                : $person->department;
+                                            // What tells this person apart from the others in
+                                            // their own lane.
+                                            //
+                                            // A student: their CLASS. Six hundred of them share a
+                                            // college, and the class is what decides which adviser
+                                            // their concern reaches.
+                                            //
+                                            // Somebody who holds a PROGRAMME but no class -- a
+                                            // Program Chair: the programme, then the college.
+                                            // Computer Studies has four chairs, and showing the
+                                            // college alone made all four read identically, so
+                                            // picking the chair of Information Technology meant
+                                            // opening them one at a time to find out which was
+                                            // which.
+                                            //
+                                            // Everybody else: the office they work in.
+                                            $detail = match (true) {
+                                                (bool) ($person->course && $person->section)
+                                                    => $person->course.' '.$person->section,
+                                                // The programme is dropped when the name already
+                                                // carries it: an office account called "BS Architecture
+                                                // Program Chair" does not need "— BS Architecture"
+                                                // after it. Same rule the concern page uses.
+                                                (bool) $person->course
+                                                    => implode(' · ', array_filter([
+                                                        str_contains($person->name, $person->course) ? null : $person->course,
+                                                        $person->department,
+                                                    ])),
+                                                default => $person->department,
+                                            };
                                         @endphp
                                         <option value="{{ $person->id }}">
                                             {{ $person->name }}@if ($detail) — {{ $detail }}@endif
