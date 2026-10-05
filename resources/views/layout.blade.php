@@ -108,6 +108,22 @@
             width:340px; max-width:calc(100vw - 2rem);
             background:var(--surface); border:1px solid var(--line); border-radius:14px;
             box-shadow:0 18px 44px -12px rgba(16,30,66,.34); overflow:hidden}
+
+        /* On a narrow screen the panel spans the bar rather than hanging off
+           the bell. Anchored to the icon it grew leftward from wherever that
+           icon happened to sit, so on a phone its left edge fell off the
+           screen -- the width was capped, the position was not. */
+        @media (max-width:560px){
+            /* Anchored to the whole nav row instead of to the icon, so it
+               spans the screen under the bar wherever the icon sits.
+               position:fixed was the obvious alternative and the wrong one:
+               the navbar wraps on a phone, so there is no height to pin a
+               top offset to. */
+            .navbar-nav{position:relative}
+            .navbar-nav .bell-wrap{position:static}
+            .navbar-nav .bell-panel{left:0; right:0; width:auto; max-width:none}
+            .navbar-nav .bell-list{max-height:min(60vh, 420px)}
+        }
         .navbar-nav .bell-head{display:flex; align-items:center; justify-content:space-between; gap:.5rem;
             padding:.8rem 1rem; border-bottom:1px solid var(--line); background:#f7f9fd; color:var(--ink)}
         .navbar-nav .bell-head strong{font-size:.9rem; color:var(--navy-900)}
@@ -288,6 +304,22 @@
         .detail-list dt{color:var(--muted); font-size:.88rem; font-weight:600; white-space:nowrap}
         .detail-list dd{margin:0; font-size:.93rem}
 
+        /* Stacked on a phone. Two columns need a label column wide enough for
+           the longest label, and these labels do not wrap -- "Being handled
+           by" and "Concern is about" set the width, leaving a name, a role
+           and a college to wrap in whatever is left of a 360px screen.
+
+           No real names in here: this stylesheet is inlined into every page,
+           so an example person would be served on all of them -- which is
+           how a test asserting a staff member is absent from the filing form
+           caught this comment. */
+        @media (max-width:560px){
+            .detail-list{grid-template-columns:1fr; gap:0}
+            .detail-list dt{white-space:normal; margin-top:.7rem}
+            .detail-list dt:first-of-type{margin-top:0}
+            .detail-list dd{font-size:.95rem; line-height:1.45}
+        }
+
         .pagination{display:inline-flex; gap:.3rem; list-style:none; padding:0; margin:0}
         .pagination .page-link{display:inline-flex; align-items:center; justify-content:center;
             min-width:2.2rem; padding:.45rem .65rem; border:1px solid var(--line); border-radius:9px;
@@ -365,12 +397,31 @@
             .footer-sep{display:block; visibility:hidden; height:.35rem}
         }
 
+        /* Tablets, portrait and landscape. The gap between the phone rules
+           and the desktop ones was the whole iPad range, which got the full
+           bar -- longest brand string, widest padding -- on a screen narrower
+           than the layout was drawn for. */
+        @media (min-width:769px) and (max-width:1024px){
+            .navbar{padding:.75rem 1.1rem}
+            .navbar-brand{font-size:1rem}
+            .navbar-nav{gap:.25rem}
+            .navbar-nav a{padding:.45rem .7rem}
+            .container{padding:0 1rem; margin:1.75rem auto}
+            .grid-2{gap:1.25rem}
+            .card{padding:1.6rem}
+        }
+
         @media (max-width:768px){
             .grid-2{grid-template-columns:1fr; gap:1rem}
             .navbar{padding:.7rem 1rem; flex-wrap:wrap; gap:.5rem}
             .navbar-brand{font-size:.95rem}
             .navbar-nav{gap:.15rem; flex-wrap:wrap}
-            .navbar-nav span{display:none}
+            /* The DIRECT child only: that is the signed-in user's name, the
+               longest item in the bar and the first thing worth dropping.
+               As a descendant selector this also hid every span inside the
+               notification panel -- each row rendered as a bare dot with no
+               title, message or time, on every phone and small tablet. */
+            .navbar-nav > span{display:none}
             .card{padding:1.4rem}
             .container{margin:1.4rem auto}
             .table th,.table td{padding:.6rem .7rem; font-size:.82rem; white-space:nowrap}

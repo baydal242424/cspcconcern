@@ -216,9 +216,17 @@
                 {{-- When the desk holding it received it, which is not the
                      filing date once a case has moved: a concern filed a
                      fortnight ago may have reached its present handler an
-                     hour ago, and "how long have you had this" is the
-                     question that matters to whoever is waiting. --}}
-                @if ($concern->assignedUser)
+                     hour ago.
+
+                     For the person holding it, and nobody else. "How long
+                     have you had this" is a question about one desk, so it is
+                     answered on that desk's screen. On the reporter's page it
+                     sat directly under the handler's name, which made the
+                     pair read as a record of the hand-off they are not shown;
+                     for a dean or an admin looking in, it is a timestamp
+                     about somebody else's work. What the reporter gets is
+                     Waiting, below: how long since THEY filed it. --}}
+                @if ($concern->assignedUser && Auth::id() === $concern->assigned_to)
                     <dt>Received</dt>
                     <dd>
                         {{ $concern->receivedAt()->local()->format('M d, Y · g:i A') }}
@@ -246,7 +254,12 @@
                     <dd>{{ $concern->created_at->diffForHumans($finishedAt, true) }}</dd>
                 @else
                     <dt>Waiting</dt>
-                    <dd>{{ $concern->created_at->diffForHumans(null, true) }}</dd>
+                    {{-- Floored to a minute. A concern opened straight after
+                         filing read "3 seconds", which looks like a stopwatch
+                         rather than a queue and told nobody anything. --}}
+                    <dd>{{ $concern->created_at->diffInSeconds() < 60
+                            ? 'Less than a minute'
+                            : $concern->created_at->diffForHumans(null, true) }}</dd>
                 @endif
 
                 <dt>Total updates</dt>
@@ -507,7 +520,13 @@
                         <option value="submitted" {{ $concern->status === 'submitted' ? 'selected' : '' }}>Submitted</option>
                         <option value="in_progress" {{ $concern->status === 'in_progress' ? 'selected' : '' }}>In Progress</option>
                         <option value="resolved" {{ $concern->status === 'resolved' ? 'selected' : '' }}>Resolved</option>
-                        <option value="referred" {{ $concern->status === 'referred' ? 'selected' : '' }}>Referred</option>
+                        {{-- "Refer", not "Referred". This list is a set of
+                             actions to take, and the other entries read that
+                             way; the past tense made it look like a state the
+                             concern was already in rather than the thing the
+                             handler is about to do. The stored value and the
+                             status label elsewhere are unchanged. --}}
+                        <option value="referred" {{ $concern->status === 'referred' ? 'selected' : '' }}>Refer</option>
                         <option value="closed_no_action" {{ $concern->status === 'closed_no_action' ? 'selected' : '' }}>Closed — no action needed</option>
                     </select>
                 </div>

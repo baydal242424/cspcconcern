@@ -118,19 +118,48 @@ class WhenTheHandlerReceivedItTest extends TestCase
         fwrite(STDERR, "  [received] the most recent hand-off is the one that counts\n");
     }
 
-    /** It is on the page, for staff and for the person who filed it. */
-    public function test_both_sides_are_shown_when_it_was_received(): void
+    /**
+     * Shown to the desk holding it, and to nobody else.
+     *
+     * "How long have you had this" is a question about one desk. On the
+     * reporter's page it sat directly under the handler's name and read as a
+     * record of the hand-off they are deliberately not shown; to a dean or an
+     * administrator looking in, it is a timestamp about somebody else's work.
+     */
+    public function test_only_the_person_holding_it_sees_when_it_arrived(): void
     {
         $concern = $this->aConcern();
 
+        // The person holding it.
         $this->actingAs($this->u('staff@cspc.edu.ph'))
             ->get("/concerns/{$concern->id}")->assertOk()->assertSee('Received');
 
+        // The person who filed it.
         $this->flushSession();
+        $this->actingAs($this->u('student@my.cspc.edu.ph'))
+            ->get("/concerns/{$concern->id}")->assertOk()->assertDontSee('Received');
+
+        // Somebody who may read the case but is not working it. The category
+        // is what lets an administrator open this one at all.
+        $concern->forceFill(['category' => 'Administrative'])->save();
+
+        $this->flushSession();
+        $this->actingAs($this->u('admin@cspc.edu.ph'))
+            ->get("/concerns/{$concern->id}")->assertOk()->assertDontSee('Received');
+
+        fwrite(STDERR, "  [received] only the desk holding it sees when it arrived\n");
+    }
+
+    /** A fresh concern does not report its age in seconds. */
+    public function test_waiting_is_not_a_stopwatch(): void
+    {
+        $concern = $this->aConcern();
 
         $this->actingAs($this->u('student@my.cspc.edu.ph'))
-            ->get("/concerns/{$concern->id}")->assertOk()->assertSee('Received');
+            ->get("/concerns/{$concern->id}")->assertOk()
+            ->assertSee('Less than a minute')
+            ->assertDontSee('seconds');
 
-        fwrite(STDERR, "  [received] shown to staff and to the reporter\n");
+        fwrite(STDERR, "  [received] a fresh concern says 'Less than a minute'\n");
     }
 }
