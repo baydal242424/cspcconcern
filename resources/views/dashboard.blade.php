@@ -95,7 +95,14 @@
             <div>
                 <div style="font-size:1.8rem; font-weight:700; color:{{ $unassignedOpen > 0 ? '#b42318' : 'inherit' }};">{{ $unassignedOpen }}</div>
                 <div style="font-size:0.85rem; font-weight:600;">Unassigned concerns</div>
-                <p style="color:#94a3b8; font-size:0.78rem; margin:0;">Nobody can see these but the student who filed them.</p>
+                {{-- This used to say "nobody can see these but the student who
+                     filed them", which is not true: every office has a standing
+                     view of its own categories, so an unassigned concern is
+                     still on somebody's screen. What it has not got is an
+                     owner -- routing found nobody to hand it to, which happens
+                     when the role that should take it has no holder, or the
+                     only holder is the person the concern is about. --}}
+                <p style="color:#94a3b8; font-size:0.78rem; margin:0;">Routing found nobody to hand these to. Usually a role with no holder — fix it in Manage Users.</p>
             </div>
             <div>
                 <div style="font-size:1.8rem; font-weight:700; color:{{ $pendingRoleRequests > 0 ? '#8a5a00' : 'inherit' }};">{{ $pendingRoleRequests }}</div>
@@ -107,11 +114,7 @@
                 <div style="font-size:0.85rem; font-weight:600;">Classes with no adviser</div>
                 <p style="color:#94a3b8; font-size:0.78rem; margin:0;">Of {{ $classesThisTerm }} this term. Their concerns drop to a college instructor.</p>
             </div>
-            <div>
-                <div style="font-size:1.8rem; font-weight:700;">{{ $averageResolutionHours !== null ? $averageResolutionHours.'h' : '—' }}</div>
-                <div style="font-size:0.85rem; font-weight:600;">Average time to resolve</div>
-                <p style="color:#94a3b8; font-size:0.78rem; margin:0;">From filing to resolved, across every resolved concern.</p>
-            </div>
+
         </div>
     </div>
 
@@ -122,24 +125,45 @@
         <p style="color:#94a3b8; font-size:0.8rem; margin-bottom: 1rem;">Concerns that moved on from the office they first reached</p>
 
         <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:1rem; margin-bottom:1.25rem;">
+            {{-- Only the first of these is something a handler DID. The other
+                 two describe how the student filed, and reading them as
+                 actions is what made "Name a staff member: 2" look like two
+                 referrals to staff that nobody had made. --}}
             <div>
                 <div style="font-size:1.8rem; font-weight:700;">{{ $referredOpen }}</div>
-                <div style="font-size:0.85rem; font-weight:600;">Currently referred</div>
+                <div style="font-size:0.85rem; font-weight:600;">Waiting with another office</div>
+                <p style="color:#94a3b8; font-size:0.78rem; margin:0;">Handed on, and not finished yet.</p>
+            </div>
+            {{-- Split in two, because "staff" was wrong for both halves at
+                 once. In this system staff means the deans, chairs,
+                 counsellors and offices in the second picker -- while the
+                 person a student most often names is the teacher who advises
+                 their class. One number for both read as a complaint about a
+                 stranger when it was usually about their own adviser. --}}
+            <div>
+                <div style="font-size:1.8rem; font-weight:700;">{{ $aboutTeacherCount }}</div>
+                <div style="font-size:0.85rem; font-weight:600;">Filed about a teacher</div>
+                <p style="color:#94a3b8; font-size:0.78rem; margin:0;">An instructor or class adviser. Routed above them, to the Program Chair.</p>
             </div>
             <div>
-                <div style="font-size:1.8rem; font-weight:700;">{{ $aboutStaffCount }}</div>
-                <div style="font-size:0.85rem; font-weight:600;">Name a staff member</div>
-                <p style="color:#94a3b8; font-size:0.78rem; margin:0;">Routed above the person named.</p>
+                <div style="font-size:1.8rem; font-weight:700;">{{ $aboutOfficerCount }}</div>
+                <div style="font-size:0.85rem; font-weight:600;">Filed about an officer</div>
+                <p style="color:#94a3b8; font-size:0.78rem; margin:0;">A chair, dean, counsellor or office. Routed above whoever was named.</p>
             </div>
             <div>
                 <div style="font-size:1.8rem; font-weight:700;">{{ $adviserBypassed }}</div>
-                <div style="font-size:0.85rem; font-weight:600;">Adviser skipped by the student</div>
-                <p style="color:#94a3b8; font-size:0.78rem; margin:0;">Went to the Program Chair instead.</p>
+                <div style="font-size:0.85rem; font-weight:600;">Filed past the class adviser</div>
+                <p style="color:#94a3b8; font-size:0.78rem; margin:0;">The student asked to skip them, so it went to the Program Chair.</p>
             </div>
         </div>
 
         @if (count($referralsByOffice) > 0)
-            <p style="font-size:0.8rem; font-weight:600; color:#64748b; margin-bottom:0.5rem;">Referred to</p>
+            {{-- Every concern ever referred, not only those in flight: the
+                 question this answers is "where do our referrals go", which is
+                 about the year rather than about this morning. --}}
+            <p style="font-size:0.8rem; font-weight:600; color:#64748b; margin-bottom:0.5rem;">
+                Where referrals have gone <span style="font-weight:400;">&mdash; all time, including finished ones</span>
+            </p>
             @foreach ($referralsByOffice as $office => $count)
                 <div style="display:flex; justify-content:space-between; padding:0.4rem 0; border-bottom:1px solid #eef1f6;">
                     <span>{{ $office }}</span>
@@ -147,7 +171,7 @@
                 </div>
             @endforeach
         @else
-            <p style="color:#666; margin:0;">Nothing is with another office right now.</p>
+            <p style="color:#666; margin:0;">No concern has been referred to another office yet.</p>
         @endif
     </div>
 
@@ -211,6 +235,112 @@
             </ul>
         </div>
     </div>
+
+
+{{-- ---------------------------------------------------------------------
+     CONCERN TIMELINE
+
+     A fortnight of the queue as a Gantt chart. The tiles above say how many
+     and what kind; this says how LONG, which no count can show: a bar that
+     reaches today from the far left is a case nobody has closed, and it
+     looks like one at a glance.
+
+     The grid is two columns -- a fixed label column and a track. The track
+     is itself a grid of one cell per day, so a bar is placed by column
+     number and span, and the day cells underneath keep the stripes and the
+     today line visible through it.
+
+     Built on the page's own tokens rather than a framework, so it sits in
+     the same visual language as every other card here.
+     --------------------------------------------------------------------- --}}
+@if (!empty($timelineDays) && $timelineRows->isNotEmpty())
+    <div class="tl-card">
+        <div class="tl-head">
+            <div>
+                <h2 class="tl-title">Concern Timeline</h2>
+                <p class="tl-range">
+                    {{ $timelineDays[0]->format('M d') }} &mdash;
+                    {{ $timelineDays[count($timelineDays) - 1]->format('M d, Y') }}
+                </p>
+            </div>
+
+            <ul class="tl-legend">
+                <li><span class="tl-dot tl-c-submitted"></span>Submitted</li>
+                <li><span class="tl-dot tl-c-in_progress"></span>In&nbsp;progress</li>
+                <li><span class="tl-dot tl-c-referred"></span>Referred</li>
+                <li><span class="tl-dot tl-c-resolved"></span>Resolved</li>
+                <li><span class="tl-dot tl-c-today"></span>Today</li>
+            </ul>
+        </div>
+
+        {{-- Scrolls sideways on a narrow screen rather than crushing the
+             columns into illegibility. --}}
+        <div class="tl-scroll">
+            <div class="tl-grid" style="--tl-days: {{ count($timelineDays) }};">
+
+                <div class="tl-corner">Concerns</div>
+
+                <div class="tl-days">
+                    @foreach ($timelineDays as $day)
+                        <div class="tl-day {{ $day->isToday() ? 'is-today' : '' }}">
+                            <span class="tl-dow">{{ strtoupper($day->format('D')) }}</span>
+                            <span class="tl-dom">{{ $day->format('d') }}</span>
+                        </div>
+                    @endforeach
+                </div>
+
+                @foreach ($timelineRows as $row)
+                    @php
+                        $concern = $row['concern'];
+                        $settled = $concern->resolved_at;
+                    @endphp
+
+                    <div class="tl-label">
+                        {{-- Linked only where this administrator can actually open
+                             it. A link that answers 403 is worse than plain text. --}}
+                        @if ($row['canOpen'])
+                            <a href="{{ route('concerns.show', $concern) }}" class="tl-name">
+                                #{{ $concern->id }} &middot; {{ $concern->category_label ?? $concern->category }}
+                            </a>
+                        @else
+                            <span class="tl-name tl-name-plain">
+                                #{{ $concern->id }} &middot; {{ $concern->category_label ?? $concern->category }}
+                            </span>
+                        @endif
+                        <span class="tl-when">
+                            {{ $concern->created_at->local()->format('M d, g:i A') }}
+                            @if ($settled)
+                                &mdash; {{ $settled->local()->format('M d') }}
+                            @endif
+                        </span>
+                    </div>
+
+                    <div class="tl-track">
+                        @foreach ($timelineDays as $day)
+                            <span class="tl-cell {{ $day->isToday() ? 'is-today' : '' }}"></span>
+                        @endforeach
+
+                        <{{ $row['canOpen'] ? 'a' : 'span' }}
+                           @if ($row['canOpen']) href="{{ route('concerns.show', $concern) }}" @endif
+                           class="tl-bar tl-c-{{ $concern->status }}"
+                           style="grid-column: {{ $row['column'] }} / span {{ $row['span'] }};"
+                           title="{{ $concern->status_label }} — filed {{ $concern->created_at->local()->format('M d, Y') }}">
+                            {{-- A one- or two-day bar is narrower than any
+                                 word that would fit it, so the label is left
+                                 off and the colour carries the meaning --
+                                 which is what the legend is for. --}}
+                            @if ($row['span'] >= 3)
+                                <span class="tl-bar-text">{{ $concern->status_label }}</span>
+                            @endif
+                        </{{ $row['canOpen'] ? 'a' : 'span' }}>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+
+        <p class="tl-month">{{ strtoupper($timelineDays[0]->format('M')) }}</p>
+    </div>
+@endif
 
     <div style="margin-top: 2rem;">
         <h2 style="margin-bottom: 1rem;">Recent Concerns</h2>

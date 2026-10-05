@@ -15,7 +15,9 @@ class AggressiveQa2Test extends TestCase {
     public function test_counselor_cannot_hijack_staff_only_concern(): void {
         $staff=$this->u('staff@cspc.edu.ph');
         $c=$this->mk(['assigned_to'=>$staff->id,'category'=>'Academic']); // never referred to counselor
-        $r=$this->actingAs($this->u('counselor@cspc.edu.ph'))->patch("/concerns/{$c->id}",['status'=>'resolved','urgency'=>'Low']);
+        $r=$this->actingAs($this->u('counselor@cspc.edu.ph'))->patch("/concerns/{$c->id}",[
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.','status'=>'resolved','urgency'=>'Low']);
         $c->refresh();
         $this->line("[hijack] counselor resolving staff's non-referred concern -> status '{$c->status}' (want submitted)");
         $this->assertNotEquals('resolved',$c->status);
@@ -78,6 +80,8 @@ class AggressiveQa2Test extends TestCase {
     public function test_student_cannot_mass_assign_protected_fields(): void {
         $c=$this->mk();
         $this->actingAs($this->u('student@my.cspc.edu.ph'))->patch("/concerns/{$c->id}",[
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'category'=>'Academic','department'=>'College of Computer Studies',
             'description'=>'legit edit attempting to smuggle staff fields','is_anonymous'=>0,
             'assigned_to'=>$this->u('admin@cspc.edu.ph')->id, // try to reassign

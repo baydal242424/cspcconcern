@@ -15,7 +15,9 @@ class NullRoleAttackTest extends TestCase {
             fwrite(STDERR,"  [null-role] GET $url -> ".$r->getStatusCode()."\n");
             $this->assertNotEquals(500,$r->getStatusCode(),"500 at $url");
         }
-        $r=$this->actingAs($nr)->patch("/concerns/{$c->id}",['status'=>'resolved','urgency'=>'Low']);
+        $r=$this->actingAs($nr)->patch("/concerns/{$c->id}",[
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.','status'=>'resolved','urgency'=>'Low']);
         fwrite(STDERR,"  [null-role] PATCH update -> ".$r->getStatusCode()."\n");
         $this->assertNotEquals(500,$r->getStatusCode());
     }

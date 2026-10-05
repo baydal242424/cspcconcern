@@ -18,12 +18,16 @@ class RefFixesTest extends TestCase {
             'department'=>'Guidance Office','description'=>'x','urgency'=>'Medium','status'=>'submitted',
             'is_anonymous'=>true,'assigned_to'=>$counselor->id]);
         // counselor refers to Dean
-        $this->actingAs($counselor)->patch("/concerns/{$c->id}",['status'=>'referred','referred_to'=>'Dean','urgency'=>'Medium']);
+        $this->actingAs($counselor)->patch("/concerns/{$c->id}",[
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.','status'=>'referred','referred_to'=>'Dean','urgency'=>'Medium']);
         $c->refresh();
         $this->line("[refer] after refer to Dept Head, assigned_to=".$c->assigned_to." (depthead id=".$depthead->id.")");
         $this->assertEquals($depthead->id,$c->assigned_to,'Ownership must transfer to the Dean');
         // dept head resolves it
-        $r=$this->actingAs($depthead)->patch("/concerns/{$c->id}",['status'=>'resolved','urgency'=>'Medium','resolution_notes'=>'handled']);
+        $r=$this->actingAs($depthead)->patch("/concerns/{$c->id}",[
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.','status'=>'resolved','urgency'=>'Medium','resolution_notes'=>'handled']);
         $c->refresh();
         $this->line("[refer] dept head resolve -> status '{$c->status}' (resp ".$r->getStatusCode().")");
         $this->assertEquals('resolved',$c->status,'Dean must be able to resolve');
@@ -58,7 +62,9 @@ class RefFixesTest extends TestCase {
         $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
             'department'=>'College of Computer Studies','description'=>'x','urgency'=>'Low','status'=>'submitted',
             'is_anonymous'=>false,'assigned_to'=>$staff->id]);
-        $r=$this->actingAs($staff)->patch("/concerns/{$c->id}",['status'=>'referred','referred_to'=>'Dean','urgency'=>'Low']);
+        $r=$this->actingAs($staff)->patch("/concerns/{$c->id}",[
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.','status'=>'referred','referred_to'=>'Dean','urgency'=>'Low']);
         $r->assertSessionHasErrors('referred_to');
         $c->refresh();
         $this->line("[strand] refer to empty role rejected; status still '{$c->status}'");

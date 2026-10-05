@@ -29,6 +29,8 @@ class ReferralFlowTest extends TestCase
 
         // staff refers to Guidance Counselor
         $this->actingAs($staff)->patch("/concerns/{$c->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status'=>'referred','referred_to'=>'Guidance Counselor','urgency'=>'Low',
         ]);
         $c->refresh();
@@ -38,6 +40,8 @@ class ReferralFlowTest extends TestCase
 
         // counselor can now resolve it
         $resp = $this->actingAs($counselor)->patch("/concerns/{$c->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status'=>'resolved','urgency'=>'Low','resolution_notes'=>'handled',
         ]);
         $c->refresh();

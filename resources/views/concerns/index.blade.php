@@ -7,14 +7,29 @@
 @section('title', 'My Concerns')
 
 @section('content')
+
+    @php
+        // Staff read this list as handlers; a student reads their own
+        // reports. The difference decides whether a row may say which
+        // office is holding the case.
+        $viewerIsStaff = Auth::user()->isEmployee();
+    @endphp
 <div class="card">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; gap: 1rem; flex-wrap: wrap;">
         {{-- A student is reading their own file, not a queue of other
              people's. Staff keep "Student Concerns", which is what theirs is. --}}
-        <h1>{{ optional(Auth::user()->role)->name === 'Student' ? 'My Concerns' : 'Student Concerns' }}</h1>
+        <div>
+            <h1>{{ optional(Auth::user()->role)->name === 'Student' ? 'My Concerns' : 'Student Concerns' }}</h1>
+            {{-- Which pile is on screen. The two buttons swap the list rather
+                 than adding to it, so without this line a page showing only
+                 finished cases looks like a page that has lost the rest. --}}
+            <p style="color:#64748b; font-size:0.85rem; margin-top:0.25rem;">
+                {{ $showResolved ? 'Finished — resolved and closed' : 'Active — still being handled' }}
+            </p>
+        </div>
         <div style="display: flex; gap: 0.6rem; align-items: center;">
             @if ($showResolved)
-                <a href="{{ route('concerns.index') }}" class="btn btn-muted">Hide resolved</a>
+                <a href="{{ route('concerns.index') }}" class="btn btn-muted">Show active</a>
             @else
                 <a href="{{ route('concerns.index', ['show_resolved' => 1]) }}" class="btn btn-muted">Show resolved</a>
             @endif
@@ -192,7 +207,10 @@
                             <span class="status-badge status-{{ str_replace(' ', '_', $concern->status) }}">
                                 {{ $concern->status_label }}
                             </span>
-                            @if ($concern->status === 'referred' && $concern->referred_to)
+                            {{-- Staff only: which office is holding a case is
+                                 how they work the queue, and is not the
+                                 reporter's to read. --}}
+                            @if ($viewerIsStaff && $concern->status === 'referred' && $concern->referred_to)
                                 <div style="font-size:0.72rem; color:#64748b; margin-top:0.25rem;">→ {{ $concern->referred_to }}</div>
                             @endif
                         </td>
@@ -228,6 +246,15 @@
                     Try a wider date range, or clear the filters to see everything you can read.
                 </p>
                 <a href="{{ route('concerns.index', $showResolved ? ['show_resolved' => 1] : []) }}" class="btn btn-primary">Clear filters</a>
+            {{-- Nothing finished yet is not the same as nothing filed. The two
+                 buttons swap the list, so an empty finished pile must say so
+                 and offer the way back. --}}
+            @elseif ($showResolved)
+                <p style="font-weight: 600; color: var(--navy-900); margin-bottom: 0.35rem;">Nothing has been finished yet.</p>
+                <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 1.25rem;">
+                    Resolved and closed concerns collect here once they are settled.
+                </p>
+                <a href="{{ route('concerns.index') }}" class="btn btn-primary">Show active concerns</a>
             @elseif (optional(Auth::user()->role)->name === 'Student')
                 <p style="font-weight: 600; color: var(--navy-900); margin-bottom: 0.35rem;">You haven't submitted any concerns yet.</p>
                 <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 1.25rem;">

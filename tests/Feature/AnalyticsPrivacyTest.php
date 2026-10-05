@@ -89,6 +89,8 @@ class AnalyticsPrivacyTest extends TestCase
             'department'=>'College of Computer Studies','description'=>'x','urgency'=>null,
             'status'=>'submitted','is_anonymous'=>false,'assigned_to'=>$staff->id]);
         $resp = $this->actingAs($staff)->patch("/concerns/{$c->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status'=>'referred','referred_to'=>'Guidance Counselor','urgency'=>'Low',
         ]);
         $resp->assertRedirect();
@@ -108,6 +110,8 @@ class AnalyticsPrivacyTest extends TestCase
             'department'=>'College of Computer Studies','description'=>'x','urgency'=>null,
             'status'=>'submitted','is_anonymous'=>false,'assigned_to'=>$staff->id]);
         $resp = $this->actingAs($staff)->patch("/concerns/{$c->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status'=>'in_progress','urgency'=>'Medium',
         ]);
         $resp->assertRedirect();

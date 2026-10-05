@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
+use App\Models\Concern;
 use App\Models\Notification;
 use App\Models\Role;
 use App\Models\User;
@@ -10,6 +12,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Laravel\Socialite\Facades\Socialite;
 
@@ -44,6 +47,14 @@ use Laravel\Socialite\Facades\Socialite;
  */
 class AuthController extends Controller
 {
+    /**
+     * Marks the address of a deleted account so it stops colliding.
+     *
+     * Kept readable rather than scrambled: an administrator looking at
+     * the Deleted list should still be able to tell whose row it is.
+     */
+    public const DELETED_EMAIL_PREFIX = 'deleted-';
+
     /**
      * The CSPC domains that may sign in, mapped to the role a brand-new
      * account from that domain starts with.
@@ -132,6 +143,19 @@ class AuthController extends Controller
     }
 
     /**
+     * An account made for trying the system out, rather than a real person.
+     *
+     * Two prefixes, both deliberate and both visible in Manage Users: `demo.`
+     * from the older seeders, `test.` from testing:accounts. Anyone can read
+     * an address and tell which kind of account they are looking at, which is
+     * the point -- routing cannot.
+     */
+    private static function isTestAccount(User $user): bool
+    {
+        return str_starts_with($user->email, 'demo.') || str_starts_with($user->email, 'test.');
+    }
+
+    /**
      * Accounts the demo dropdown may offer, grouped by role.
      *
      * Empty unless demo sign-in is switched on, and never includes anyone who
@@ -153,16 +177,20 @@ class AuthController extends Controller
             ->with('role')
             ->orderBy('name')
             ->get()
-            // Purpose-made demo accounts go in one group of their own, ahead
-            // of everybody. Grouped strictly by role they were unfindable:
-            // "Demo Instructor" sorted into the middle of 367 real
-            // instructors, so the account made for trying the app out was the
-            // hardest one in the list to reach.
-            ->groupBy(fn (User $u) => str_starts_with($u->email, 'demo.')
-                ? 'Demo accounts'
-                : $u->role->name)
+            // Every account sits in its own role's group. They were collected
+            // into one "Test accounts" heading for a while, which put a test
+            // Program Chair under a heading that did not say Program Chair --
+            // so finding one meant reading the whole list instead of going
+            // straight to the lane you wanted.
+            ->groupBy(fn (User $u) => $u->role->name)
             ->sortKeys()
-            ->sortBy(fn ($people, $group) => $group === 'Demo accounts' ? 0 : 1);
+            // Inside a lane, the purpose-made accounts come first. They are
+            // what somebody opening this dropdown is looking for, and by name
+            // alone "TEST ..." sorts to the bottom, behind every real one.
+            ->map(fn ($people) => $people->sortBy(fn (User $u) => [
+                self::isTestAccount($u) ? 0 : 1,
+                $u->name,
+            ])->values());
     }
 
     /**
@@ -228,6 +256,8 @@ class AuthController extends Controller
      */
     private function completeStaffProfile(Request $request, User $user): RedirectResponse
     {
+        $this->reportStudentNumberClash($request, $user);
+
         $requestable = Role::whereIn('name', User::REQUESTABLE_ROLES)->pluck('id')->all();
         $departments = array_merge(array_keys(User::COURSES_BY_COLLEGE), self::UNITS);
 
@@ -237,7 +267,7 @@ class AuthController extends Controller
             // employee often does not know it yet on their first day, and a
             // required field there turned them away from the whole app. An
             // administrator can add it later from Manage Users.
-            'employee_id' => ['nullable', 'string', 'max:50'],
+            'employee_id' => ['nullable', 'string', 'max:50', self::uniqueAmongLiveAccounts('employee_id', $user)],
             'department' => ['required', 'string', Rule::in($departments)],
             // Only a Program Chair covers one programme. Validated against the
             // chosen college so a hand-posted form cannot file a Computer
@@ -254,7 +284,7 @@ class AuthController extends Controller
             // The class they say they advise, if any: a programme, a year and a
             // class letter, all three or none. Checked together below.
             'advises_course' => ['nullable', 'string', Rule::in(User::allCourses())],
-            'advises_year' => ['nullable', 'integer', 'between:1,6'],
+            'advises_year' => ['nullable', 'integer', 'between:1,'.User::longestProgrammeYears()],
             'advises_letter' => ['nullable', 'string', 'regex:/^[A-Za-z]$/'],
         ], [
             'requested_role_id.required' => 'Please choose the role you are asking for.',
@@ -294,6 +324,11 @@ class AuthController extends Controller
             $advisesRequest = $validated['advises_course'].'|'.$validated['advises_year'].strtoupper($validated['advises_letter']);
         }
 
+        // Before the save: the UNIQUE index on users.employee_id still counts
+        // deleted rows even though validation no longer does, so the old
+        // account has to let the number go first.
+        $reclaimed = self::reclaimHistoryFor($user, 'employee_id', $validated['employee_id'] ?? null);
+
         $user->forceFill([
             'employee_id' => $validated['employee_id'] ?? null,
             'department' => $validated['department'],
@@ -329,6 +364,7 @@ class AuthController extends Controller
             'success',
             'Thanks — your details are saved. An administrator has to approve the '
             .optional($asked)->name.' role before you can act on concerns as one.'
+            .$reclaimed
         );
     }
 
@@ -453,7 +489,20 @@ class AuthController extends Controller
         }
 
         $email = $googleUser->getEmail();
-        $user = User::where('email', $email)->first();
+
+        // Deleted accounts are looked up deliberately, because one of them
+        // may be holding this address.
+        $user = User::withTrashed()->where('email', $email)->first();
+
+        if ($user && $user->trashed()) {
+            // Not restored, and not refused either. The deleted account is
+            // finished; the person is not. It gives up the address so the
+            // sign-in below can build them a new one, and keeps everything
+            // they filed until their ID number claims it back.
+            self::releaseIdentityOf($user);
+
+            $user = null;
+        }
 
         if (! $user) {
             $domain = strtolower(substr(strrchr($email, '@'), 1));
@@ -539,6 +588,110 @@ class AuthController extends Controller
      * Google-provisioned account ends up indistinguishable from a
      * self-registered one.
      */
+    /**
+     * Record that this person has read and agreed to the policy.
+     *
+     * The version is stored with the date. A policy that gets rewritten is a
+     * different promise -- the September rewrite dropped an offer of anonymity
+     * the system had stopped keeping -- so an agreement to the old wording is
+     * not an agreement to the new one, and everybody is asked again.
+     *
+     * A student is sent straight to the filing form afterwards, because that
+     * is what they signed in to do and they have just read what happens to
+     * what they write. Staff go to their queue.
+     */
+    public function acceptPolicy(Request $request): RedirectResponse
+    {
+        /** @var User $user */
+        $user = Auth::user();
+
+        $user->forceFill([
+            'policy_accepted_at' => now(),
+            'policy_version' => User::POLICY_VERSION,
+        ])->save();
+
+        AuditLog::create([
+            'user_id' => $user->id,
+            'action' => 'policy_accepted',
+            'description' => 'Accepted the privacy policy, version '.User::POLICY_VERSION,
+            'ip_address' => $request->ip(),
+        ]);
+
+        $isStudent = optional($user->role)->name === 'Student';
+
+        return redirect()
+            ->route($isStudent ? 'concerns.create' : 'concerns.index')
+            ->with('success', $isStudent
+                ? 'Thank you. You can file your concern below.'
+                : 'Thank you for reading the policy.');
+    }
+
+    /**
+     * Tell the administrators when two accounts reach for one student number.
+     *
+     * Also covers the staff number, since the same reasoning applies: the
+     * number is what the college's own records key on, and two accounts
+     * carrying one stops it identifying anybody.
+     *
+     * One open notice per clashing pair. A student pressing submit five times
+     * must not put five identical rows in every administrator's bell, which
+     * would bury the other four students stuck the same way.
+     */
+    private function reportStudentNumberClash(Request $request, User $user): void
+    {
+        foreach (['student_id' => 'student number', 'employee_id' => 'staff number'] as $column => $label) {
+            $submitted = trim((string) $request->input($column));
+
+            if ($submitted === '') {
+                continue;
+            }
+
+            $holder = User::where($column, $submitted)->where('id', '!=', $user->id)->first();
+
+            if (! $holder) {
+                continue;
+            }
+
+            $marker = '['.$column.':'.$submitted.']';
+
+            $alreadyRaised = Notification::where('type', 'id_number_clash')
+                ->where('message', 'like', '%'.$marker.'%')
+                ->where('is_read', false)
+                ->exists();
+
+            if ($alreadyRaised) {
+                continue;
+            }
+
+            $admins = User::whereHas('role', fn ($q) => $q->whereIn('name', ['System Admin', 'Staff Admin']))
+                ->where('status', 'approved')
+                ->get();
+
+            if ($admins->isEmpty()) {
+                Log::warning('Duplicate ID number with no administrator to tell', [
+                    'column' => $column,
+                    'value' => $submitted,
+                    'attempted_by' => $user->id,
+                    'already_held_by' => $holder->id,
+                ]);
+
+                continue;
+            }
+
+            foreach ($admins as $admin) {
+                Notification::create([
+                    'user_id' => $admin->id,
+                    'type' => 'id_number_clash',
+                    'title' => 'Two accounts, one '.$label,
+                    'message' => $user->name.' ('.$user->email.') tried to register the '.$label.' '
+                        .$submitted.', which already belongs to '.$holder->name.' ('.$holder->email.'). '
+                        .'One of the two is wrong, and only you can see both. '.$marker,
+                    'is_read' => false,
+                ]);
+            }
+        }
+    }
+
     public function completeProfile(Request $request)
     {
         /** @var User $user */
@@ -548,8 +701,18 @@ class AuthController extends Controller
             return $this->completeStaffProfile($request, $user);
         }
 
+        // A clash is told to the administrators, not only to the student.
+        //
+        // The student is stopped either way -- a student number identifies one
+        // student, so the second account to claim it is refused. But the
+        // student cannot fix it: either they mistyped, or somebody else did,
+        // and only an administrator can see both accounts and say which. Left
+        // to the error message alone, the student is stuck at a form with no
+        // way forward and nobody knows.
+        $this->reportStudentNumberClash($request, $user);
+
         $validated = $request->validate([
-            'student_id' => 'required|string|max:50',
+            'student_id' => ['required', 'string', 'max:50', self::uniqueAmongLiveAccounts('student_id', $user)],
             'department' => ['required', 'string', Rule::in(array_keys(User::COURSES_BY_COLLEGE))],
             'course' => ['required', 'string', Rule::in(User::allCourses()),
                 function ($attribute, $value, $fail) use ($request) {
@@ -577,18 +740,146 @@ class AuthController extends Controller
             // form could not offer their adviser as the subject of a
             // complaint. The form simply showed one fewer checkbox, with
             // nothing to say why.
-            'section' => ['required', 'string', 'max:12', 'regex:/^[1-6][A-Za-z]$/'],
+            // Two dropdowns rather than one box. A free-text field took "3A",
+            // "3-A", "III-A" and "BSIT 3A" -- all of which a student would
+            // call correct, and only the first of which matches the shape
+            // Section::adviserFor() looks up. A concern from any of the others
+            // found no adviser and quietly fell back to the college.
+            'year' => ['required', 'integer', 'between:1,'.User::longestProgrammeYears()],
+            'section_letter' => ['required', 'string', 'regex:/^[A-Za-z]$/'],
         ], [
-            'section.regex' => 'Use your year and section together, like 3A.',
+            'year.required' => 'Choose your year level.',
+            'section_letter.required' => 'Choose your section.',
+            'section_letter.regex' => 'A section is a single letter, like A.',
         ]);
 
-        if (isset($validated['section'])) {
-            $validated['section'] = strtoupper($validated['section']);
+        // A year the programme does not run to is a class that does not exist,
+        // and a student filed into one has no adviser to reach.
+        $finalYear = User::finalYearFor($validated['course']);
+
+        if ((int) $validated['year'] > $finalYear) {
+            return back()->withInput()->withErrors([
+                'year' => $validated['course'].' runs for '.$finalYear.' years.',
+            ]);
         }
+
+        $validated['section'] = $validated['year'].strtoupper($validated['section_letter']);
+        unset($validated['year'], $validated['section_letter']);
+
+        // Before the save, not after. Validation no longer counts deleted
+        // accounts, but the UNIQUE index on users.student_id still does --
+        // the number is physically occupied until the old row lets go of it,
+        // and writing it here would fail on the constraint.
+        $reclaimed = self::reclaimHistoryFor($user, 'student_id', $validated['student_id']);
 
         $user->update($validated);
 
-        return redirect()->route('concerns.index')->with('success', 'Thanks! Your student details are saved.');
+        return redirect()->route('concerns.index')->with(
+            'success',
+            'Thanks! Your student details are saved.'.$reclaimed
+        );
+    }
+
+    /**
+     * Unique among accounts in use, rather than among all rows.
+     *
+     * Rule::unique queries the table and knows nothing about soft deletes, so
+     * a deleted account went on occupying its ID number. A student coming
+     * back and typing their own number was told it had already been taken --
+     * by an account they could not see and nobody could release. Deleting
+     * somebody therefore locked their student number away for good, which is
+     * the opposite of what a recoverable deletion is for.
+     */
+    public static function uniqueAmongLiveAccounts(string $column, User $user)
+    {
+        return Rule::unique('users', $column)
+            ->ignore($user->id)
+            ->whereNull('deleted_at');
+    }
+
+    /**
+     * A deleted account stops holding the things only one account may hold.
+     *
+     * Email addresses are unique, so the deleted row would otherwise keep
+     * the person out of the system for good -- there is no second CSPC
+     * address to sign up with. The address is parked under a prefix that
+     * cannot collide, rather than cleared, so the row still says plainly
+     * whose it was when an administrator reads it.
+     *
+     * The ID number is left alone here. That one is released at the moment
+     * it is claimed, by reclaimHistoryFor(), which is also when the concerns
+     * attached to it move across.
+     */
+    public static function releaseIdentityOf(User $deleted): void
+    {
+        $parked = self::DELETED_EMAIL_PREFIX.$deleted->id.'-'.$deleted->email;
+
+        $deleted->forceFill([
+            'email' => $parked,
+            // Released too: the new account takes the same Google subject id,
+            // and two rows claiming one identity is a lookup waiting to go
+            // wrong.
+            'google_id' => null,
+        ])->saveQuietly();
+
+        Log::info('Deleted account released its address for a fresh sign-up', [
+            'user_id' => $deleted->id,
+        ]);
+    }
+
+    /**
+     * Give a returning person back what they filed before.
+     *
+     * The ordinary way back is the address: signing in with the same Google
+     * account restores the deleted row and everything on it, and nothing here
+     * is needed. This covers the other way round -- a new account, a new
+     * address, and the same ID number typed into the profile form.
+     *
+     * An ID number is issued to one person, so a deleted account holding this
+     * one is that same person. Their concerns move across to the account they
+     * are actually signed in to, and the old row gives up the number so it
+     * cannot block anybody again. The row itself stays: the audit trail
+     * points at it, and that history should not be rewritten.
+     *
+     * @return string  a sentence for the person, or '' when nothing was found
+     */
+    public static function reclaimHistoryFor(User $user, string $column, ?string $number): string
+    {
+        if (! $number) {
+            return '';
+        }
+
+        $previous = User::onlyTrashed()
+            ->where($column, $number)
+            ->where('id', '!=', $user->id)
+            ->get();
+
+        if ($previous->isEmpty()) {
+            return '';
+        }
+
+        $moved = 0;
+
+        foreach ($previous as $old) {
+            $moved += Concern::where('user_id', $old->id)->update(['user_id' => $user->id]);
+
+            // The number is released, so the husk cannot refuse it to anyone
+            // later -- including this person, if they ever do it again.
+            $old->forceFill([$column => null])->saveQuietly();
+        }
+
+        if ($moved === 0) {
+            return '';
+        }
+
+        Log::info('Concerns reclaimed by ID number after a deletion', [
+            'user_id' => $user->id,
+            'column' => $column,
+            'concerns' => $moved,
+        ]);
+
+        return ' We also found '.$moved.' '.Str::plural('concern', $moved)
+            .' you filed before, and put '.($moved === 1 ? 'it' : 'them').' back on your account.';
     }
 
     /**

@@ -99,6 +99,8 @@ class ProgramChairRoleTest extends TestCase
         $concern = $this->makeConcern(['assigned_to' => $staff->id]);
 
         $this->actingAs($staff)->patch("/concerns/{$concern->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status' => 'referred',
             'referred_to' => 'Program Chair',
             'urgency' => 'Medium',
@@ -123,6 +125,8 @@ class ProgramChairRoleTest extends TestCase
         ]);
 
         $this->actingAs($chair)->patch("/concerns/{$concern->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status' => 'resolved',
             'urgency' => 'Medium',
             'resolution_notes' => 'Spoke with the instructor; grades released.',

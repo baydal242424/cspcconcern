@@ -59,20 +59,27 @@ class AdviserSearchAndScopeTest extends TestCase
         ]);
 
         $admin = User::where('email', 'admin@cspc.edu.ph')->firstOrFail();
-        $html = $this->actingAs($admin)->get('/admin/users')->assertOk()->getContent();
 
-        preg_match_all('/data-search="([^"]*)"/', $html, $matches);
-        $haystacks = collect($matches[1]);
+        // Searching happens in the database now -- the roster is paged, so the
+        // person being looked for is usually not on the page in front of you.
+        $found = function (string $term) use ($admin) {
+            return $this->actingAs($admin)
+                ->get('/admin/users?q='.urlencode($term))
+                ->assertOk()
+                ->viewData('users')
+                ->pluck('email');
+        };
 
-        $this->assertTrue(
-            $haystacks->contains(fn ($h) => str_contains($h, 'advises.bsis@')
-                && str_contains($h, 'class adviser')
-                && str_contains($h, 'bs information systems 4a')),
-            'the adviser is findable by "adviser" and by their class'
-        );
+        foreach (['adviser', 'BS Information Systems 4A', '4A'] as $term) {
+            $this->assertTrue(
+                $found($term)->contains('advises.bsis@cspc.edu.ph'),
+                "the adviser should be findable by \"{$term}\""
+            );
+        }
+
         $this->assertFalse(
-            $haystacks->contains(fn ($h) => str_contains($h, 'advises.nothing@') && str_contains($h, 'class adviser')),
-            'somebody advising nothing is not'
+            $found('adviser')->contains('advises.nothing@cspc.edu.ph'),
+            'somebody advising nothing is not an adviser'
         );
 
         fwrite(STDERR, "  [adviser] search finds advisers by \"adviser\" and by the class they advise\n");

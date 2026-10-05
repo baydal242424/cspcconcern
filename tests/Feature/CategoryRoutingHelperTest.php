@@ -41,6 +41,9 @@ class CategoryRoutingHelperTest extends TestCase
         'Guidance Counselor' => 'Guidance',
         'Staff Admin' => 'Administration',
         'General Services' => 'General Services',
+        // Plain English on purpose: a student reporting a broken page should
+        // not have to know the role is called "System Admin".
+        'System Admin' => 'website',
     ];
 
     public function test_the_form_names_the_office_that_actually_receives_each_category(): void

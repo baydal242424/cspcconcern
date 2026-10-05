@@ -78,7 +78,7 @@ class ANewStudentGetsEmailsTest extends TestCase
             'student_id' => '241000999',
             'department' => 'College of Computer Studies',
             'course' => 'BS Information Technology',
-            'section' => '1A',
+            'year' => 1, 'section_letter' => 'A',
         ])->assertSessionHasNoErrors()->assertRedirect();
 
         // 3. An adviser exists to receive it.
@@ -106,14 +106,18 @@ class ANewStudentGetsEmailsTest extends TestCase
 
         // 5. The handler starts work.
         $this->actingAs($adviser)
-            ->put("/concerns/{$concern->id}", ['status' => 'in_progress'])
+            ->put("/concerns/{$concern->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.','status' => 'in_progress'])
             ->assertRedirect();
 
         Notification::assertSentTo($student, ConcernStatusUpdated::class);
 
         // 6. And again when it is settled.
         $this->actingAs($adviser)
-            ->put("/concerns/{$concern->id}", ['status' => 'resolved'])
+            ->put("/concerns/{$concern->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.','status' => 'resolved'])
             ->assertRedirect();
 
         Notification::assertSentToTimes($student, ConcernStatusUpdated::class, 2);

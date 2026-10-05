@@ -63,6 +63,12 @@ class TemporarySectionAdvisersSeeder extends Seeder
             $instructors = User::whereHas('role', fn ($q) => $q->where('name', 'Instructor'))
                 ->where('department', $college)
                 ->where('status', 'approved')
+                // Never a test fixture. They advise nothing yet, so the
+                // least-loaded rule below picks them FIRST -- which handed
+                // real classes to accounts nobody can sign into, and sent
+                // those students' Academic concerns to a dead end.
+                ->where('email', 'not like', 'test.%')
+                ->where('email', 'not like', 'demo.%')
                 ->orderBy('id')
                 ->get(['id', 'name']);
 

@@ -53,14 +53,14 @@ class QaAuditTest extends TestCase
     {
         // Each category goes to the office that can actually act on it.
         // Facilities goes to General Services, the office that can actually
-        // act on it. Administrative comes back to Admin after the Registrar
-        // role was removed: they triage and refer on rather than resolving.
+        // act on it. Administrative is stored under its old name but now means
+        // a fault in this website, so it goes to the people who run it.
         $expected = [
             'Academic'                 => 'Instructor',
             'Mental Health' => 'Guidance Counselor',
             'Bullying'                 => 'Guidance Counselor',
             'Harassment'               => 'Guidance Counselor',
-            'Administrative'           => 'Staff Admin',
+            'Administrative'           => 'System Admin',
             'Facilities'               => 'General Services',
             'Equipment'                => 'General Services',
             'Physical'                 => 'Instructor',
@@ -126,6 +126,8 @@ class QaAuditTest extends TestCase
     {
         $c = $this->submit(['category'=>'Safety']);
         $this->actingAs($this->u('staff@cspc.edu.ph'))->patch("/concerns/{$c->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status'=>'in_progress','urgency'=>'High',
         ]);
         $this->assertEquals('High', $c->refresh()->urgency);

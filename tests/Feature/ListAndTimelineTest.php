@@ -19,12 +19,16 @@ class ListAndTimelineTest extends TestCase
         $open=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
           'department'=>'College of Computer Studies','description'=>'OPEN','urgency'=>'Low',
           'status'=>'submitted','is_anonymous'=>false,'assigned_to'=>$staff->id]);
-        $this->actingAs($staff)->patch("/concerns/{$open->id}",['status'=>'referred','referred_to'=>'Guidance Counselor','urgency'=>'Low']);
+        $this->actingAs($staff)->patch("/concerns/{$open->id}",[
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.','status'=>'referred','referred_to'=>'Guidance Counselor','urgency'=>'Low']);
 
         $resolved=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
           'department'=>'College of Computer Studies','description'=>'CLOSED','urgency'=>'Low',
           'status'=>'submitted','is_anonymous'=>false,'assigned_to'=>$staff->id]);
-        $this->actingAs($staff)->patch("/concerns/{$resolved->id}",['status'=>'resolved','urgency'=>'Low','resolution_notes'=>'done']);
+        $this->actingAs($staff)->patch("/concerns/{$resolved->id}",[
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.','status'=>'resolved','urgency'=>'Low','resolution_notes'=>'done']);
 
         // default list: resolved hidden
         $def=$this->actingAs($staff)->get('/concerns');
@@ -48,8 +52,12 @@ class ListAndTimelineTest extends TestCase
         $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
           'department'=>'College of Computer Studies','description'=>'x','urgency'=>'Low',
           'status'=>'submitted','is_anonymous'=>false,'assigned_to'=>$staff->id]);
-        $this->actingAs($staff)->patch("/concerns/{$c->id}",['status'=>'referred','referred_to'=>'Guidance Counselor','urgency'=>'Low']);
-        $this->actingAs($counselor)->patch("/concerns/{$c->id}",['status'=>'resolved','urgency'=>'Low','resolution_notes'=>'done']);
+        $this->actingAs($staff)->patch("/concerns/{$c->id}",[
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.','status'=>'referred','referred_to'=>'Guidance Counselor','urgency'=>'Low']);
+        $this->actingAs($counselor)->patch("/concerns/{$c->id}",[
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.','status'=>'resolved','urgency'=>'Low','resolution_notes'=>'done']);
 
         $resp=$this->actingAs($counselor)->get("/concerns/{$c->id}");
         $resp->assertOk();

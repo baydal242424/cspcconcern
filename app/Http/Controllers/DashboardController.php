@@ -29,7 +29,9 @@ class DashboardController extends Controller
 
         // Both administrator tiers. A Staff Admin covering while the System
         // Admin is away needs the same view of the queue.
-        if (! in_array($role, ['System Admin', 'Staff Admin'], true)) {
+        // hasAnyRole, not the primary role alone: somebody who covers
+        // Staff Admin as a second hat opens the same page.
+        if (! $user->hasAnyRole(['System Admin', 'Staff Admin'])) {
             abort(403, 'The dashboard is available to administrator accounts only.');
         }
 
@@ -114,9 +116,14 @@ class DashboardController extends Controller
         // WHAT NEEDS SOMEBODY TODAY
         // ------------------------------------------------------------------
         // The counts above describe what has been filed; these describe what
-        // is stuck. An unassigned open concern is the worst case in the whole
-        // system -- it is visible to nobody but the student who filed it, and
-        // nothing else on this page would show it.
+        // is stuck.
+        //
+        // An unassigned open concern is one routing could not place: the role
+        // that should take it has nobody in it, or the only holder is the
+        // person the concern is about. The office still SEES it -- each one
+        // has a standing view of its own categories -- but nobody owns it, so
+        // nobody is answerable for it and the student has no handler on their
+        // timeline.
         $unassignedOpen = (clone $analyticsBase)
             ->whereNull('assigned_to')
             ->whereNotIn('status', Concern::TERMINAL_STATUSES)
@@ -146,14 +153,33 @@ class DashboardController extends Controller
         // from the referrals table.
         $referredOpen = (clone $analyticsBase)->where('status', 'referred')->count();
 
+        // Every concern that was EVER referred, not only those still in
+        // flight. "How often do Administrative concerns end up with Records?"
+        // is a question about the year, and counting only the ones open right
+        // now answered it with whatever happened to be on a desk this morning.
         $referralsByOffice = (clone $analyticsBase)
-            ->where('status', 'referred')
             ->whereNotNull('referred_to')
             ->select('referred_to', DB::raw('count(*) as count'))
             ->groupBy('referred_to')
             ->orderByDesc('count')
             ->pluck('count', 'referred_to')
             ->all();
+
+        // Split by WHO was named, because an adviser is not "staff" in the
+        // sense this system uses the word: the second picker on the form
+        // offers deans, chairs, counsellors and offices, while the person a
+        // student most often names is the teacher who advises their class.
+        // Counting them as one number read as a stranger's complaint when it
+        // was usually about their own adviser.
+        $teachingRoles = ['Instructor', 'Adviser'];
+
+        $aboutTeacherCount = (clone $analyticsBase)
+            ->whereHas('aboutStaff.role', fn ($q) => $q->whereIn('name', $teachingRoles))
+            ->count();
+
+        $aboutOfficerCount = (clone $analyticsBase)
+            ->whereHas('aboutStaff.role', fn ($q) => $q->whereNotIn('name', $teachingRoles))
+            ->count();
 
         // Concerns that named a member of staff, and concerns where the
         // student asked not to reach their class adviser. Both mean somebody
@@ -162,19 +188,12 @@ class DashboardController extends Controller
         $aboutStaffCount = (clone $analyticsBase)->whereNotNull('about_staff_id')->count();
         $adviserBypassed = (clone $analyticsBase)->where('skip_adviser', true)->count();
 
-        // How long a resolved concern took, start to finish. Averaged in PHP
-        // rather than SQL: the date arithmetic differs between MySQL and the
-        // SQLite the tests run on.
-        $resolvedConcerns = (clone $analyticsBase)
-            ->whereNotNull('resolved_at')
-            ->get(['created_at', 'resolved_at']);
-
-        $averageResolutionHours = $resolvedConcerns->isEmpty()
-            ? null
-            // Absolute: a row whose resolved_at somehow precedes its
-            // created_at would otherwise subtract from the average and show a
-            // negative number of hours on the page.
-            : round($resolvedConcerns->avg(fn ($c) => $c->created_at->diffInMinutes($c->resolved_at, true)) / 60, 1);
+        // There was an average time-to-resolve here. It was removed: an
+        // average over every resolved concern hides the one that matters. Two
+        // cases settled in an hour and one left for three days average out to
+        // something comfortable, and the number gives nobody anything to do.
+        // If a speed figure is wanted later, the useful one is the oldest
+        // concern still waiting -- that names somebody who is waiting now.
 
         // ------------------------------------------------------------------
         // RECENT CONCERNS (per-record access controlled by visibleTo)
@@ -186,8 +205,87 @@ class DashboardController extends Controller
             ->limit(8)
             ->get();
 
+        // ------------------------------------------------------------------
+        // TIMELINE (per-record access controlled by visibleTo)
+        // ------------------------------------------------------------------
+        // A fortnight of the queue as a Gantt chart: one row per concern, a
+        // bar from the day it was filed to the day it was settled, or to
+        // today while it is still open. The numbers above say how much and
+        // what kind; this says how long, which is the thing a list of counts
+        // cannot show -- a bar that reaches today from two weeks ago is a
+        // case nobody has closed, and it looks like one.
+        $timelineStart = now()->copy()->subDays(13)->startOfDay();
+        $timelineEnd = now()->copy()->endOfDay();
+
+        $timelineDays = [];
+
+        for ($day = $timelineStart->copy(); $day <= $timelineEnd; $day->addDay()) {
+            $timelineDays[] = $day->copy();
+        }
+
+        // Institution-wide, like every other panel here and for the same
+        // reason: only the two administrator tiers reach this page, and the
+        // numbers above them already count the whole queue. Scoping this one
+        // to what an administrator may personally OPEN would have left it
+        // permanently empty -- their standing window is the Administrative
+        // category alone, which is why Recent Concerns below shows them
+        // nothing. A row is only made clickable where they can actually open
+        // it; the rest are plain text, so nothing here promises a page that
+        // then refuses them.
+        $timelineRows = Concern::query()
+            // Anything that overlaps the window: filed inside it, or filed
+            // earlier and still running through it.
+            ->where(function ($q) use ($timelineStart) {
+                $q->where('created_at', '>=', $timelineStart)
+                  ->orWhere(function ($open) use ($timelineStart) {
+                      $open->where('created_at', '<', $timelineStart)
+                           ->where(function ($w) use ($timelineStart) {
+                               $w->whereNull('resolved_at')
+                                 ->orWhere('resolved_at', '>=', $timelineStart);
+                           });
+                  });
+            })
+            ->latest('id')
+            ->limit(10)
+            ->get()
+            ->pipe(function ($concerns) use ($user) {
+                // One query for the lot, rather than a visibility check per row.
+                $openable = Concern::query()
+                    ->visibleTo($user)
+                    ->whereIn('id', $concerns->pluck('id'))
+                    ->pluck('id')
+                    ->flip();
+
+                return $concerns->map(fn (Concern $c) => tap($c, function ($row) use ($openable) {
+                    $row->setAttribute('viewer_can_open', $openable->has($row->id));
+                }));
+            })
+            ->map(function (Concern $concern) use ($timelineStart, $timelineDays) {
+                $days = count($timelineDays);
+
+                // Clamped to the window at both ends, so a case that started
+                // before it still shows the part that falls inside.
+                $from = max(0, $timelineStart->diffInDays($concern->created_at, false));
+                $settled = $concern->resolved_at ?: now();
+                $to = min($days - 1, (int) floor($timelineStart->diffInDays($settled, false)));
+
+                $from = (int) floor(min($from, $days - 1));
+                $to = max($from, $to);
+
+                return [
+                    'concern' => $concern,
+                    // 1-based, because CSS grid columns are.
+                    'column' => $from + 1,
+                    'span' => ($to - $from) + 1,
+                    'open' => ! in_array($concern->status, Concern::TERMINAL_STATUSES, true),
+                    'canOpen' => (bool) $concern->getAttribute('viewer_can_open'),
+                ];
+            });
+
         return view('dashboard', compact(
             'role',
+            'timelineDays',
+            'timelineRows',
             'totalConcerns',
             'recentTrendCount',
             'previousTrendCount',
@@ -206,8 +304,9 @@ class DashboardController extends Controller
             'referredOpen',
             'referralsByOffice',
             'aboutStaffCount',
+            'aboutTeacherCount',
+            'aboutOfficerCount',
             'adviserBypassed',
-            'averageResolutionHours',
             'recentConcerns'
         ));
     }

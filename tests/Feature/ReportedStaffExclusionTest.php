@@ -24,7 +24,9 @@ class ReportedStaffExclusionTest extends TestCase {
         $this->line("[coi] reported staff opens concern -> ".$r->getStatusCode()." (want 403)");
         $r->assertForbidden();
         // and cannot update it
-        $r2=$this->actingAs($staff)->patch("/concerns/{$c->id}",['status'=>'resolved','urgency'=>'Low']);
+        $r2=$this->actingAs($staff)->patch("/concerns/{$c->id}",[
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.','status'=>'resolved','urgency'=>'Low']);
         $c->refresh();
         $this->line("[coi] reported staff update -> status still '{$c->status}'");
         $this->assertNotEquals('resolved',$c->status);

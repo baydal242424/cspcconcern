@@ -93,15 +93,52 @@
                  nothing on screen said why. Stale is still survivable: a
                  section nobody advises any more falls back to an adviser in
                  the college, then an instructor, then up the chain. --}}
+            @php
+                // Whatever is already stored, split back into its two halves
+                // so the dropdowns open on it rather than on nothing.
+                $current = old('section', Auth::user()->section);
+                $currentYear = $current ? substr($current, 0, 1) : '';
+                $currentClass = $current ? strtoupper(substr($current, 1)) : '';
+
+                // The programme decides how many year levels exist.
+                $currentCourse = old('course', Auth::user()->course);
+            @endphp
             <div class="form-group">
-                <label for="section">Year and section</label>
-                <input type="text" id="section" name="section" maxlength="12" required
-                       value="{{ old('section', Auth::user()->section) }}"
-                       placeholder="e.g. 3A">
+                <label>Year and section</label>
+                <div style="display:flex; gap:.75rem;">
+                    <div style="flex:1;">
+                        <label for="year" style="font-size:.82rem; color:#666; font-weight:400;">Year level</label>
+                        {{-- Four years, or five for the one programme that
+                             runs to five. The script below rebuilds this when
+                             the course changes; this is what a student sees
+                             before they have picked one. --}}
+                        <select id="year" name="year" required
+                                data-years="{{ \App\Models\User::longestProgrammeYears() }}">
+                            <option value="">—</option>
+                            @foreach (\App\Models\User::yearLevelsFor($currentCourse ?? null) as $year)
+                                <option value="{{ $year }}" {{ (string) $currentYear === (string) $year ? 'selected' : '' }}>{{ $year }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div style="flex:1;">
+                        <label for="section_letter" style="font-size:.82rem; color:#666; font-weight:400;">Section</label>
+                        <select id="section_letter" name="section_letter" required>
+                            <option value="">—</option>
+                            @foreach (range('A', 'H') as $letter)
+                                <option value="{{ $letter }}" {{ $currentClass === $letter ? 'selected' : '' }}>{{ $letter }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
                 <p style="font-size:.82rem; color:#666; margin-top:.35rem;">
-                    Your year level and section letter together, like <strong>3A</strong>.
-                    We use it to send academic concerns to your own class adviser.
+                    We use these to send academic concerns to your own class adviser.
                 </p>
+                @error('year')
+                    <div style="color:#dc3545; font-size:.85rem; margin-top:.25rem;">{{ $message }}</div>
+                @enderror
+                @error('section_letter')
+                    <div style="color:#dc3545; font-size:.85rem; margin-top:.25rem;">{{ $message }}</div>
+                @enderror
                 @error('section')
                     <div style="color:#dc3545; font-size:.85rem; margin-top:.25rem;">{{ $message }}</div>
                 @enderror
@@ -135,6 +172,43 @@
 
             college.addEventListener('change', function () { syncCourses(true); });
             syncCourses(false);
+
+            // Year levels follow the programme. Every picker used to offer 1
+            // to 6: no programme runs to six, and only Architecture runs to
+            // five, so a student was invited to choose a year they could
+            // never reach and was then refused on submit.
+            //
+            // The options are REBUILT rather than hidden -- hiding an
+            // <option> is not honoured in every browser, and a list that
+            // silently stays whole is worse than not filtering at all.
+            const year = document.getElementById('year');
+            const yearsByCourse = @json(\App\Models\User::YEARS_BY_COURSE);
+
+            function syncYears() {
+                const max = yearsByCourse[course.value] || 4;
+                const chosen = year.value;
+
+                year.textContent = '';
+
+                const blank = document.createElement('option');
+                blank.value = '';
+                blank.textContent = '—';
+                year.appendChild(blank);
+
+                for (let level = 1; level <= max; level++) {
+                    const option = document.createElement('option');
+                    option.value = String(level);
+                    option.textContent = String(level);
+                    year.appendChild(option);
+                }
+
+                // Keep what they picked, unless the new programme is shorter
+                // than the year they had chosen.
+                year.value = Number(chosen) <= max ? chosen : '';
+            }
+
+            course.addEventListener('change', syncYears);
+            syncYears();
         })();
     </script>
 </body>

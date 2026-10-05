@@ -8,12 +8,19 @@
 @section('title', 'Concern Details')
 
 @section('content')
+
+    @php
+        // Staff read the case as handlers; the reporter reads it as the
+        // person it belongs to. The difference decides what the page is
+        // allowed to say about who is holding it.
+        $viewerIsStaff = Auth::user()->isEmployee();
+    @endphp
 <div class="card">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
         <h1>Concern #{{ $concern->id }}</h1>
         <div>
             <span class="status-badge status-{{ str_replace(' ', '_', $concern->status) }}">
-                {{ $concern->status_label }}@if ($concern->status === 'referred' && $concern->referred_to) → {{ $concern->referred_to }}@endif
+                {{ $concern->status_label }}@if ($viewerIsStaff && $concern->status === 'referred' && $concern->referred_to) → {{ $concern->referred_to }}@endif
             </span>
             <span class="urgency-badge urgency-{{ strtolower($concern->urgency ?? 'pending') }}">
                 {{ $concern->urgency ?? 'Pending triage' }}
@@ -163,19 +170,36 @@
                     </dd>
                 @endif
 
-                <dt>Assigned to</dt>
-                <dd>
-                    @if ($concern->assignedUser)
-                        {{ $concern->assignedUser->name }}
-                        <span style="color:var(--muted);">&mdash; {{ $describe($concern->assignedUser) ?: 'no role recorded' }}</span>
-                    @else
-                        Unassigned
-                    @endif
-                </dd>
+                {{-- Who is holding the case is staff business. A reporter who
+                     can read it here can follow their own report around the
+                     college desk by desk, which is exactly what the Activity
+                     Timeline below stopped showing them. --}}
+                @if ($viewerIsStaff)
+                    <dt>Assigned to</dt>
+                    <dd>
+                        @if ($concern->assignedUser)
+                            {{ $concern->assignedUser->name }}
+                            <span style="color:var(--muted);">&mdash; {{ $describe($concern->assignedUser) ?: 'no role recorded' }}</span>
+                        @else
+                            Unassigned
+                        @endif
+                    </dd>
 
-                @if ($concern->status === 'referred' && $concern->referred_to)
-                    <dt>Referred to</dt>
-                    <dd>{{ $concern->referred_to }}</dd>
+                    @if ($concern->status === 'referred' && $concern->referred_to)
+                        <dt>Referred to</dt>
+                        <dd>{{ $concern->referred_to }}</dd>
+                    @endif
+                @else
+                    {{-- The reporter is told their case is with somebody, which
+                         is the part that concerns them. --}}
+                    <dt>Being handled by</dt>
+                    <dd>
+                        @if ($concern->assignedUser)
+                            An office of the college
+                        @else
+                            Not yet assigned
+                        @endif
+                    </dd>
                 @endif
 
                 @if ($concern->resolved_at)
@@ -302,7 +326,8 @@
 
     {{-- Activity timeline: answers "referred to whom / when, resolved when".
          Built from the audit log so it is a faithful history of every action. --}}
-    @if ($concern->auditLogs->count() > 0)
+    @php $timeline = $concern->timelineFor(Auth::user()); @endphp
+    @if ($timeline->isNotEmpty())
         <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
         <div>
             <h2 class="section-title">Activity Timeline</h2>
@@ -316,29 +341,33 @@
                     || (optional(Auth::user()->role)->name === 'Head of School' && $concern->identityIsRevealed());
             @endphp
             <div style="position: relative; padding-left: 1.25rem;">
-                {{-- Sorted by id, not created_at. Submission writes two entries in the same
-                     second (the concern, then its auto-assigned urgency), and sorting
-                     on a timestamp leaves those tied and falling back to insertion
-                     order -- which put the oldest event at the top of a list that is
-                     meant to read newest first. The id is monotonic, so it breaks the
-                     tie the way the clock cannot. --}}
-                @foreach ($concern->auditLogs->sortByDesc('id') as $log)
+                {{-- Entries come from Concern::timelineFor(), which decides what
+                     this viewer may read: staff get the audit log in full, the
+                     reporter gets the state of their own case without the names
+                     of the people holding it. The order is set there too --
+                     sorted by id, not created_at, because submission writes two
+                     entries in the same second and a timestamp leaves those tied,
+                     falling back to insertion order and putting the oldest event
+                     at the top of a list meant to read newest first. --}}
+                @foreach ($timeline as $entry)
+                    @php $log = $entry['log']; @endphp
                     <div style="position: relative; padding-bottom: 1.1rem; border-left: 2px solid #e2e8f0; padding-left: 1.1rem;">
                         <span style="position:absolute; left:-6px; top:2px; width:10px; height:10px; border-radius:50%; background:#2f5bea;"></span>
                         <div style="font-weight:600; color:#1f2733; font-size:0.92rem;">
-                            @php
-                                if ($log->user_id === $concern->user_id && ! $canSeeReporter) {
-                                    $actor = 'Anonymous reporter';
-                                } else {
-                                    $actor = optional($log->user)->name ?? 'System';
-                                }
-                            @endphp
-                            {{-- Audit descriptions store raw status values (e.g. "in_progress");
-                                 swap underscores for spaces so readers see plain English. --}}
-                            {{ $log->description ? str_replace('_', ' ', $log->description) : ucfirst(str_replace('_', ' ', $log->action)) }}
+                            {{ $entry['label'] }}
                         </div>
                         <div style="color:#64748b; font-size:0.82rem; margin-top:0.15rem;">
-                            by {{ $actor }} · {{ $log->created_at->local()->format('M d, Y \a\t g:i A') }}
+                            @if ($entry['showActor'])
+                                @php
+                                    if ($log->user_id === $concern->user_id && ! $canSeeReporter) {
+                                        $actor = 'Anonymous reporter';
+                                    } else {
+                                        $actor = optional($log->user)->name ?? 'System';
+                                    }
+                                @endphp
+                                by {{ $actor }} ·
+                            @endif
+                            {{ $log->created_at->local()->format('M d, Y \a\t g:i A') }}
                             <span style="color:#94a3b8;">({{ $log->created_at->diffForHumans() }})</span>
                         </div>
                     </div>
@@ -481,10 +510,18 @@
                     <label for="referred_to">Refer to</label>
                     <select name="referred_to" id="referred_to">
                         <option value="">-- Select destination --</option>
-                        {{-- Driven by ConcernController::REFERRAL_ROLE_LABELS so the
-                             options offered here and the destinations update()
-                             accepts can never fall out of step. --}}
-                        @foreach (\App\Http\Controllers\ConcernController::REFERRAL_ROLE_LABELS as $roleValue => $roleLabel)
+                        {{-- Only the offices with somebody eligible in them.
+                             The labels still come from
+                             ConcernController::REFERRAL_ROLE_LABELS, so what
+                             is offered and what update() accepts cannot fall
+                             out of step -- this only leaves out the ones that
+                             would be refused anyway.
+
+                             It is why an adviser is not offered "Adviser":
+                             the only person in it is the one doing the
+                             referring, and handing a case back to the role
+                             already holding it is not a hand-off. --}}
+                        @foreach ($referralDestinations as $roleValue => $roleLabel)
                             <option value="{{ $roleValue }}" {{ $concern->referred_to === $roleValue ? 'selected' : '' }}>{{ $roleLabel }}</option>
                         @endforeach
                     </select>
@@ -503,6 +540,12 @@
                      The script below reveals it only for offices that have
                      people, so "Refer to" alone still works on its own. --}}
                 @if ($referralCandidates->isNotEmpty())
+                    {{-- Shown in place of the dropdown when the chosen office
+                         holds exactly one eligible person: the same
+                         information, with nothing to click. --}}
+                    <p id="refer-sole-recipient" hidden
+                       style="color:var(--muted); font-size:.85rem; margin:-0.4rem 0 1rem;"></p>
+
                     <div class="form-group" id="refer-person-group" style="display:none;">
                         <label for="referred_to_user_id">Refer to a specific person <span style="font-weight:400; color:var(--muted);">(optional)</span></label>
                         <select name="referred_to_user_id" id="referred_to_user_id">
@@ -563,6 +606,8 @@
                         // that office has none -- an empty picker is worse than
                         // no picker. Non-matching options are disabled as well
                         // as hidden so a stale selection can never be posted.
+                        var soleOnly = document.getElementById('refer-sole-recipient');
+
                         function syncPeople() {
                             if (!personGroup || !personEl || !officeEl) {
                                 return;
@@ -596,10 +641,44 @@
                                 }
                             });
 
-                            var show = statusEl.value === 'referred' && matches > 0;
+                            var referring = statusEl.value === 'referred';
+
+                            // One person in that office means there is nothing
+                            // to choose: picking them and letting the system
+                            // choose reach the same desk. The dropdown is put
+                            // away and a line says who it is going to instead.
+                            //
+                            // Two or more and it comes back by itself -- this
+                            // counts the options rather than naming any office,
+                            // so adding a second chair or dean is all it takes.
+                            var soleRecipient = referring && matches === 1;
+                            var show = referring && matches > 1;
+
                             personGroup.style.display = show ? 'block' : 'none';
 
+                            if (soleOnly) {
+                                soleOnly.hidden = !soleRecipient;
+
+                                if (soleRecipient) {
+                                    var only = null;
+
+                                    Array.prototype.forEach.call(personEl.options, function (option) {
+                                        if (option.value && !option.hidden) {
+                                            only = option;
+                                        }
+                                    });
+
+                                    soleOnly.textContent = only
+                                        ? 'This goes to ' + only.textContent.trim() + '.'
+                                        : '';
+                                }
+                            }
+
                             if (!show) {
+                                // Cleared either way. With one recipient the
+                                // server picks the same person, and a value
+                                // left in a hidden control is a choice nobody
+                                // made.
                                 personEl.value = '';
                                 return;
                             }
@@ -639,14 +718,29 @@
                     })();
                 </script>
 
+                {{-- Both are required on every save. The browser blocks an
+                     empty one before the request leaves, and the server
+                     checks again -- required is a rule, and a rule enforced
+                     only in the page is a suggestion. --}}
                 <div class="form-group">
-                    <label for="investigation_notes">Investigation Notes</label>
-                    <textarea name="investigation_notes" id="investigation_notes" placeholder="What did you find while looking into this? (visible once saved)">{{ $concern->investigation_notes }}</textarea>
+                    <label for="investigation_notes">Investigation Notes *</label>
+                    <textarea name="investigation_notes" id="investigation_notes" required minlength="3"
+                              placeholder="What did you find while looking into this?">{{ old('investigation_notes', $concern->investigation_notes) }}</textarea>
+                    @error('investigation_notes')
+                        <p style="color: var(--danger-ink); font-size: 0.85rem; margin-top: 0.35rem;">{{ $message }}</p>
+                    @enderror
                 </div>
 
                 <div class="form-group">
-                    <label for="resolution_notes">Resolution Notes</label>
-                    <textarea name="resolution_notes" id="resolution_notes" placeholder="Add any notes about this concern...">{{ $concern->resolution_notes }}</textarea>
+                    <label for="resolution_notes">Resolution Notes *</label>
+                    <textarea name="resolution_notes" id="resolution_notes" required minlength="3"
+                              placeholder="What is being done about this?">{{ old('resolution_notes', $concern->resolution_notes) }}</textarea>
+                    @error('resolution_notes')
+                        <p style="color: var(--danger-ink); font-size: 0.85rem; margin-top: 0.35rem;">{{ $message }}</p>
+                    @enderror
+                    <p style="color: var(--muted); font-size: 0.82rem; margin-top: 0.35rem;">
+                        The student reads both of these.
+                    </p>
                 </div>
 
                 <button type="submit" class="btn btn-success">Update Concern</button>

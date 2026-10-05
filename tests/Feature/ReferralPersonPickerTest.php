@@ -64,6 +64,87 @@ class ReferralPersonPickerTest extends TestCase
         fwrite(STDERR, "  [picker] rendered with named colleagues: YES\n");
     }
 
+    /**
+     * A destination with nobody in it is not offered.
+     *
+     * The list used to be every destination, whoever was looking. An adviser
+     * was offered "Adviser", which hands the case back to the role already
+     * holding it; and an office with nobody eligible was offered too, where
+     * choosing it earned "There is currently no X available to receive this
+     * referral" -- a dead end found only after submitting.
+     */
+    public function test_a_destination_with_nobody_in_it_is_not_offered(): void
+    {
+        $adviser = User::create([
+            'name' => 'The Only Adviser',
+            'email' => 'only.adviser@cspc.edu.ph',
+            'password' => \Illuminate\Support\Facades\Hash::make('not-used'),
+            'role_id' => \App\Models\Role::where('name', 'Adviser')->firstOrFail()->id,
+            'status' => 'approved',
+            'department' => 'College of Computer Studies',
+        ]);
+
+        $concern = $this->makeConcern(['assigned_to' => $adviser->id]);
+
+        $offered = $this->actingAs($adviser)->get("/concerns/{$concern->id}")->assertOk()
+            ->viewData('referralDestinations');
+
+        $this->assertArrayNotHasKey(
+            'Adviser',
+            $offered->all(),
+            'the only adviser must not be offered the Adviser destination'
+        );
+
+        // Every destination still listed has somebody standing in it.
+        $candidates = $this->actingAs($adviser)->get("/concerns/{$concern->id}")
+            ->viewData('referralCandidates');
+
+        foreach ($offered as $role => $label) {
+            $this->assertTrue(
+                $candidates->has($role) && $candidates->get($role)->isNotEmpty(),
+                "{$role} is offered with nobody in it"
+            );
+        }
+
+        // And the ones that do have somebody are still there.
+        $this->assertArrayHasKey('Guidance Counselor', $offered->all());
+
+        fwrite(STDERR, "  [picker] only destinations with somebody eligible are offered\n");
+    }
+
+    /**
+     * One person in an office means no choice to make.
+     *
+     * A dropdown with one real option asks a question with one answer: picking
+     * them and letting the system choose reach the same desk. The page puts
+     * the control away and names the recipient instead, and brings it back the
+     * moment a second person exists -- it counts the options rather than
+     * naming any office, so adding a second chair is all it takes.
+     *
+     * The counting runs in the browser and was driven there. This pins what
+     * the page has to hand it.
+     */
+    public function test_the_page_can_tell_a_sole_recipient_from_a_choice(): void
+    {
+        $staff = $this->u('staff@cspc.edu.ph');
+        $concern = $this->makeConcern(['assigned_to' => $staff->id]);
+
+        $html = $this->actingAs($staff)->get("/concerns/{$concern->id}")->assertOk()->getContent();
+
+        // The line that replaces the dropdown...
+        $this->assertStringContainsString('id="refer-sole-recipient"', $html);
+
+        // ...and the rule that decides between them.
+        $this->assertStringContainsString('var soleRecipient = referring && matches === 1;', $html);
+        $this->assertStringContainsString('var show = referring && matches > 1;', $html);
+
+        // Every candidate still carries the office it belongs to, which is
+        // what the counting reads.
+        $this->assertStringContainsString('data-role="Guidance Counselor"', $html);
+
+        fwrite(STDERR, "  [picker] the page can tell one recipient from a real choice\n");
+    }
+
     /** No eligible colleague anywhere -> the dropdown is not rendered at all. */
     public function test_picker_is_hidden_when_no_other_staff_exist(): void
     {
@@ -96,6 +177,8 @@ class ReferralPersonPickerTest extends TestCase
         $chosen = $this->u('mkiarasapinoso@cspc.edu.ph');
 
         $resp = $this->actingAs($staff)->patch("/concerns/{$concern->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status' => 'referred',
             'referred_to' => 'Guidance Counselor',
             'referred_to_user_id' => $chosen->id,
@@ -121,6 +204,8 @@ class ReferralPersonPickerTest extends TestCase
         $concern = $this->makeConcern(['assigned_to' => $staff->id]);
 
         $this->actingAs($staff)->patch("/concerns/{$concern->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status' => 'referred',
             'referred_to' => 'Guidance Counselor',
             'referred_to_user_id' => '',
@@ -145,6 +230,8 @@ class ReferralPersonPickerTest extends TestCase
         $student = $this->u('student2@my.cspc.edu.ph');
 
         $this->actingAs($staff)->patch("/concerns/{$concern->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status' => 'referred',
             'referred_to' => 'Guidance Counselor',
             'referred_to_user_id' => $student->id,
@@ -173,6 +260,8 @@ class ReferralPersonPickerTest extends TestCase
         $resp->assertDontSee('value="'.$subject->id.'" data-role=', false);
 
         $this->actingAs($staff)->patch("/concerns/{$concern->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status' => 'referred',
             'referred_to' => 'Guidance Counselor',
             'referred_to_user_id' => $subject->id,

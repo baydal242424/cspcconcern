@@ -14,6 +14,31 @@
         border-radius:10px; font-family:inherit; font-size:.9rem; background:#fcfdff; color:var(--ink)}
     .user-search:focus{outline:none; border-color:var(--brand); box-shadow:0 0 0 4px var(--brand-50)}
     .user-count{color:var(--muted); font-size:.85rem; white-space:nowrap}
+    /* Dropdowns beside the search box. The box alone matched on one string,
+       so "every dean" meant typing "dean" and reading past every account whose
+       college or advised class happened to contain it. These narrow by one
+       field at a time, and combine with whatever is typed. */
+    .user-filter{padding:.55rem .7rem; border:1.5px solid var(--line); border-radius:10px;
+        font-size:.85rem; background:#fff; color:var(--ink); cursor:pointer; max-width:220px}
+    .user-filter:focus{outline:none; border-color:var(--brand); box-shadow:0 0 0 4px var(--brand-50)}
+    .user-filter-clear{color:var(--muted); font-size:.82rem; text-decoration:underline; cursor:pointer;
+        background:none; border:none; padding:0}
+    /* The extra-roles panel: a quiet list of checkboxes under the main
+       role form, so the two are visibly different decisions.
+
+       Each row has to undo two rules it sits inside. .field label shouts in
+       uppercase at .7rem, which is right for a field caption and wrong for a
+       person-readable role name; and .field input stretches every control to
+       width:100%, which turned each checkbox into a full-width bar and left
+       its name floating beside it. */
+    .extra-roles{border-top:1px dashed var(--line); padding-top:.9rem; margin-top:.2rem}
+    .extra-role-list{display:grid; grid-template-columns:repeat(auto-fill,minmax(185px,1fr));
+        gap:.35rem .9rem; margin-top:.35rem}
+    .field .extra-role{display:flex; align-items:center; gap:.5rem; margin:0; cursor:pointer;
+        font-size:.85rem; font-weight:400; letter-spacing:normal; text-transform:none;
+        color:var(--ink); white-space:nowrap}
+    .field .extra-role input{width:auto; flex:0 0 auto; margin:0; padding:0;
+        border:0; box-shadow:none}
 
     .user-list{display:flex; flex-direction:column; gap:.85rem}
 
@@ -123,6 +148,34 @@
     @media (max-width:768px){
         .promote-actions{width:100%}
     }
+    /* ---- Add an account ---- */
+    .add-account{border:1px solid var(--line,#e7ebf1); border-radius:14px;
+        background:#fff; margin-bottom:1.25rem; padding:0 1.1rem}
+    .add-account summary{cursor:pointer; padding:.9rem 0; font-weight:700; color:var(--navy,#0D1B3E);
+        list-style:none; display:flex; align-items:center; gap:.5rem}
+    .add-account summary::-webkit-details-marker{display:none}
+    .add-account summary::before{content:"+"; display:inline-grid; place-items:center;
+        width:20px; height:20px; border-radius:6px; background:#eef2ff; color:#2f5bea;
+        font-weight:800; line-height:1}
+    .add-account[open] summary::before{content:"\2212"}
+    .add-account-note{color:var(--muted,#64748b); font-size:.84rem; line-height:1.5;
+        margin:0 0 .9rem; max-width:70ch}
+    .add-account-errors{background:#fde7ea; border:1px solid #f6c9cf; color:#a31726;
+        border-radius:10px; padding:.75rem .9rem; margin-bottom:.9rem; font-size:.86rem}
+    .add-account-errors ul{margin:.3rem 0 0; padding-left:1.1rem}
+    .add-account-form{display:flex; flex-wrap:wrap; gap:.75rem; padding-bottom:1.1rem}
+    .add-account-form .field{flex:1 1 220px; display:flex; flex-direction:column; gap:.3rem}
+    .add-account-form label{font-size:.76rem; text-transform:uppercase; letter-spacing:.04em;
+        color:var(--muted,#64748b); font-weight:700}
+    .add-account-form input, .add-account-form select{width:100%; padding:.55rem .65rem;
+        border:1.5px solid var(--line,#e7ebf1); border-radius:9px; font-family:inherit;
+        font-size:.88rem; background:#fcfdff; color:inherit}
+    .add-account-form input:focus, .add-account-form select:focus{outline:none;
+        border-color:#2f5bea; box-shadow:0 0 0 4px rgba(47,91,234,.12)}
+    .field-hint{font-size:.74rem; color:var(--muted,#64748b); font-weight:400; text-transform:none;
+        letter-spacing:0}
+    .add-account-submit{flex:1 1 100%; align-items:flex-start; justify-content:flex-end}
+    @media(max-width:640px){.add-account-form .field{flex:1 1 100%}}
 </style>
 
 <div class="card">
@@ -206,15 +259,193 @@
         </div>
     </div>
 
-    @if ($users->isEmpty())
+    {{-- An empty page with a filter on it is not an empty system. Saying "no
+         accounts registered yet" to an admin who just searched for a misspelt
+         name would read as the roster having been wiped, so the toolbar stays
+         on screen and the message below the list explains itself. --}}
+    {{-- Adding an account, which until now could only be done from a terminal
+         with `php artisan user:add`. Folded away by default: the page is for
+         the roster, and this is the occasional job.
+
+         Open on its own when the last attempt failed, so an administrator is
+         never shown an error about a form they cannot see. --}}
+    @php
+        $addFailed = $errors->hasAny(['name', 'email', 'role_id', 'department', 'course', 'year', 'section_letter', 'student_id', 'employee_id']);
+    @endphp
+    <details class="add-account" @if ($addFailed) open @endif>
+        <summary>Add an account</summary>
+
+        <p class="add-account-note">
+            The account is created dormant. It comes alive the first time that person signs in
+            with CSPC Mail, keeping everything set here &mdash; no password is made, because there
+            is no password sign-in.
+        </p>
+
+        @if ($addFailed)
+            <div class="add-account-errors">
+                <strong>That could not be saved.</strong>
+                <ul>
+                    @foreach ($errors->all() as $message)
+                        <li>{{ $message }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
+        <form method="POST" action="{{ route('admin.users.store') }}" class="add-account-form">
+            @csrf
+
+            <div class="field">
+                <label for="new-name">Full name</label>
+                <input type="text" id="new-name" name="name" value="{{ old('name') }}" required
+                       placeholder="Juan Dela Cruz">
+            </div>
+
+            <div class="field">
+                <label for="new-email">CSPC address</label>
+                <input type="email" id="new-email" name="email" value="{{ old('email') }}" required
+                       placeholder="juan@my.cspc.edu.ph">
+                <span class="field-hint">@my.cspc.edu.ph for a student, @cspc.edu.ph for staff.</span>
+            </div>
+
+            <div class="field">
+                <label for="new-role">Role</label>
+                <select id="new-role" name="role_id" required>
+                    <option value="">— choose —</option>
+                    @foreach ($roles as $role)
+                        <option value="{{ $role->id }}" {{ (string) old('role_id') === (string) $role->id ? 'selected' : '' }}>{{ $role->name }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="field">
+                <label for="new-college">College or unit</label>
+                <select id="new-college" name="department">
+                    <option value="">— none —</option>
+                    <optgroup label="Colleges">
+                        @foreach ($colleges as $college)
+                            <option value="{{ $college }}" {{ old('department') === $college ? 'selected' : '' }}>{{ $college }}</option>
+                        @endforeach
+                    </optgroup>
+                    @if (! empty($otherUnits))
+                        <optgroup label="Offices and units">
+                            @foreach ($otherUnits as $unit)
+                                <option value="{{ $unit }}" {{ old('department') === $unit ? 'selected' : '' }}>{{ $unit }}</option>
+                            @endforeach
+                        </optgroup>
+                    @endif
+                </select>
+            </div>
+
+            <div class="field">
+                <label for="new-course">Program</label>
+                {{-- Grouped by college and filtered by the choice above, so a
+                     Computer Studies student cannot be filed under BS Nursing
+                     -- a row whose programme and college disagree is invisible
+                     to both colleges' staff. --}}
+                <select id="new-course" name="course">
+                    <option value="">— none —</option>
+                    @foreach ($courses as $college => $collegeCourses)
+                        <optgroup label="{{ $college }}" data-college="{{ $college }}">
+                            @foreach ($collegeCourses as $course)
+                                <option value="{{ $course }}" {{ old('course') === $course ? 'selected' : '' }}>{{ $course }}</option>
+                            @endforeach
+                        </optgroup>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="field" style="flex:0 0 90px;">
+                <label for="new-year">Year</label>
+                {{-- Rebuilt from the programme by the script at the foot of
+                     this page, which every year picker here shares. --}}
+                <select id="new-year" name="year" data-course-select="new-course">
+                    <option value="">—</option>
+                    @foreach (\App\Models\User::yearLevelsFor(old('course')) as $year)
+                        <option value="{{ $year }}" {{ (string) old('year') === (string) $year ? 'selected' : '' }}>{{ $year }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="field" style="flex:0 0 90px;">
+                <label for="new-class">Class</label>
+                <select id="new-class" name="section_letter">
+                    <option value="">—</option>
+                    @foreach (range('A', 'H') as $letter)
+                        <option value="{{ $letter }}" {{ old('section_letter') === $letter ? 'selected' : '' }}>{{ $letter }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div class="field">
+                <label for="new-student-id">Student number</label>
+                <input type="text" id="new-student-id" name="student_id" value="{{ old('student_id') }}"
+                       placeholder="231001234">
+            </div>
+
+            <div class="field">
+                <label for="new-employee-id">Staff number</label>
+                <input type="text" id="new-employee-id" name="employee_id" value="{{ old('employee_id') }}">
+            </div>
+
+            <div class="field add-account-submit">
+                <button type="submit" class="btn btn-primary">Add account</button>
+            </div>
+        </form>
+    </details>
+    @if ($users->isEmpty() && ! array_filter($filters))
         <p style="color: var(--muted);">No accounts registered yet.</p>
     @else
-        <div class="user-toolbar">
-            <input type="search" id="user-search" class="user-search" autocomplete="off"
-                   placeholder="Search by name or student ID — also email, role, college, section, status"
+        {{-- A GET form, so a filtered roster can be linked and bookmarked, and
+             so the paginator carries the filters with it. --}}
+        <form method="GET" action="{{ route('admin.users') }}" class="user-toolbar">
+            <input type="search" id="user-search" name="q" value="{{ $filters['q'] }}" class="user-search"
+                   autocomplete="off"
+                   placeholder="Search by name or student ID — also email, college, programme, section"
                    aria-label="Search accounts by name or student ID">
-            <span class="user-count" id="user-count">{{ $users->count() }} accounts</span>
-        </div>
+            {{-- The options come from the whole table, not this page: a role
+                 held only by somebody on page four still has to be selectable.
+                 The college list includes the offices -- Guidance, ICT,
+                 Records -- which are not in COURSES_BY_COLLEGE at all. --}}
+            <select name="role" class="user-filter" aria-label="Filter by role" onchange="this.form.submit()">
+                <option value="">All roles</option>
+                @foreach ($roleOptions as $option)
+                    <option value="{{ $option }}" @selected($filters['role'] === $option)>{{ $option }}</option>
+                @endforeach
+            </select>
+
+            <select name="college" class="user-filter" aria-label="Filter by college or office" onchange="this.form.submit()">
+                <option value="">All colleges &amp; offices</option>
+                @foreach ($collegeOptions as $option)
+                    <option value="{{ $option }}" @selected($filters['college'] === $option)>{{ $option }}</option>
+                @endforeach
+            </select>
+
+            <select name="status" class="user-filter" aria-label="Filter by status" onchange="this.form.submit()">
+                <option value="">Any status</option>
+                @foreach ($statusOptions as $option)
+                    <option value="{{ $option }}" @selected($filters['status'] === $option)>{{ ucfirst($option) }}</option>
+                @endforeach
+                {{-- Not a value of the status column: deleted accounts are
+                     absent from normal results altogether. It belongs in this
+                     dropdown anyway, because this is where an administrator
+                     looks for an account that is not where they left it. --}}
+                <option value="deleted" @selected($filters['status'] === 'deleted')>Deleted</option>
+            </select>
+
+            <button type="submit" class="btn btn-muted" style="padding:.5rem 1rem; font-size:.85rem;">Search</button>
+
+            @if (array_filter($filters))
+                <a href="{{ route('admin.users') }}" class="user-filter-clear">Clear</a>
+            @endif
+
+            <span class="user-count" id="user-count">
+                {{ $users->total() }} {{ Str::plural('account', $users->total()) }}
+                @if ($users->hasPages())
+                    &middot; page {{ $users->currentPage() }} of {{ $users->lastPage() }}
+                @endif
+            </span>
+        </form>
 
         <div class="user-list" id="user-list">
             @foreach ($users as $user)
@@ -223,6 +454,9 @@
                     $isSelf = $user->id === auth()->id();
                 @endphp
                 <div class="user-card {{ $isSelf ? 'is-self' : '' }}"
+                     data-role="{{ Str::lower($roleName) }}"
+                     data-college="{{ Str::lower($user->department ?? '') }}"
+                     data-status="{{ Str::lower($user->status ?? '') }}"
                      {{-- Status is in here so "graduated" and "banned" are
                           searchable. Without it the promotion panel's advice
                           to search for graduated accounts matched nothing,
@@ -403,9 +637,14 @@
                             <div class="field js-student-wrap" style="flex:0 0 96px;"
                                  @unless ($roleName === 'Student') hidden @endunless>
                                 <label for="year-{{ $user->id }}">Year</label>
-                                <select name="year" id="year-{{ $user->id }}">
+                                {{-- As many years as their programme runs to:
+                                     four, or five for Architecture. It used
+                                     to offer six to everybody, two of which
+                                     no programme here has. --}}
+                                <select name="year" id="year-{{ $user->id }}"
+                                        data-course-select="course-{{ $user->id }}">
                                     <option value="">—</option>
-                                    @foreach (range(1, 6) as $year)
+                                    @foreach (\App\Models\User::yearLevelsFor($user->course) as $year)
                                         <option value="{{ $year }}" {{ $studentYear === $year ? 'selected' : '' }}>{{ $year }}</option>
                                     @endforeach
                                 </select>
@@ -443,6 +682,48 @@
                             </div>
 
                             <button type="submit" class="btn btn-secondary">Update</button>
+                        </form>
+
+                        {{-- A second hat.
+                             The role above is what the account IS -- what it is
+                             listed as, and what routing matches on when choosing
+                             a handler. These add what another role can READ and
+                             the pages it can open, for somebody who covers two
+                             jobs. They do not start sending that role's work to
+                             them, which is why they are a separate form with a
+                             separate sentence. --}}
+                        @php
+                            $heldExtra = $user->additionalRoles->pluck('id')->all();
+                        @endphp
+                        <form action="{{ route('admin.users.additionalRoles', $user) }}" method="POST" class="user-form extra-roles"
+                              onsubmit="return confirm('Update the extra roles {{ $user->name }} holds?')">
+                            @csrf
+
+                            <div class="field" style="grid-column:1 / -1;">
+                                <label>Also holds</label>
+                                <p style="color:var(--muted); font-size:.8rem; margin:0 0 .4rem;">
+                                    Extra roles let them read and open what that role can. Their main role above is unchanged.
+                                </p>
+                                <div class="extra-role-list">
+                                    @foreach ($roles as $role)
+                                        @continue($role->id === $user->role_id)
+                                        <label class="extra-role">
+                                            <input type="checkbox" name="role_ids[]" value="{{ $role->id }}"
+                                                   {{ in_array($role->id, $heldExtra, true) ? 'checked' : '' }}>
+                                            <span>{{ $role->name }}</span>
+                                        </label>
+                                    @endforeach
+                                </div>
+                            </div>
+
+                            {{-- Its own line. Sharing the row clipped the last
+                                 column, so "Vice President for Academic
+                                 Affairs" read as "Vice President for
+                                 Academi…" -- the one role whose name has to be
+                                 read in full to be told from the others. --}}
+                            <div style="flex:1 0 100%; display:flex; justify-content:flex-end;">
+                                <button type="submit" class="btn btn-secondary">Save extra roles</button>
+                            </div>
                         </form>
 
                         {{-- Which classes this person advises.
@@ -513,8 +794,9 @@
                                     </div>
                                     <div class="field" style="flex:0 0 88px;">
                                         <label for="adv-year-{{ $user->id }}">Year</label>
-                                        <select name="year" id="adv-year-{{ $user->id }}" required>
-                                            @foreach (range(1, 6) as $year)
+                                        <select name="year" id="adv-year-{{ $user->id }}" required
+                                                data-course-select="adv-course-{{ $user->id }}">
+                                            @foreach (\App\Models\User::yearLevelsFor($suggestedCourse) as $year)
                                                 <option value="{{ $year }}" {{ (string) $suggestedYear === (string) $year ? 'selected' : '' }}>{{ $year }}</option>
                                             @endforeach
                                         </select>
@@ -533,6 +815,26 @@
                         @endif
 
                         <div class="user-actions">
+                            @if ($user->trashed())
+                                {{-- Everything this account owns is still
+                                     here; restoring brings it all back. The
+                                     person can also do it themselves simply
+                                     by signing in. --}}
+                                <form action="{{ route('admin.users.restore', $user) }}" method="POST"
+                                      onsubmit="return confirm('Restore {{ $user->name }}\'s account? Everything they filed comes back with it.')">
+                                    @csrf
+                                    <button type="submit" class="btn btn-success">Restore account</button>
+                                </form>
+
+                                <span class="spacer"></span>
+
+                                <form action="{{ route('admin.users.erase', $user) }}" method="POST"
+                                      onsubmit="return confirm('PERMANENTLY erase {{ $user->name }}\'s account, every concern they submitted and every file they uploaded? This cannot be undone.')">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="btn btn-ghost-danger">Erase permanently</button>
+                                </form>
+                            @else
                             {{-- The irregular student's way back in. Their year
                                  was closed by the start-of-year promotion, and
                                  nothing in the data tells them apart from a
@@ -561,18 +863,29 @@
                             <span class="spacer"></span>
 
                             <form action="{{ route('admin.users.destroy', $user) }}" method="POST"
-                                  onsubmit="return confirm('PERMANENTLY delete {{ $user->name }}\'s account and every concern they submitted? This cannot be undone.')">
+                                  onsubmit="return confirm('Delete {{ $user->name }}\'s account? They will not be able to sign in. Everything they filed is kept and comes back if the account is restored.')">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="btn btn-ghost-danger">Delete account</button>
                             </form>
+                            @endif
                         </div>
                     @endif
                 </div>
             @endforeach
         </div>
 
-        <p class="no-match" id="no-match" hidden>No account matches that.</p>
+        @if ($users->hasPages())
+            <div style="margin-top:1.5rem; display:flex; justify-content:center;">
+                {{ $users->onEachSide(1)->links('pagination::bootstrap-4') }}
+            </div>
+        @endif
+
+        {{-- An empty result now comes from the server, so it is rendered
+             rather than revealed: with no rows there is nothing to hide. --}}
+        @if ($users->isEmpty())
+            <p class="no-match">No account matches that. <a href="{{ route('admin.users') }}">Clear the filters</a>.</p>
+        @endif
     @endif
 </div>
 
@@ -613,21 +926,64 @@
         var empty = document.getElementById('no-match');
         var cards = Array.prototype.slice.call(document.querySelectorAll('.user-card'));
 
+        // Searching and filtering happen on the server now, so there is
+        // nothing to hide here. What is left is the convenience of not having
+        // to reach for the button: the dropdowns submit on change (inline, in
+        // the markup) and Enter submits the text box on its own.
         if (!search) return;
+    })();
+</script>
 
-        search.addEventListener('input', function () {
-            var q = this.value.trim().toLowerCase();
-            var shown = 0;
+{{-- Year levels follow the programme chosen beside them.
+     Each year picker names its partner course select, so this works for
+     both the student's own year and the class an adviser is being given,
+     on every row of the page.
 
-            cards.forEach(function (card) {
-                var hit = !q || card.getAttribute('data-search').indexOf(q) !== -1;
-                card.hidden = !hit;
-                if (hit) shown++;
-            });
+     Options are REBUILT rather than hidden: hiding an <option> is not
+     honoured in every browser, and a list that silently stays whole is
+     worse than not filtering at all. --}}
+<script>
+    (function () {
+        var yearsByCourse = @json(\App\Models\User::YEARS_BY_COURSE);
 
-            count.textContent = shown + (shown === 1 ? ' account' : ' accounts');
-            if (empty) empty.hidden = shown !== 0;
-        });
+        function rebuild(yearSelect, courseSelect) {
+            var max = yearsByCourse[courseSelect.value] || 4;
+            var chosen = yearSelect.value;
+            var optional = yearSelect.querySelector('option[value=""]') !== null;
+
+            yearSelect.textContent = '';
+
+            if (optional) {
+                var blank = document.createElement('option');
+                blank.value = '';
+                blank.textContent = '—';
+                yearSelect.appendChild(blank);
+            }
+
+            for (var level = 1; level <= max; level++) {
+                var option = document.createElement('option');
+                option.value = String(level);
+                option.textContent = String(level);
+                yearSelect.appendChild(option);
+            }
+
+            // Keep their choice unless the new programme is too short for it.
+            yearSelect.value = chosen !== '' && Number(chosen) <= max ? chosen : (optional ? '' : '1');
+        }
+
+        Array.prototype.forEach.call(
+            document.querySelectorAll('select[data-course-select]'),
+            function (yearSelect) {
+                var courseSelect = document.getElementById(yearSelect.dataset.courseSelect);
+                if (!courseSelect) return;
+
+                courseSelect.addEventListener('change', function () {
+                    rebuild(yearSelect, courseSelect);
+                });
+
+                rebuild(yearSelect, courseSelect);
+            }
+        );
     })();
 </script>
 @endsection

@@ -21,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'track.last_seen' => \App\Http\Middleware\UpdateLastSeen::class,
             'profile.complete' => \App\Http\Middleware\EnsureStudentProfileComplete::class,
+            'policy.accepted' => \App\Http\Middleware\EnsurePolicyAccepted::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -34,6 +34,8 @@ class AggressiveQaTest extends TestCase
         // valid description so the student edit succeeds -- proves the staff-only
         // fields are ignored on an ACCEPTED edit, not just on a rejected one
         $this->actingAs($this->u('student@my.cspc.edu.ph'))->patch("/concerns/{$c->id}",[
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status'=>'resolved','urgency'=>'Critical','category'=>'Academic',
             'department'=>'College of Computer Studies',
             'description'=>'an edited description of acceptable length',
@@ -79,7 +81,9 @@ class AggressiveQaTest extends TestCase
     public function test_cannot_edit_resolved_concern(): void
     {
         $c=$this->mk(['status'=>'resolved','assigned_to'=>$this->u('staff@cspc.edu.ph')->id,'urgency'=>'Low']);
-        $this->actingAs($this->u('staff@cspc.edu.ph'))->patch("/concerns/{$c->id}",['status'=>'in_progress','urgency'=>'High']);
+        $this->actingAs($this->u('staff@cspc.edu.ph'))->patch("/concerns/{$c->id}",[
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.','status'=>'in_progress','urgency'=>'High']);
         $c->refresh();
         $this->line("[state] edit resolved -> status now '{$c->status}' (want resolved)");
         $this->assertEquals('resolved',$c->status);
@@ -87,21 +91,27 @@ class AggressiveQaTest extends TestCase
     public function test_referral_requires_destination(): void
     {
         $c=$this->mk(['assigned_to'=>$this->u('staff@cspc.edu.ph')->id]);
-        $r=$this->actingAs($this->u('staff@cspc.edu.ph'))->patch("/concerns/{$c->id}",['status'=>'referred','referred_to'=>'','urgency'=>'Low']);
+        $r=$this->actingAs($this->u('staff@cspc.edu.ph'))->patch("/concerns/{$c->id}",[
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.','status'=>'referred','referred_to'=>'','urgency'=>'Low']);
         $r->assertSessionHasErrors('referred_to');
         $this->line("[state] refer w/o destination rejected: yes");
     }
     public function test_invalid_status_rejected(): void
     {
         $c=$this->mk(['assigned_to'=>$this->u('staff@cspc.edu.ph')->id]);
-        $r=$this->actingAs($this->u('staff@cspc.edu.ph'))->patch("/concerns/{$c->id}",['status'=>'HACKED','urgency'=>'Low']);
+        $r=$this->actingAs($this->u('staff@cspc.edu.ph'))->patch("/concerns/{$c->id}",[
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.','status'=>'HACKED','urgency'=>'Low']);
         $r->assertSessionHasErrors('status');
         $this->line("[validation] invalid status 'HACKED' rejected: yes");
     }
     public function test_invalid_urgency_rejected(): void
     {
         $c=$this->mk(['assigned_to'=>$this->u('staff@cspc.edu.ph')->id]);
-        $r=$this->actingAs($this->u('staff@cspc.edu.ph'))->patch("/concerns/{$c->id}",['status'=>'in_progress','urgency'=>'SUPERCRITICAL']);
+        $r=$this->actingAs($this->u('staff@cspc.edu.ph'))->patch("/concerns/{$c->id}",[
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.','status'=>'in_progress','urgency'=>'SUPERCRITICAL']);
         $r->assertSessionHasErrors('urgency');
         $this->line("[validation] invalid urgency rejected: yes");
     }

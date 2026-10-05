@@ -65,6 +65,8 @@ class DelegateWithinOfficeTest extends TestCase
         $concern = $this->facilitiesConcern($head);
 
         $this->actingAs($head)->patch("/concerns/{$concern->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status' => 'referred',
             'referred_to' => 'General Services',
             'referred_to_user_id' => $staffer->id,
@@ -91,6 +93,8 @@ class DelegateWithinOfficeTest extends TestCase
         ])->save();
 
         $this->actingAs($staffer)->patch("/concerns/{$concern->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status' => 'resolved',
             'urgency' => 'Low',
             'resolution_notes' => 'Washer replaced.',
@@ -127,6 +131,8 @@ class DelegateWithinOfficeTest extends TestCase
         $concern = $this->facilitiesConcern($head);
 
         $this->actingAs($head)->patch("/concerns/{$concern->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status' => 'referred',
             'referred_to' => 'General Services',
             'urgency' => 'Low',

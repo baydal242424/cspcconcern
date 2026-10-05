@@ -29,6 +29,8 @@ class ReferralLifecycleTest extends TestCase
     {
         $c = $this->academicAssignedToStaff();
         $resp = $this->actingAs($this->u('staff@cspc.edu.ph'))->patch("/concerns/{$c->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status'=>'referred','referred_to'=>'Guidance Counselor','urgency'=>'Low',
         ]);
         fwrite(STDERR, "\n  [refer] staff refer response: ".$resp->getStatusCode()." (expect 302, not 403)\n");
@@ -44,16 +46,22 @@ class ReferralLifecycleTest extends TestCase
         $c = $this->academicAssignedToStaff();
         // refer to counselor
         $this->actingAs($this->u('staff@cspc.edu.ph'))->patch("/concerns/{$c->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status'=>'referred','referred_to'=>'Guidance Counselor','urgency'=>'Low',
         ]);
         // counselor resolves
         $this->actingAs($this->u('counselor@cspc.edu.ph'))->patch("/concerns/{$c->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status'=>'resolved','urgency'=>'Low','resolution_notes'=>'done',
         ]);
         $c->refresh();
         $this->assertEquals('resolved', $c->status);
         // any further edit attempt must be blocked
         $resp = $this->actingAs($this->u('counselor@cspc.edu.ph'))->patch("/concerns/{$c->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status'=>'in_progress','urgency'=>'High',
         ]);
         fwrite(STDERR, "  [locked] edit-after-resolve status: ".$resp->getStatusCode()." (expect 302 redirect + error)\n");
@@ -67,6 +75,8 @@ class ReferralLifecycleTest extends TestCase
     {
         $c = $this->academicAssignedToStaff();
         $this->actingAs($this->u('staff@cspc.edu.ph'))->patch("/concerns/{$c->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status'=>'referred','referred_to'=>'Guidance Counselor','urgency'=>'Low',
         ]);
         $counselor = $this->u('counselor@cspc.edu.ph');
@@ -74,6 +84,8 @@ class ReferralLifecycleTest extends TestCase
         $openVisible = Concern::whereKey($c->id)->visibleTo($counselor)->exists();
         // resolve
         $this->actingAs($counselor)->patch("/concerns/{$c->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status'=>'resolved','urgency'=>'Low','resolution_notes'=>'done',
         ]);
         $resolvedVisible = Concern::whereKey($c->id)->visibleTo($counselor)->exists();

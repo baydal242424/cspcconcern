@@ -52,20 +52,26 @@ class AdminTiersTest extends TestCase
         fwrite(STDERR, "  [tiers] System Admin and Staff Admin are separate roles: YES\n");
     }
 
-    /** Administrative concerns reach the office, not the system's operators. */
-    public function test_administrative_concerns_go_to_the_office(): void
+    /**
+     * A report that the website is broken reaches the people who run it.
+     *
+     * This category used to mean enrolment, records and fees, and reached the
+     * Administrative Office. It now means a fault in the system itself, which
+     * that office can do nothing about.
+     */
+    public function test_a_system_problem_reaches_the_system_admin(): void
     {
         $this->actingAs(User::where('email', 'student@my.cspc.edu.ph')->firstOrFail())
             ->post('/concerns', [
                 'category' => 'Administrative',
-                'description' => 'I need a copy of my registration record for a scholarship.',
+                'description' => 'The page for my concerns will not load, it just shows an error.',
             ]);
 
         $concern = Concern::latest('id')->firstOrFail();
 
-        $this->assertSame('Staff Admin', optional(optional($concern->assignedUser)->role)->name);
+        $this->assertSame('System Admin', optional(optional($concern->assignedUser)->role)->name);
 
-        fwrite(STDERR, '  [tiers] Administrative reached '.$concern->assignedUser->name."\n");
+        fwrite(STDERR, '  [tiers] a system problem reached '.$concern->assignedUser->name."\n");
     }
 
     /** Both tiers manage accounts, so the office can cover. */
@@ -163,10 +169,13 @@ class AdminTiersTest extends TestCase
     }
 
     /**
-     * The narrowing that came with the split. Running the system is not a
-     * reason to read students' complaints.
+     * Running the system is not a reason to read students' complaints.
+     *
+     * One category is theirs -- reports that the website is broken, which
+     * route to them and which they could not act on unseen. Every other
+     * category stays out of reach without a deliberate referral.
      */
-    public function test_the_system_admin_has_no_standing_view_of_any_category(): void
+    public function test_the_system_admin_reads_only_the_category_that_routes_to_them(): void
     {
         $student = User::where('email', 'student@my.cspc.edu.ph')->firstOrFail();
 
@@ -180,13 +189,18 @@ class AdminTiersTest extends TestCase
                 'is_anonymous' => false,
             ]);
 
-            $this->assertFalse(
+            $theirs = $category === 'Administrative';
+
+            $this->assertSame(
+                $theirs,
                 Concern::whereKey($concern->id)->visibleTo($this->systemAdmin())->exists(),
-                "A System Admin must not have a standing view of {$category}"
+                $theirs
+                    ? 'A System Admin must be able to read the reports that route to them'
+                    : "A System Admin must not have a standing view of {$category}"
             );
         }
 
-        fwrite(STDERR, '  [tiers] a System Admin reads none of the '
+        fwrite(STDERR, '  [tiers] a System Admin reads 1 of the '
             .count(Concern::CATEGORIES)." categories by default: YES\n");
     }
 

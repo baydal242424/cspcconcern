@@ -3,15 +3,19 @@
 namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
+use App\Models\Concern;
 use App\Models\Notification;
 use App\Models\Referral;
 use App\Models\Role;
 use App\Models\Section;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Admin view of every registered account: who they are, whether they're
@@ -42,14 +46,75 @@ class AdminController extends Controller
     /**
      * List every registered account.
      */
-    public function index()
+    public function index(Request $request)
     {
         $this->authorizeAdmin();
 
-        $users = User::with(['role', 'requestedRole', 'bannedBy', 'advisedSections'])
+        // Filtering and paging both happen in the database now. They used to
+        // happen in the browser: every account was rendered as a card and
+        // JavaScript hid the ones that did not match. That is fine for a few
+        // hundred rows and fatal past them -- at 896 accounts the page
+        // exhausted PHP's memory while rendering, so nobody saw anything at
+        // all. Filtering server-side also means a search reaches the whole
+        // roster rather than whatever happened to be on the page.
+        $filters = [
+            'q' => trim((string) $request->query('q')) !== '' ? trim((string) $request->query('q')) : null,
+            'role' => $request->query('role') ?: null,
+            'college' => $request->query('college') ?: null,
+            'status' => $request->query('status') ?: null,
+        ];
+
+        $users = User::with(['role', 'requestedRole', 'bannedBy', 'advisedSections', 'additionalRoles'])
+            ->when($filters['role'], fn ($q, $role) => $role === 'No role'
+                ? $q->whereNull('role_id')
+                : $q->whereHas('role', fn ($r) => $r->where('name', $role)))
+            ->when($filters['college'], fn ($q, $college) => $q->where('department', $college))
+            // "deleted" is not a value of the status column -- it is the
+            // absence of the row from normal results. It sits in the same
+            // dropdown because that is where an administrator looks for an
+            // account that is not where they expect it to be.
+            ->when($filters['status'] === 'deleted', fn ($q) => $q->onlyTrashed())
+            ->when($filters['status'] && $filters['status'] !== 'deleted',
+                fn ($q) => $q->where('status', $filters['status']))
+            ->when($filters['q'], function ($q, $term) {
+                // The same fields the old client-side blob covered, so a
+                // search that used to work still does: name, both ID numbers,
+                // email, college, programme and section.
+                $q->where(function ($sub) use ($term) {
+                    foreach (['name', 'email', 'student_id', 'employee_id', 'department', 'course', 'section'] as $column) {
+                        $sub->orWhere($column, 'like', '%'.$term.'%');
+                    }
+
+                    $sub->orWhereHas('role', fn ($r) => $r->where('name', 'like', '%'.$term.'%'));
+
+                    // The class they advise, and the word itself. Nearly every
+                    // adviser holds another role -- Instructor, Program Chair,
+                    // Dean -- so searching "adviser" found nobody, and neither
+                    // did the class: the person to replace could not be found
+                    // from the one thing the admin knew about them.
+                    $sub->orWhereHas('advisedSections', function ($s) use ($term) {
+                        $s->where('course', 'like', '%'.$term.'%')
+                            ->orWhere('section', 'like', '%'.$term.'%')
+                            ->orWhereRaw("CONCAT(course, ' ', section) LIKE ?", ['%'.$term.'%']);
+                    });
+
+                    if (str_contains(Str::lower($term), 'adviser')) {
+                        $sub->orWhereHas('advisedSections');
+                    }
+                });
+            })
             ->orderByDesc('last_seen_at')
             ->orderByDesc('created_at')
-            ->get();
+            ->paginate(30)
+            ->withQueryString();
+
+        // Options come from the whole table, not the page being shown: a role
+        // held only by somebody on page four still has to be selectable.
+        $roleOptions = Role::whereIn('id', User::whereNotNull('role_id')->distinct()->pluck('role_id'))
+            ->orderBy('name')->pluck('name');
+
+        $collegeOptions = User::whereNotNull('department')->distinct()->orderBy('department')->pluck('department');
+        $statusOptions = User::whereNotNull('status')->distinct()->orderBy('status')->pluck('status');
 
         // Colleges first, then the units and offices already in use. A
         // department is not a fixed list: colleges come from COURSES_BY_COLLEGE,
@@ -75,6 +140,10 @@ class AdminController extends Controller
             'colleges' => $colleges,
             'otherUnits' => $otherUnits,
             'courses' => User::COURSES_BY_COLLEGE,
+            'filters' => $filters,
+            'roleOptions' => $roleOptions,
+            'collegeOptions' => $collegeOptions,
+            'statusOptions' => $statusOptions,
         ]);
     }
 
@@ -215,7 +284,7 @@ class AdminController extends Controller
 
         $validated = $request->validate([
             'course' => ['required', 'string', Rule::in(User::allCourses())],
-            'year' => ['required', 'integer', 'between:1,6'],
+            'year' => ['required', 'integer', 'between:1,'.User::longestProgrammeYears()],
             'section_letter' => ['required', 'string', 'regex:/^[A-Za-z]$/'],
         ], [
             'course.required' => 'Choose the programme the class belongs to.',
@@ -544,6 +613,55 @@ class AdminController extends Controller
     /**
      * Change an account's role (e.g. a student moving to a staff position).
      */
+    /**
+     * Give somebody a second hat, or take it off again.
+     *
+     * The primary role stays where it is: it is what the account is listed as
+     * and what routing matches on when choosing a handler. An extra role adds
+     * what that role can READ and the pages it can open, which is what
+     * somebody covering Staff Admin alongside their own job actually needs.
+     * It does not start sending them that role's work.
+     */
+    public function updateAdditionalRoles(Request $request, User $user)
+    {
+        $this->authorizeAdmin();
+
+        $validated = $request->validate([
+            'role_ids' => ['nullable', 'array'],
+            'role_ids.*' => ['integer', 'exists:roles,id'],
+        ]);
+
+        $wanted = Role::whereIn('id', $validated['role_ids'] ?? [])->get();
+
+        // The same guard as the primary role: only a System Admin may hand out
+        // System Admin, whichever field it is handed out through.
+        foreach ($wanted as $role) {
+            $this->guardSystemAdmin($user, $role->name);
+        }
+
+        // Never the role they already hold. Listing it twice would show it
+        // twice everywhere and mean nothing extra.
+        $ids = $wanted->pluck('id')->reject(fn ($id) => (int) $id === (int) $user->role_id)->values()->all();
+
+        $before = $user->additionalRoles()->pluck('roles.name')->sort()->implode(', ');
+        $user->additionalRoles()->sync($ids);
+        $after = $user->additionalRoles()->pluck('roles.name')->sort()->implode(', ');
+
+        if ($before !== $after) {
+            AuditLog::create([
+                'user_id' => Auth::id(),
+                'action' => 'additional_roles_updated',
+                'description' => $user->name.': additional roles '
+                    .($before === '' ? 'none' : $before).' -> '.($after === '' ? 'none' : $after),
+                'ip_address' => $request->ip(),
+            ]);
+        }
+
+        return back()->with('success', $after === ''
+            ? "{$user->name} now holds only their main role."
+            : "{$user->name} also holds: {$after}.");
+    }
+
     public function updateRole(Request $request, User $user)
     {
         $this->authorizeAdmin();
@@ -563,12 +681,16 @@ class AdminController extends Controller
             'department' => 'nullable|string|max:255',
             'course' => ['nullable', 'string', Rule::in(User::allCourses())],
             // Year and class letter, combined into users.section below.
-            'year' => ['nullable', 'integer', 'between:1,6'],
+            'year' => ['nullable', 'integer', 'between:1,'.User::longestProgrammeYears()],
             'section_letter' => ['nullable', 'string', 'regex:/^[A-Za-z]$/'],
-            'student_id' => ['nullable', 'string', 'max:50'],
-            'employee_id' => ['nullable', 'string', 'max:50'],
+            // ignore($user->id): an admin saving somebody's row without
+            // touching their number must not be told it is taken by them.
+            'student_id' => ['nullable', 'string', 'max:50', AuthController::uniqueAmongLiveAccounts('student_id', $user)],
+            'employee_id' => ['nullable', 'string', 'max:50', AuthController::uniqueAmongLiveAccounts('employee_id', $user)],
         ], [
             'section_letter.regex' => 'The class is a single letter, like A.',
+            'student_id.unique' => 'Another account already uses that student number.',
+            'employee_id.unique' => 'Another account already uses that staff number.',
         ]);
 
         $changes = ['role_id' => $validated['role_id']];
@@ -660,10 +782,19 @@ class AdminController extends Controller
     }
 
     /**
-     * Permanently delete an account. Referrals restrict deletion of either
-     * party, so any referral this user sent or received is removed first;
-     * everything else (their own concerns, attachments, audit entries,
-     * notifications) cascades at the database level.
+     * Delete an account, recoverably.
+     *
+     * The account stops working immediately: it cannot sign in and it is gone
+     * from every list. Nothing it owns is destroyed. Everything the person
+     * filed -- concerns, evidence, referrals, audit entries -- stays where it
+     * is, and comes back with them if they sign in again.
+     *
+     * This used to be a real DELETE, which cascaded their whole reporting
+     * history out of the database. Deleting the wrong row out of several
+     * hundred near-identical names is an ordinary slip, and it had no undo.
+     *
+     * @see restore()  putting one back by hand
+     * @see AuthController::handleGoogleCallback()  putting one back by returning
      */
     public function destroy(User $user)
     {
@@ -676,15 +807,312 @@ class AdminController extends Controller
 
         $name = $user->name;
 
+        // A soft delete, so the foreign key never fires. The row staying put
+        // is the whole mechanism: concerns.user_id cascades on a real DELETE,
+        // and that cascade is what used to take an entire reporting history
+        // with one misplaced click.
+        //
+        // Referrals and uploaded evidence are left alone for the same reason.
+        // They belong to concerns that still exist, and an account that comes
+        // back needs to find them intact.
+        //
+        // Posts they held are a different matter, and have to be given up by
+        // hand. Both were database rules -- concerns.assigned_to is ON DELETE
+        // SET NULL, sections.adviser_id the same -- and a real DELETE tripped
+        // them. A soft delete trips nothing, so without this an account that
+        // can no longer sign in would keep every case it was handling and
+        // stay listed as the adviser of its classes.
+        //
+        // Not undone by a restore, deliberately: by then somebody else has
+        // picked the work up, and handing it back would take it off their
+        // desk without telling them.
+        DB::transaction(function () use ($user) {
+            Concern::where('assigned_to', $user->id)->update(['assigned_to' => null]);
+            Section::where('adviser_id', $user->id)->update(['adviser_id' => null]);
+
+            $user->delete();
+        });
+
+        $concerns = $user->submittedConcerns()->count();
+        $filed = $concerns > 0
+            ? ' The '.$concerns.' '.Str::plural('concern', $concerns)
+                .' they filed are kept, hidden, and come back if the account does.'
+            : '';
+
+        return back()->with(
+            'success',
+            "{$name}'s account has been deleted. They can no longer sign in.".$filed
+        );
+    }
+
+    /**
+     * Create one account from Manage Users.
+     *
+     * The same job as `php artisan user:add`, which is where this lived until
+     * now -- useful to whoever runs the server, and no use at all to the
+     * administrator sitting in front of the page. Every rule that command
+     * enforces is enforced here, because they are the rules that decide
+     * whether a concern ever reaches anybody:
+     *
+     *  - a CSPC address, since Google sign-in turns away every other domain;
+     *  - a college spelled exactly as the system spells it;
+     *  - a programme that belongs to that college;
+     *  - a year the programme actually runs to;
+     *  - an ID number nobody else is using.
+     *
+     * The account is dormant: no google_id, so it comes alive on that
+     * person's first CSPC Mail sign-in and keeps everything set here. Nothing
+     * is emailed and no password exists, because there is no password
+     * sign-in to use one.
+     */
+    public function storeUser(Request $request)
+    {
+        $this->authorizeAdmin();
+
+        $colleges = array_keys(User::COURSES_BY_COLLEGE);
+        $units = User::query()->whereNotNull('department')->distinct()->pluck('department')->all();
+        $places = array_values(array_unique(array_merge($colleges, $units)));
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => [
+                'required', 'string', 'email', 'max:255',
+                // Deleted accounts are excluded deliberately: one of them may
+                // be parking this address, and that person signing up again
+                // is how it gets handed over.
+                Rule::unique('users', 'email')->whereNull('deleted_at'),
+                function ($attribute, $value, $fail) {
+                    $domain = strtolower((string) substr(strrchr((string) $value, '@') ?: '', 1));
+
+                    if (! in_array($domain, ['my.cspc.edu.ph', 'cspc.edu.ph'], true)) {
+                        $fail('Use a CSPC address: @my.cspc.edu.ph for a student, @cspc.edu.ph for staff.');
+                    }
+                },
+            ],
+            'role_id' => ['required', 'integer', Rule::exists('roles', 'id')],
+            'department' => ['nullable', 'string', Rule::in($places)],
+            'course' => ['nullable', 'string', Rule::in(User::allCourses())],
+            'year' => ['nullable', 'integer', 'between:1,'.User::longestProgrammeYears()],
+            'section_letter' => ['nullable', 'string', 'regex:/^[A-Za-z]$/'],
+            'student_id' => ['nullable', 'string', 'max:50',
+                Rule::unique('users', 'student_id')->whereNull('deleted_at')],
+            'employee_id' => ['nullable', 'string', 'max:50',
+                Rule::unique('users', 'employee_id')->whereNull('deleted_at')],
+        ], [
+            'email.unique' => 'An account already uses that address.',
+            'student_id.unique' => 'Another account already has that student number.',
+            'employee_id.unique' => 'Another account already has that staff number.',
+            'section_letter.regex' => 'A class is a single letter, like A.',
+        ]);
+
+        $email = strtolower(trim($validated['email']));
+
+        // A programme belongs to one college. Filed under the wrong one,
+        // every college-scoped lookup disagrees with the row and the concern
+        // reaches neither college's staff.
+        // validate() returns only the keys that were sent, so every
+        // optional field is read with a default. Reading one straight was
+        // the first thing to break this form.
+        $college = $validated['department'] ?? null;
+        $course = $validated['course'] ?? null;
+
+        // A programme belongs to one college.
+        if ($course && isset(User::COURSES_BY_COLLEGE[$college])
+            && ! in_array($course, User::COURSES_BY_COLLEGE[$college], true)) {
+            return back()->withInput()->withErrors([
+                'course' => $course.' is not offered by '.$college.'.',
+            ]);
+        }
+
+        $year = $validated['year'] ?? null;
+        $letter = $validated['section_letter'] ?? null;
+
+        if (($year === null) !== ($letter === null)) {
+            return back()->withInput()->withErrors([
+                'year' => 'Give both a year and a class, or neither.',
+            ]);
+        }
+
+        if ($year !== null && $course && $year > User::finalYearFor($course)) {
+            return back()->withInput()->withErrors([
+                'year' => $course.' runs for '.User::finalYearFor($course).' years.',
+            ]);
+        }
+
+        // A deleted account may still be physically holding this address or
+        // ID number. Validation looks past deleted rows; the UNIQUE indexes
+        // on the columns do not, so without this the create fails on a
+        // constraint and the administrator is shown an error about a row
+        // nobody can see.
+        //
+        // Gathered BEFORE anything is released, because the numbers are what
+        // identifies them, and released BEFORE the create, because the index
+        // is checked on the way in.
+        $studentId = ($validated['student_id'] ?? null) ?: null;
+        $employeeId = ($validated['employee_id'] ?? null) ?: null;
+
+        $husks = User::onlyTrashed()
+            ->where(function ($q) use ($email, $studentId, $employeeId) {
+                $q->where('email', $email)
+                  ->when($studentId, fn ($w) => $w->orWhere('student_id', $studentId))
+                  ->when($employeeId, fn ($w) => $w->orWhere('employee_id', $employeeId));
+            })
+            ->get();
+
+        foreach ($husks as $husk) {
+            AuthController::releaseIdentityOf($husk);
+
+            $husk->forceFill(['student_id' => null, 'employee_id' => null])->saveQuietly();
+        }
+
+        $user = User::create([
+            'name' => $validated['name'],
+            'email' => $email,
+            // No password sign-in exists; this only satisfies the column.
+            'password' => Hash::make(Str::random(40)),
+            'role_id' => $validated['role_id'],
+            'department' => $college ?: null,
+            'course' => $course ?: null,
+            'section' => $year !== null ? $year.strtoupper($letter) : null,
+            'student_id' => ($validated['student_id'] ?? null) ?: null,
+            'employee_id' => ($validated['employee_id'] ?? null) ?: null,
+            'status' => 'approved',
+            // Google sign-in is the only door, and it verifies the address on
+            // the way through. Nothing here can be taken as proof, so the
+            // account waits dormant instead.
+            'email_verified_at' => null,
+        ]);
+
+        // An ID number is issued to one person, so a deleted account that was
+        // holding this one is them. What they filed moves onto the account
+        // just made -- the same reunion the person gets by signing up again
+        // and typing their own number in.
+        $moved = $husks->isEmpty()
+            ? 0
+            : Concern::whereIn('user_id', $husks->pluck('id'))->update(['user_id' => $user->id]);
+
+        $history = $moved > 0
+            ? ' '.$moved.' '.Str::plural('concern', $moved).' they filed before '
+                .($moved === 1 ? 'has' : 'have').' been put back on this account.'
+            : '';
+
+        return back()->with(
+            'success',
+            "{$user->name} has been added as ".optional($user->role)->name
+                .'. The account is dormant until they sign in with CSPC Mail, which keeps these details.'
+                .$history
+        );
+    }
+
+    /**
+     * Put a deleted account back.
+     *
+     * The counterpart to destroy(), for the administrator who notices their
+     * own mistake rather than waiting for the person to sign in and find it.
+     * Everything the account owns returns with it, because none of it ever
+     * went anywhere.
+     */
+    public function restore(User $user)
+    {
+        $this->authorizeAdmin();
+
+        if (! $user->trashed()) {
+            return back()->with('success', "{$user->name}'s account is already active.");
+        }
+
+        $user->restore();
+
+        // A deleted account parks its email address so the person can sign
+        // up again on it, and a restored one needs it back or it cannot sign
+        // in at all. Only if it is still free: once they have signed up
+        // again, that newer account is the live one and this older row is a
+        // record, not a way in.
+        $prefix = AuthController::DELETED_EMAIL_PREFIX.$user->id.'-';
+        $superseded = '';
+
+        if (str_starts_with((string) $user->email, $prefix)) {
+            $original = substr($user->email, strlen($prefix));
+
+            if (User::where('email', $original)->whereKeyNot($user->id)->exists()) {
+                $superseded = ' They have already signed up again since, so this older'
+                    .' account keeps a parked address and cannot be signed in to.';
+            } else {
+                $user->forceFill(['email' => $original])->saveQuietly();
+            }
+        }
+
+        $concerns = $user->submittedConcerns()->count();
+        $filed = $concerns > 0
+            ? ' The '.$concerns.' '.Str::plural('concern', $concerns).' they filed are back.'
+            : '';
+
+        return back()->with('success', "{$user->name}'s account has been restored.".$filed.$superseded);
+    }
+
+    /**
+     * Erase a deleted account for good.
+     *
+     * This is the destruction that Delete used to perform without being
+     * asked: the row goes, the foreign key cascades their concerns, and the
+     * evidence they uploaded is swept from disk so it cannot outlive the
+     * record of what it was. There is no undo, which is why it is a separate
+     * decision made about an account that is already deleted.
+     */
+    public function forceDestroy(User $user)
+    {
+        $this->authorizeAdmin();
+        $this->guardSystemAdmin($user);
+
+        if ($user->id === Auth::id()) {
+            abort(422, 'You cannot delete your own account.');
+        }
+
+        // Only ever reached deliberately: an account still in use is deleted
+        // first, seen in the Deleted list, and erased from there.
+        if (! $user->trashed()) {
+            abort(422, 'Delete the account first. Erasing is for accounts already deleted.');
+        }
+
+        $name = $user->name;
+
+        // Gathered BEFORE the delete: the cascade takes the concerns and
+        // their attachment rows, and once those are gone nothing on the
+        // system knows these files existed. Thirteen were found orphaned on
+        // disk the first time this was overlooked.
+        $files = DB::table('attachments')
+            ->whereIn('concern_id', DB::table('concerns')->where('user_id', $user->id)->pluck('id'))
+            ->pluck('stored_path');
+
         DB::transaction(function () use ($user) {
             Referral::where('referred_by', $user->id)
                 ->orWhere('referred_to', $user->id)
                 ->delete();
 
-            $user->delete();
+            $user->forceDelete();
         });
 
-        return back()->with('success', "{$name}'s account and submitted concerns have been permanently deleted.");
+        // After the transaction, deliberately. A rolled-back delete can
+        // restore a row, never a file: better to keep a file whose rows are
+        // gone -- the purge command sweeps those -- than to destroy evidence
+        // for a deletion that did not happen.
+        $removed = 0;
+        $disk = Storage::disk('local');
+
+        foreach ($files as $storedPath) {
+            if ($storedPath && $disk->exists($storedPath)) {
+                $disk->delete($storedPath);
+                $removed++;
+            }
+        }
+
+        $evidence = $removed > 0
+            ? " {$removed} uploaded ".Str::plural('file', $removed).' removed with them.'
+            : '';
+
+        return back()->with(
+            'success',
+            "{$name}'s account and submitted concerns have been permanently erased.".$evidence
+        );
     }
 
     /**
@@ -694,7 +1122,10 @@ class AdminController extends Controller
     {
         $user = Auth::user();
 
-        if (! $user->role || ! in_array($user->role->name, self::ADMIN_ROLES, true)) {
+        // Any hat they wear, not only the one they are listed as: somebody
+        // whose primary role is Faculty/Staff and who also covers Staff Admin
+        // manages accounts as surely as anyone.
+        if (! $user || ! $user->hasAnyRole(self::ADMIN_ROLES)) {
             abort(403, 'Only an administrator can manage accounts.');
         }
     }

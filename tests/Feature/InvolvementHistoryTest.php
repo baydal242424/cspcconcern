@@ -20,7 +20,9 @@ class InvolvementHistoryTest extends TestCase
           'status'=>'submitted','is_anonymous'=>false,'assigned_to'=>$staff->id]);
 
         // staff refers to counselor (this writes an audit log for staff, and transfers ownership)
-        $this->actingAs($staff)->patch("/concerns/{$c->id}",['status'=>'referred','referred_to'=>'Guidance Counselor','urgency'=>'Low']);
+        $this->actingAs($staff)->patch("/concerns/{$c->id}",[
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.','status'=>'referred','referred_to'=>'Guidance Counselor','urgency'=>'Low']);
         $c->refresh();
         $staffSees = Concern::whereKey($c->id)->visibleTo($staff)->exists();
         fwrite(STDERR,"\n  [history] staff sees referred-away concern: ".($staffSees?'YES (good, reference kept)':'NO (BAD)')."\n");
@@ -34,10 +36,14 @@ class InvolvementHistoryTest extends TestCase
         $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
           'department'=>'College of Computer Studies','description'=>'x','urgency'=>'Low',
           'status'=>'submitted','is_anonymous'=>false,'assigned_to'=>$staff->id]);
-        $this->actingAs($staff)->patch("/concerns/{$c->id}",['status'=>'referred','referred_to'=>'Guidance Counselor','urgency'=>'Low']);
+        $this->actingAs($staff)->patch("/concerns/{$c->id}",[
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.','status'=>'referred','referred_to'=>'Guidance Counselor','urgency'=>'Low']);
 
         // counselor resolves (no 403)
-        $resp=$this->actingAs($counselor)->patch("/concerns/{$c->id}",['status'=>'resolved','urgency'=>'Low','resolution_notes'=>'done']);
+        $resp=$this->actingAs($counselor)->patch("/concerns/{$c->id}",[
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.','status'=>'resolved','urgency'=>'Low','resolution_notes'=>'done']);
         fwrite(STDERR,"  [resolve] counselor update status: ".$resp->getStatusCode()." (expect 302, not 403)\n");
         $this->assertNotEquals(403,$resp->getStatusCode());
         $c->refresh();

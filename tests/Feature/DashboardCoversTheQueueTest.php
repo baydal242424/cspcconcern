@@ -110,31 +110,81 @@ class DashboardCoversTheQueueTest extends TestCase
         $this->assertSame(1, $page->viewData('adviserBypassed'));
 
         $page->assertSee('Referrals &amp; Escalations', false)
-            ->assertSee('Adviser skipped by the student', false)
+            ->assertSee('Filed past the class adviser', false)
             ->assertSee('Guidance Counselor', false);
 
         fwrite(STDERR, "  [dashboard] referrals by office, named staff and adviser bypasses are on the page\n");
     }
 
-    public function test_it_reports_how_long_a_concern_takes_to_resolve(): void
+    /**
+     * A teacher is not "staff".
+     *
+     * The tile counted anyone the student named under one heading that said
+     * "staff member" -- the word this system reserves for the deans, chairs,
+     * counsellors and offices in the second picker. The person named is most
+     * often the teacher who advises their own class, so the single number read
+     * as a complaint about a stranger.
+     */
+    public function test_it_separates_a_named_teacher_from_a_named_officer(): void
     {
-        // created_at is not mass assignable, so it is set afterwards --
-        // otherwise both rows look filed now and resolved two hours ago.
+        $adviser = User::create([
+            'name' => 'The Class Adviser',
+            'email' => 'the.adviser@cspc.edu.ph',
+            'password' => Hash::make('not-used'),
+            'role_id' => Role::where('name', 'Instructor')->firstOrFail()->id,
+            'status' => 'approved',
+            'department' => 'College of Computer Studies',
+        ]);
+
+        $dean = User::create([
+            'name' => 'The Dean',
+            'email' => 'the.dean@cspc.edu.ph',
+            'password' => Hash::make('not-used'),
+            'role_id' => Role::where('name', 'Dean')->firstOrFail()->id,
+            'status' => 'approved',
+            'department' => 'College of Computer Studies',
+        ]);
+
+        $this->concern(['about_staff_id' => $adviser->id]);
+        $this->concern(['about_staff_id' => $adviser->id]);
+        $this->concern(['about_staff_id' => $dean->id]);
+
+        $page = $this->actingAs($this->admin())->get('/dashboard')->assertOk();
+
+        $this->assertSame(2, $page->viewData('aboutTeacherCount'));
+        $this->assertSame(1, $page->viewData('aboutOfficerCount'));
+
+        $page->assertSee('Filed about a teacher', false)
+            ->assertSee('Filed about an officer', false)
+            ->assertDontSee('Filed about a staff member', false);
+
+        fwrite(STDERR, "  [dashboard] a named teacher is counted apart from a named officer\n");
+    }
+
+    /**
+     * The average time to resolve was taken off the page.
+     *
+     * An average over every resolved concern hides the one that matters: two
+     * settled in an hour and one left for three days average out to something
+     * comfortable, and the figure gives nobody anything to do. Resolved
+     * concerns are still timestamped, so a more useful measure -- the oldest
+     * concern still waiting -- can be built on the same data later.
+     */
+    public function test_it_no_longer_reports_an_average_time_to_resolve(): void
+    {
         $this->concern(['status' => 'resolved'])
             ->forceFill(['created_at' => now()->subHours(6), 'resolved_at' => now()->subHours(2)])
             ->save();
 
-        $this->concern(['status' => 'resolved'])
-            ->forceFill(['created_at' => now()->subHours(4), 'resolved_at' => now()->subHours(2)])
-            ->save();
-
         $page = $this->actingAs($this->admin())->get('/dashboard')->assertOk();
 
-        // Four hours and two hours.
-        $this->assertSame(3.0, $page->viewData('averageResolutionHours'));
-        $page->assertSee('Average time to resolve', false);
+        $page->assertDontSee('Average time to resolve', false);
+        $this->assertArrayNotHasKey('averageResolutionHours', $page->viewData());
 
-        fwrite(STDERR, "  [dashboard] average time to resolve is reported\n");
+        // The timestamps it was built from are untouched.
+        $this->assertNotNull(Concern::whereNotNull('resolved_at')->first());
+
+        fwrite(STDERR, "  [dashboard] the average time to resolve is gone, its timestamps are not\n");
     }
 
     /** Nothing filed yet should read as empty, not as a broken page. */
@@ -142,8 +192,7 @@ class DashboardCoversTheQueueTest extends TestCase
     {
         $page = $this->actingAs($this->admin())->get('/dashboard')->assertOk();
 
-        $this->assertNull($page->viewData('averageResolutionHours'));
-        $page->assertSee('Nothing is with another office right now.', false);
+        $page->assertSee('No concern has been referred to another office yet.', false);
 
         fwrite(STDERR, "  [dashboard] an empty system renders without errors\n");
     }

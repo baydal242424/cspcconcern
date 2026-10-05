@@ -115,9 +115,66 @@ class Concern extends Model
      *
      * @var array<string, string>
      */
+    /**
+     * What each category is CALLED on screen.
+     *
+     * The stored values below are the contract -- routing, the dashboard and
+     * every test match on them -- so they never change. These are the names a
+     * student reads, and several of the stored ones were too vague to choose
+     * between: "Physical" could be a fight, a disability or a broken wall;
+     * "Personal" could be anything at all; "Facilities" and "Equipment" both
+     * sound like the right home for a dead lab computer.
+     *
+     * @var array<string, string>
+     */
     public const CATEGORY_LABELS = [
-        'Administrative' => 'Administrator',
+        // Stored as 'Administrative' for historical reasons; it means a
+        // fault in this website, and reaches the System Admin.
+        'Administrative' => 'System Problem',
+        'Personal' => 'Personal Problem',
+        'Physical' => 'Physical Injury',
+        'Safety' => 'Safety Hazard',
+        'Facilities' => 'Building & Facilities',
+        'Equipment' => 'Equipment & Devices',
     ];
+
+    /**
+     * A few words saying what each category covers, for the dropdown on the
+     * filing form.
+     *
+     * One word per option is not enough to choose between eleven of them.
+     * "Administrator" and "Facilities" and "Equipment" all sound like the
+     * right home for a broken computer, and the full description only appeared
+     * AFTER a category was picked -- so a student had to choose before they
+     * could read what they were choosing.
+     *
+     * Short on purpose: a <select> cannot wrap, and the long version is still
+     * shown under the field once something is selected.
+     *
+     * @var array<string, string>
+     */
+    public const CATEGORY_HINTS = [
+        'Academic' => 'grades, subjects, schedules, teaching',
+        'Mental Health' => 'stress, anxiety, how you are coping',
+        'Personal' => 'family, money, housing',
+        'Bullying' => 'threats, intimidation, humiliation',
+        'Harassment' => 'unwanted conduct or discrimination',
+        'Administrative' => 'this website itself — a page or button that will not work',
+        'Facilities' => 'water, electricity, aircon, rooms, exits',
+        'Equipment' => 'computers, lab equipment, chairs, internet',
+        'Physical' => 'an accident or injury that already happened',
+        'Safety' => 'a hazard that has not caused harm yet',
+        'Others' => 'anything not listed above',
+    ];
+
+    /** The category with its clarifier, for the filing form's dropdown. */
+    public static function categoryOptionLabel(?string $category): string
+    {
+        $label = self::categoryLabel($category);
+        $hint = self::CATEGORY_HINTS[$category] ?? null;
+
+        return $hint ? $label.' — '.$hint : $label;
+    }
 
     /** What a student should see for a category. */
     public static function categoryLabel(?string $category): string
@@ -150,6 +207,26 @@ class Concern extends Model
      * every instructor, chair and dean until somebody takes it, so nothing
      * sits unread while one person is away.
      */
+    /**
+     * The roles whose standing queue stops at their own college.
+     *
+     * Everything else here serves the whole institution: Guidance, General
+     * Services, Legal Affairs, the VPAA, the Head of School. Those roles have
+     * one holder, or one office, and narrowing them to a college would leave
+     * cases with nobody above them.
+     *
+     * Mirrors ConcernController::COLLEGE_SCOPED_ROLES, which decides the same
+     * question for the referral pickers: who may be HANDED a case, where this
+     * decides who may READ one.
+     */
+    public const COLLEGE_BOUND_ROLES = [
+        'Dean',
+        'Program Chair',
+        'Adviser',
+        'Instructor',
+        'Faculty/Staff',
+    ];
+
     public const TEACHING_CATEGORIES = [
         'Academic',
         'Physical',
@@ -352,6 +429,142 @@ class Concern extends Model
     }
 
     /**
+     * The activity timeline, as this viewer is allowed to read it.
+     *
+     * Staff see the audit log in full: every hand-off, every name, every note
+     * touched. That record is what makes the handling of a case answerable
+     * afterwards, and nothing here trims it.
+     *
+     * The reporter sees the same case from outside. They are told what state
+     * their concern is in and when it got there -- referred, being worked on,
+     * resolved -- and never which desk it is sitting on. Who is holding a
+     * report is the staff's business; a student who can watch it being passed
+     * from the chair to the dean to Guidance can work out who read it.
+     *
+     * Returns entries, not logs: each is the log, the line to print, and
+     * whether the actor's name may be shown beside it.
+     *
+     * @return \Illuminate\Support\Collection<int, array{log: AuditLog, label: string, showActor: bool}>
+     */
+    public function timelineFor(User $viewer)
+    {
+        if ($viewer->isEmployee()) {
+            return $this->auditLogs->sortByDesc('id')->values()->map(fn (AuditLog $log) => [
+                'log' => $log,
+                'label' => self::fullLabel($log),
+                'showActor' => true,
+            ]);
+        }
+
+        $entries = collect();
+        $previous = null;
+
+        // Oldest first, so a run of hand-offs can be collapsed as it is read.
+        foreach ($this->auditLogs->sortBy('id') as $log) {
+            $milestone = self::reporterMilestone($log);
+
+            if (! $milestone) {
+                continue;
+            }
+
+            // Being referred onward, again and again, is one thing happening
+            // to the student: their concern is somewhere else. The first of a
+            // run is kept -- that is the moment it left the desk they were
+            // told about -- and the rest add nothing. A later milestone ends
+            // the run, so if the case comes back and is referred again, that
+            // is a new line.
+            if ($milestone['key'] === $previous) {
+                continue;
+            }
+
+            $previous = $milestone['key'];
+
+            $entries->push([
+                'log' => $log,
+                'label' => $milestone['label'],
+                'showActor' => false,
+            ]);
+        }
+
+        return $entries->reverse()->values();
+    }
+
+    /**
+     * The staff reading of one entry: whatever was recorded, verbatim.
+     *
+     * Audit descriptions store raw status values (e.g. "in_progress"); the
+     * underscores become spaces so they read as English.
+     */
+    private static function fullLabel(AuditLog $log): string
+    {
+        return $log->description
+            ? str_replace('_', ' ', $log->description)
+            : ucfirst(str_replace('_', ' ', $log->action));
+    }
+
+    /**
+     * What one entry means to the reporter, or null if it means nothing.
+     *
+     * Triage and note-keeping are left out: the urgency a case was filed
+     * under and the fact that somebody edited their own working notes are
+     * internal, and a timeline of "Investigation notes updated" six times
+     * tells a student only that something is happening somewhere.
+     *
+     * The key is what collapses a run, so every hand-off shares one.
+     *
+     * @return array{key: string, label: string}|null
+     */
+    private static function reporterMilestone(AuditLog $log): ?array
+    {
+        if ($log->action === 'concern_submitted') {
+            return ['key' => 'submitted', 'label' => 'Concern submitted'];
+        }
+
+        if ($log->action === 'feedback_submitted') {
+            return ['key' => 'feedback', 'label' => 'You rated how this was handled'];
+        }
+
+        // Their own identity being disclosed is the one staff action a
+        // reporter is always entitled to see. The entry names the office and
+        // the reason, never the individual, so it is shown as recorded.
+        if ($log->action === 'identity_revealed') {
+            return ['key' => 'identity', 'label' => (string) $log->description];
+        }
+
+        if ($log->action !== 'status_updated') {
+            return null;
+        }
+
+        $description = (string) $log->description;
+
+        // "Referred to Dean (Ms. Rosel O. Onesa (OIC), College of Computer
+        // Studies)" becomes the fact without the address.
+        if (str_starts_with($description, 'Referred to')) {
+            return ['key' => 'referred', 'label' => 'Referred to another office'];
+        }
+
+        if ($description === 'Marked as resolved') {
+            return ['key' => 'resolved', 'label' => 'Marked as resolved'];
+        }
+
+        // Closing a report without acting on it is the decision most likely
+        // to be questioned, and the reason belongs to the person who filed
+        // it. It is shown in full.
+        if (str_starts_with($description, 'Closed without action')) {
+            return ['key' => 'closed', 'label' => $description];
+        }
+
+        if (preg_match('/^Status changed from .+ to (.+)$/', $description, $matches)) {
+            return [
+                'key' => 'status:'.$matches[1],
+                'label' => 'Status changed to '.str_replace('_', ' ', $matches[1]),
+            ];
+        }
+
+        return ['key' => 'status', 'label' => 'Status updated'];
+    }
+
+    /**
      * Evidence files attached to this concern.
      */
     public function attachments()
@@ -387,10 +600,54 @@ class Concern extends Model
      *                         (Admin does NOT see confidential counselor
      *                         cases by default.)
      */
+    /**
+     * What this person may read, across every role they hold.
+     *
+     * Most people hold one. Some hold two -- an office staff member who also
+     * covers Staff Admin, say -- and they should see what either role sees,
+     * which is the union of the two rules rather than whichever happened to be
+     * stored in users.role_id.
+     *
+     * The rules themselves are untouched: each role's existing rule is applied
+     * to a sub-query and the results OR-ed. Rewriting them to "support" a
+     * second role is how a permission model quietly loses a rule, and these
+     * are the rules that keep a reported instructor out of the complaint about
+     * them.
+     */
     public function scopeVisibleTo($query, User $user)
     {
-        $role = optional($user->role)->name;
+        $roles = $user->allRoleNames();
 
+        if ($roles === []) {
+            // No role: see nothing.
+            return $query->whereRaw('1 = 0');
+        }
+
+        // A concern whose reporter has been deleted is nobody's to work on.
+        // The row is kept so the deletion can be undone, but until the
+        // account comes back the concern is out of every list -- including
+        // the Head of School's. The relation respects the soft delete, so a
+        // trashed owner simply fails this check.
+        $query->whereHas('user');
+
+        if (count($roles) === 1) {
+            return self::applyRoleVisibility($query, $user, $roles[0]);
+        }
+
+        return $query->where(function ($outer) use ($roles, $user) {
+            foreach ($roles as $role) {
+                $outer->orWhere(function ($q) use ($role, $user) {
+                    self::applyRoleVisibility($q, $user, $role);
+                });
+            }
+        });
+    }
+
+    /**
+     * One role's rule. See scopeVisibleTo() above for why it is separate.
+     */
+    private static function applyRoleVisibility($query, User $user, ?string $role)
+    {
         if ($role === null) {
             // No role: see nothing.
             return $query->whereRaw('1 = 0');
@@ -485,6 +742,23 @@ class Concern extends Model
             });
         }
 
+        // Legal Affairs. Referral-gated, exactly like GAD: no category of its
+        // own, because a student does not file "a legal matter" -- a handler
+        // decides a case needs legal counsel and sends it here.
+        if ($role === 'Legal Affairs') {
+            return $query->where(function ($q) use ($user, $involved) {
+                $q->where(function ($sub) {
+                    $sub->where('referred_to', 'Legal Affairs')
+                        ->whereNotIn('status', self::TERMINAL_STATUSES);
+                })
+                  ->orWhere(function ($sub) use ($user) {
+                      $sub->where('assigned_to', $user->id)
+                          ->whereNotIn('status', self::TERMINAL_STATUSES);
+                  })
+                  ->orWhere($involved);
+            });
+        }
+
         // General Services. Facilities and Equipment are its natural domain, the
         // way Administrative is Admin's -- routeConcern() sends every one of
         // them here, so the office must be able to see them without waiting
@@ -515,11 +789,15 @@ class Concern extends Model
         // stays out of reach unless a counsellor deliberately refers it here.
         if ($role === 'Staff Admin') {
             return $query->where(function ($q) use ($user, $involved) {
-                $q->where('category', 'Administrative')
-                  ->orWhere(function ($sub) {
-                      $sub->where('referred_to', 'Staff Admin')
-                          ->whereNotIn('status', self::TERMINAL_STATUSES);
-                  })
+                // No standing category any more. This office read every
+                // Administrative concern while that category meant enrolment,
+                // records and fees -- the work it actually does. The category
+                // now means "this website is broken", which belongs to the
+                // people who run the website, so the window moved with it.
+                $q->where(function ($sub) {
+                    $sub->where('referred_to', 'Staff Admin')
+                        ->whereNotIn('status', self::TERMINAL_STATUSES);
+                })
                   ->orWhere(function ($sub) use ($user) {
                       $sub->where('assigned_to', $user->id)
                           ->whereNotIn('status', self::TERMINAL_STATUSES);
@@ -528,22 +806,21 @@ class Concern extends Model
             });
         }
 
-        // The people who run the system get NO standing window into any
-        // category. They see what is assigned or referred to them and nothing
-        // else -- which for a System Admin is usually a complaint that climbed
-        // past the administrative office because it was about that office.
+        // One standing category, and only one: reports that this website is
+        // broken, which routeConcern() sends here. An office that cannot read
+        // what is assigned to it is worse than one nobody was assigned,
+        // because the queue looks handled.
         //
-        // The single Admin role used to read every Administrative concern,
-        // because it was also the office that handled them. Splitting the two
-        // removed the reason: managing accounts and roles needs no view of
-        // students' complaints, and this is the narrowest the role has ever
-        // been.
+        // Everything else stays out of reach. Managing accounts and roles
+        // needs no view of students' complaints, so mental health, harassment
+        // and the rest arrive only by a deliberate referral.
         if ($role === 'System Admin') {
             return $query->where(function ($q) use ($user, $involved) {
-                $q->where(function ($sub) {
-                    $sub->where('referred_to', 'System Admin')
-                        ->whereNotIn('status', self::TERMINAL_STATUSES);
-                })
+                $q->where('category', 'Administrative')   // a fault in the system
+                  ->orWhere(function ($sub) {
+                      $sub->where('referred_to', 'System Admin')
+                          ->whereNotIn('status', self::TERMINAL_STATUSES);
+                  })
                   ->orWhere(function ($sub) use ($user) {
                       $sub->where('assigned_to', $user->id)
                           ->whereNotIn('status', self::TERMINAL_STATUSES);
@@ -574,9 +851,16 @@ class Concern extends Model
         if (in_array($role, ['Instructor', 'Faculty/Staff', 'Vice President for Academic Affairs'], true)) {
             return $query->where(function ($q) use ($user, $role, $involved) {
                 $q->where('assigned_to', $user->id)
-                  ->orWhere(function ($sub) use ($role) {
+                  ->orWhere(function ($sub) use ($role, $user) {
                       $sub->where('referred_to', $role)
                           ->whereNotIn('status', self::TERMINAL_STATUSES);
+
+                      // "Referred to Instructor" used to match on the word
+                      // alone, so a hand-off inside one college was readable
+                      // by every instructor in the institution. The VPAA is
+                      // left institution-wide on purpose: there is one of
+                      // her, and escalation is the whole of her queue.
+                      self::narrowToTheirCollege($sub, $user, $role);
                   })
                   ->orWhere($involved);
             });
@@ -585,13 +869,22 @@ class Concern extends Model
         if (in_array($role, ['Adviser', 'Program Chair', 'Dean'], true)) {
             return $query->where(function ($q) use ($user, $role, $involved) {
                 $q->where('assigned_to', $user->id)
-                  ->orWhere(function ($sub) use ($role) {
+                  ->orWhere(function ($sub) use ($role, $user) {
                       $sub->where('referred_to', $role)
                           ->whereNotIn('status', self::TERMINAL_STATUSES);
+
+                      self::narrowToTheirCollege($sub, $user, $role);
                   })
-                  ->orWhere(function ($sub) {
+                  ->orWhere(function ($sub) use ($user, $role) {
                       $sub->where('status', 'submitted')
                           ->whereIn('category', self::TEACHING_CATEGORIES);
+
+                      // The standing academic queue, which had no college in
+                      // it. Every Adviser, Chair and Dean in the institution
+                      // could read every submitted teaching concern filed
+                      // anywhere -- a Health Sciences dean opening a Computer
+                      // Studies case is how it was noticed.
+                      self::narrowToTheirCollege($sub, $user, $role);
                   })
                   // Anything they have personally handled (history / reference).
                   ->orWhere($involved);
@@ -600,5 +893,50 @@ class Concern extends Model
 
         // Unknown role: see nothing.
         return $query->whereRaw('1 = 0');
+    }
+
+    /**
+     * Narrow a standing window to the part of the college this person serves.
+     *
+     * Applies to the windows a role gets by virtue of being that role. It is
+     * deliberately NOT applied to "assigned to me" or "I have handled this":
+     * those are facts about the person, and a concern handed to somebody
+     * stays readable by them wherever it came from.
+     *
+     * A Program Chair is narrowed twice over, to their college and then to
+     * the one programme they chair -- the same rule the referral picker uses,
+     * where the chair of Information Systems is not an alternative for an
+     * Information Technology student.
+     *
+     * Where the data cannot place somebody -- no college recorded on the
+     * person, or none on the concern -- the window is left as it was. Closing
+     * it on missing data would make concerns unreachable rather than private,
+     * and an unreadable concern in a queue is worse than a wide one: it looks
+     * handled.
+     */
+    private static function narrowToTheirCollege($query, User $user, string $role)
+    {
+        // The guard lives here rather than at each call site, so a role that
+        // is not bound to a college cannot be narrowed by accident. The VPAA
+        // is the one this protects: she has a department -- Academic Affairs
+        // -- which is an office and not a college, so narrowing on it
+        // silently emptied her queue of every escalation in the institution.
+        if (! in_array($role, self::COLLEGE_BOUND_ROLES, true) || ! $user->department) {
+            return $query;
+        }
+
+        $query->where(function ($q) use ($user) {
+            $q->whereNull('department')
+              ->orWhere('department', $user->department);
+        });
+
+        if ($role === 'Program Chair' && $user->course) {
+            $query->where(function ($q) use ($user) {
+                $q->whereNull('course')
+                  ->orWhere('course', $user->course);
+            });
+        }
+
+        return $query;
     }
 }

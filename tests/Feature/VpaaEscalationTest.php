@@ -87,21 +87,21 @@ class VpaaEscalationTest extends TestCase
         fwrite(STDERR, "  [fallback] no VPAA yet -> still assigned (id={$concern->assigned_to})\n");
     }
 
-    /** An ordinary Administrative concern still goes to the Admin. */
-    public function test_an_ordinary_administrative_concern_still_goes_to_admin(): void
+    /** An ordinary report about the system still goes to the System Admin. */
+    public function test_an_ordinary_system_problem_still_goes_to_the_system_admin(): void
     {
         $this->vpaa();
 
         $this->actingAs($this->student())->post('/concerns', [
             'category' => 'Administrative',
-            'description' => 'I need a copy of my registration record for a scholarship.',
+            'description' => 'The page for my concerns will not load, it just shows an error.',
         ]);
 
         $concern = Concern::latest('id')->firstOrFail();
 
-        $this->assertSame('Staff Admin', optional(optional($concern->assignedUser)->role)->name);
+        $this->assertSame('System Admin', optional(optional($concern->assignedUser)->role)->name);
 
-        fwrite(STDERR, "  [normal] ordinary Administrative concern still goes to Admin\n");
+        fwrite(STDERR, "  [normal] an ordinary system problem still goes to the System Admin\n");
     }
 
     /** She oversees; she does not get a standing view of every concern. */

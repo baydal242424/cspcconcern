@@ -79,6 +79,8 @@ class ProgrammeAwareReferralTest extends TestCase
         $concern->forceFill(['assigned_to' => $handler->id])->save();
 
         $this->actingAs($handler)->patch("/concerns/{$concern->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status' => 'referred',
             'referred_to' => 'Program Chair',
             'urgency' => 'Medium',
@@ -115,6 +117,8 @@ class ProgrammeAwareReferralTest extends TestCase
         ]);
 
         $this->actingAs($this->u('ccs.instructor@cspc.edu.ph'))->patch("/concerns/{$concern->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status' => 'referred',
             'referred_to' => 'Program Chair',
             'urgency' => 'Medium',
@@ -150,6 +154,8 @@ class ProgrammeAwareReferralTest extends TestCase
         ]);
 
         $this->actingAs($this->u('ccs.instructor@cspc.edu.ph'))->patch("/concerns/{$concern->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status' => 'referred',
             'referred_to' => 'Dean',
             'urgency' => 'Medium',
@@ -160,8 +166,16 @@ class ProgrammeAwareReferralTest extends TestCase
         fwrite(STDERR, "  [dean] CCS student -> CCS dean (id={$ccsDean->id}): YES\n");
     }
 
-    /** The picker offers the covering chair first, so the default is the right one. */
-    public function test_picker_lists_the_programmes_own_chair_first(): void
+    /**
+     * The picker offers the covering chair and no other.
+     *
+     * It used to list every chair in the college with the covering one sorted
+     * first, which was not enough: Computer Studies has four, and the three
+     * who chair a programme this student is not enrolled in hold no standing
+     * over the people in it. They were not alternatives, they were mistakes a
+     * single click away.
+     */
+    public function test_the_picker_offers_only_the_programmes_own_chair(): void
     {
         $cs = $this->chair('chair.bscs@cspc.edu.ph', 'AAA BSCS Chair', 'BS Computer Science');
         $is = $this->chair('chair.bsis@cspc.edu.ph', 'ZZZ BSIS Chair', 'BS Information Systems');
@@ -186,14 +200,18 @@ class ProgrammeAwareReferralTest extends TestCase
 
         $html = $this->actingAs($handler)->get("/concerns/{$concern->id}")->getContent();
 
-        // Named alphabetically last, but it covers this student, so it must
-        // still be the first Program Chair offered.
-        $posIs = strpos($html, 'value="'.$is->id.'" data-role="Program Chair"');
-        $posCs = strpos($html, 'value="'.$cs->id.'" data-role="Program Chair"');
-        $this->assertNotFalse($posIs, 'The covering chair should be offered at all');
-        $this->assertNotFalse($posCs);
-        $this->assertLessThan($posCs, $posIs, 'The covering chair should be listed before the others');
+        // Named alphabetically last, but it covers this student, so it is the
+        // one offered -- and the Computer Science chair is not there at all.
+        $this->assertNotFalse(
+            strpos($html, 'value="'.$is->id.'" data-role="Program Chair"'),
+            'The covering chair should be offered'
+        );
 
-        fwrite(STDERR, "  [picker] covering chair listed first despite alphabetical order: YES\n");
+        $this->assertFalse(
+            strpos($html, 'value="'.$cs->id.'" data-role="Program Chair"'),
+            'A chair of another programme should not be offered at all'
+        );
+
+        fwrite(STDERR, "  [picker] only the covering chair is offered, not the rest of the college: YES\n");
     }
 }

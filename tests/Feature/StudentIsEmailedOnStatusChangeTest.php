@@ -93,7 +93,9 @@ class StudentIsEmailedOnStatusChangeTest extends TestCase
         $concern = $this->concern($handler);
 
         $this->actingAs($handler)
-            ->put("/concerns/{$concern->id}", ['status' => 'in_progress'])
+            ->put("/concerns/{$concern->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.','status' => 'in_progress'])
             ->assertRedirect();
 
         Notification::assertSentTo(
@@ -118,7 +120,9 @@ class StudentIsEmailedOnStatusChangeTest extends TestCase
         $concern = $this->concern($dean);
 
         $this->actingAs($dean)
-            ->put("/concerns/{$concern->id}", ['status' => 'resolved'])
+            ->put("/concerns/{$concern->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.','status' => 'resolved'])
             ->assertRedirect();
 
         Notification::assertSentTo($this->student(), ConcernStatusUpdated::class);
@@ -141,6 +145,8 @@ class StudentIsEmailedOnStatusChangeTest extends TestCase
 
         $this->actingAs($chair)
             ->put("/concerns/{$concern->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
                 'status' => 'referred',
                 'referred_to' => 'Guidance Counselor',
             ])

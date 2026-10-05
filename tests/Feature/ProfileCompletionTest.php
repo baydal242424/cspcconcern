@@ -65,7 +65,7 @@ class ProfileCompletionTest extends TestCase
             'student_id' => '2024-00999',
             'department' => 'College of Computer Studies',
             'course' => 'BS Information Technology',
-            'section' => '3A',
+            'year' => 3, 'section_letter' => 'A',
         ])->assertRedirect(route('concerns.index'));
 
         $student->refresh();
@@ -81,7 +81,7 @@ class ProfileCompletionTest extends TestCase
             'student_id' => '2024-00999',
             'department' => 'College of Computer Studies',
             'course' => 'BS Nursing',
-            'section' => '3A',
+            'year' => 3, 'section_letter' => 'A',
         ])->assertSessionHasErrors('course');
     }
 
@@ -104,11 +104,11 @@ class ProfileCompletionTest extends TestCase
             'student_id' => '2024-00999',
             'department' => 'College of Computer Studies',
             'course' => 'BS Information Technology',
-        ])->assertSessionHasErrors('section');
+        ])->assertSessionHasErrors(['year', 'section_letter']);
 
         $this->assertNull($student->fresh()->section);
 
-        fwrite(STDERR, "  [gate] sign-up refuses to finish without a section: YES\n");
+        fwrite(STDERR, "  [gate] sign-up refuses to finish without a year and section: YES\n");
     }
 
     /** An existing account without one is stopped until it has one. */

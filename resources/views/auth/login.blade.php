@@ -253,8 +253,17 @@
                             @foreach ($demoAccounts as $roleName => $people)
                                 <optgroup label="{{ $roleName }}">
                                     @foreach ($people as $person)
+                                        @php
+                                            // A student is told apart by their CLASS, not their
+                                            // college -- six hundred of them share the college, and
+                                            // the class is what decides which adviser their concern
+                                            // reaches. Staff have no class, so they keep the office.
+                                            $detail = $person->course && $person->section
+                                                ? $person->course.' '.$person->section
+                                                : $person->department;
+                                        @endphp
                                         <option value="{{ $person->id }}">
-                                            {{ $person->name }}@if ($person->department) — {{ $person->department }}@endif
+                                            {{ $person->name }}@if ($detail) — {{ $detail }}@endif
                                         </option>
                                     @endforeach
                                 </optgroup>

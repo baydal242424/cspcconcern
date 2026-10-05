@@ -20,8 +20,12 @@
                      that routing matches on; the label is what a student
                      reads, and the two differ where CATEGORY_LABELS says so. --}}
                 @foreach (\App\Models\Concern::CATEGORIES as $category)
+                    {{-- The option carries its own clarifier. Elsewhere -- the
+                         concern list, the dashboard, a status badge -- the
+                         short label is used, because there the category is
+                         being read back rather than chosen between. --}}
                     <option value="{{ $category }}" {{ old('category') === $category ? 'selected' : '' }}>
-                        {{ \App\Models\Concern::categoryLabel($category) }}
+                        {{ \App\Models\Concern::categoryOptionLabel($category) }}
                     </option>
                 @endforeach
             </select>
@@ -121,10 +125,15 @@
         {{-- Hidden until a category is chosen, and only for the categories
              where naming somebody makes sense. A counselling or safeguarding
              case is not filed against a colleague from a picker -- Mental
-             Health, Personal, Bullying, Harassment, Physical and Safety go to
-             the Guidance Office or the adviser on their own -- and offering
-             the list there invited a student to name a person the office
-             would then be walled off from handling. --}}
+             Health, Personal, Bullying and Harassment reach the Guidance
+             Office on their own, and offering the list there invited a
+             student to name a person the office would then be walled off
+             from handling.
+
+             Physical and Safety sit with Academic instead: all three reach
+             the class adviser, so a student asking for somebody else climbs
+             the same rungs -- the chair of their programme, their dean, then
+             the VPAA. --}}
         @php $namedSubjects = collect(old('about_staff_id', []))->map(fn ($id) => (int) $id); @endphp
         <div class="form-group" id="about-person-group" style="display:none;">
 
@@ -149,12 +158,16 @@
 
             <label style="display:block; margin-top:0.7rem;">
                 <input type="checkbox" id="about_staff_toggle" class="about-toggle" data-target="about_staff_wrap" data-select="about_staff_id">
-                {{-- "an office or administrator" undersold this by a long way:
-                     the list holds deans, program chairs, counselors, Gender
-                     and Development, General Services and the VPAA. A student
-                     with a concern about their dean had no reason to open a
-                     box that did not mention deans. --}}
-                <span style="font-weight: normal; margin-left: 0.5rem;">This concern is about someone else on staff — a dean, program chair, counselor, office or administrator</span>
+                {{-- Named for what the box does, not for who happens to be
+                     behind it. It listed the roles once -- "a dean, program
+                     chair, counselor, office or administrator" -- which was
+                     already half wrong: the list now narrows to the people
+                     with a part in the chosen category, so the counselor and
+                     the administrator are not in it for an Academic concern,
+                     and a label naming them promises something the list does
+                     not hold. "Someone ELSE" was left over from the instructor
+                     picker that used to sit above this one and is now gone. --}}
+                <span style="font-weight: normal; margin-left: 0.5rem;">This concern is about a particular person</span>
             </label>
             <div id="about_staff_wrap" style="display:none; margin-top:0.6rem;">
                 <label style="font-size:0.9rem;">Who is this concern about? You can pick more than one.</label>
@@ -164,9 +177,9 @@
                          department, and one person appears twice under two
                          accounts for the two offices they head. --}}
                     @foreach ($otherStaffByOffice as $office => $members)
-                        <p class="people-group">{{ $office }}</p>
+                        <p class="people-group" data-office="{{ $office }}">{{ $office }}</p>
                         @foreach ($members as $member)
-                            <label class="person">
+                            <label class="person" data-role="{{ optional($member->role)->name }}" data-group="{{ $office }}" data-office="{{ $member->department }}">
                                 <input type="checkbox" name="about_staff_id[]" value="{{ $member->id }}" {{ $namedSubjects->contains($member->id) ? 'checked' : '' }} disabled>
                                 {{-- The programme for a chair, who heads exactly one:
                                      "Program Chair" alone does not say which of the
@@ -194,6 +207,19 @@
                                     } elseif (! $member->course && $memberRole === 'Program Chair') {
                                         $bits[] = 'programme not recorded';
                                     }
+
+                                    // The office, now that the heading above is
+                                    // their ROLE rather than their office. Without
+                                    // it two Faculty/Staff read identically -- and
+                                    // the real roster has one lawyer heading both
+                                    // Human Rights Education and Legal Affairs
+                                    // under two accounts, so two consecutive lines
+                                    // were the same but for a role name.
+                                    if ($member->department
+                                        && ! Str::contains($member->name, $member->department)
+                                        && ! in_array($member->department, $bits, true)) {
+                                        $bits[] = $member->department;
+                                    }
                                 @endphp
                                 <span>{{ $member->name }}{{ $bits ? ' — '.implode(', ', $bits) : '' }}</span>
                             </label>
@@ -220,7 +246,11 @@
              Hidden for the categories that never reach an adviser (Facilities
              goes to General Services), and the server clears the flag for
              those too, so a stale tick cannot travel with the form. --}}
-        <div class="form-group" id="skip-adviser-group">
+        {{-- Hidden until a category is chosen, the same way the naming group
+             is. Shown by default it flashed onto the page before the script
+             could decide, and a control that appears and then vanishes reads
+             as the form losing it. --}}
+        <div class="form-group" id="skip-adviser-group" style="display:none;">
             <label style="display:block;">
                 {{-- Ticked on a failed submit when the adviser is still named
                      below: the nested box cannot be the only thing holding that
@@ -474,7 +504,7 @@
                     // owns the request -- records, cashier, clearance. Saying
                     // "the Administration office" sets the right expectation:
                     // received here, answered elsewhere.
-                    'Administrative': 'the Administration office',
+                    'Administrative': 'the people who run this website',
                     'Facilities': 'the General Services Unit',
                     'Equipment': 'the General Services Unit',
                     'Physical': 'your class adviser',
@@ -492,13 +522,80 @@
                     'Personal': 'Family, money, housing, or another situation you need support with.',
                     'Bullying': 'Repeated behaviour aimed at you or someone else -- threats, intimidation, humiliation.',
                     'Harassment': 'Unwanted conduct or discrimination by anyone on campus, including a single incident.',
-                    'Administrative': 'Enrollment, records, ID, clearance, fees, and other office processes.',
+                    'Administrative': 'Something wrong with this website -- a page that will not load, a button that does nothing, or information shown that is not yours.',
                     'Facilities': 'The building itself -- no water or electricity, aircon, lights, damaged rooms, blocked exits.',
                     'Equipment': 'Things inside it -- computers, lab equipment, chairs, internet.',
                     'Physical': 'An accident or injury that has already happened to you or someone else.',
                     'Safety': 'A hazard that has not caused harm yet -- a broken stair, exposed wiring, a blocked exit.',
                     'Others': 'Anything that does not fit the categories above.'
                 };
+
+                // Who can be named, per category.
+                //
+                // An Academic concern climbs one ladder: the chair of the
+                // student's programme, their college's dean, then the VPAA.
+                // Offering the Legal Affairs Office or Gender and Development
+                // there invites a student to name somebody with no part in it
+                // -- the concern still goes to the chair, and a name has been
+                // attached to a case it has nothing to do with.
+                //
+                // Facilities and Equipment reach the General Services Unit,
+                // so its people are the ones involved. Others has no fixed
+                // handler, so it offers everybody.
+                const NAMEABLE_ROLES = {
+                    'Academic': ['Program Chair', 'Dean', 'Vice President for Academic Affairs'],
+                    // Physical and Safety reach the class adviser too, so a
+                    // student asking for somebody else climbs the same rungs:
+                    // the chair of their programme, their dean, the VPAA.
+                    'Physical': ['Program Chair', 'Dean', 'Vice President for Academic Affairs'],
+                    'Safety': ['Program Chair', 'Dean', 'Vice President for Academic Affairs'],
+                    'Facilities': ['General Services', 'Dean', 'Staff Admin'],
+                    'Equipment': ['General Services', 'Dean', 'Staff Admin'],
+                };
+
+                // The student's own college, whose people stay offered
+                // whatever their role. A concern about teaching is often
+                // about somebody in the college office rather than anybody on
+                // the ladder above, and they are the one group a student can
+                // be expected to know by name.
+                const OWN_COLLEGE = @json(optional(auth()->user())->department);
+
+                // Show only the people who have a part in this category, and
+                // untick anybody the change has just hidden -- a name left
+                // ticked in a row nobody can see would still be submitted.
+                function narrowStaffPicker(cat) {
+                    const picker = document.getElementById('about_staff_id');
+
+                    if (!picker) return;
+
+                    const allowed = NAMEABLE_ROLES[cat] || null;
+                    const people = Array.prototype.slice.call(picker.querySelectorAll('.person'));
+
+                    people.forEach(function (person) {
+                        const keep = !allowed
+                            || allowed.indexOf(person.dataset.role) !== -1
+                            || (OWN_COLLEGE && person.dataset.office === OWN_COLLEGE);
+
+                        person.dataset.offCategory = keep ? '' : '1';
+                        person.hidden = !keep;
+
+                        if (!keep) {
+                            const box = person.querySelector('input[type="checkbox"]');
+                            if (box) box.checked = false;
+                        }
+                    });
+
+                    // A heading with nobody under it any more is a label for
+                    // an empty space.
+                    Array.prototype.forEach.call(picker.querySelectorAll('.people-group'), function (heading) {
+                        const group = heading.dataset.office;
+                        const anyLeft = people.some(function (person) {
+                            return person.dataset.group === group && !person.hidden;
+                        });
+
+                        heading.hidden = !anyLeft;
+                    });
+                }
 
                 function updateHelpers() {
                     const cat = categoryEl.value;
@@ -524,12 +621,23 @@
                     // one. The adviser bypass below follows its own rule --
                     // Physical and Safety still reach the class adviser, so
                     // the student can still ask for somebody else.
-                    const NAMEABLE = ['Academic', 'Administrative', 'Facilities', 'Equipment', 'Others'];
+                    const NAMEABLE = ['Academic', 'Physical', 'Safety', 'Facilities', 'Equipment', 'Others'];
+
+                    // Who can be named, per category. An Academic concern
+                    // climbs one ladder -- the chair of the student's
+                    // programme, their college's dean, then the VPAA -- so
+                    // those are the only people worth offering. Naming
+                    // somebody outside it does not route the concern away
+                    // from anybody who was ever going to handle it; it just
+                    // adds a name to a case that still goes to the chair.
+                    //
                     const aboutGroup = document.getElementById('about-person-group');
 
                     if (aboutGroup) {
                         const canName = NAMEABLE.indexOf(cat) !== -1;
                         aboutGroup.style.display = canName ? 'block' : 'none';
+
+                        narrowStaffPicker(cat);
 
                         // Closing it takes the names with it. A student who
                         // picked an instructor and then switched to Mental
@@ -549,7 +657,13 @@
 
                     const skipGroup = document.getElementById('skip-adviser-group');
                     if (skipGroup) {
-                        const adviserCategory = !cat || target === 'your class adviser';
+                        // Nothing chosen yet means nothing to say about it.
+                        // This used to show while the category was still
+                        // empty, so the first thing a student read on the
+                        // form was an option about a handler they had not
+                        // been told about -- and for most categories it then
+                        // disappeared, which reads as the form losing it.
+                        const adviserCategory = Boolean(cat) && target === 'your class adviser';
                         skipGroup.style.display = adviserCategory ? 'block' : 'none';
                         if (!adviserCategory) {
                             document.getElementById('skip_adviser').checked = false;

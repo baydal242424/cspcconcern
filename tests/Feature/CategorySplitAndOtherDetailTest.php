@@ -151,13 +151,33 @@ class CategorySplitAndOtherDetailTest extends TestCase
      * touching twenty call sites. Only the label changed, the same way
      * 'closed_no_action' is stored and "Closed" is shown.
      */
-    public function test_the_administrative_category_is_shown_as_administrator(): void
+    public function test_the_vague_categories_are_renamed_without_changing_what_is_stored(): void
     {
         $page = $this->actingAs($this->student())->get('/concerns/create');
 
         $page->assertOk();
-        $page->assertSee('value="Administrative"', false);
-        $page->assertSee('Administrator');
+
+        // Several stored names were too vague to choose between: "Physical"
+        // could be a fight, a disability or a broken wall, and "Facilities"
+        // and "Equipment" both sound like the home for a dead lab computer.
+        $renamed = [
+            'Administrative' => 'System Problem',
+            'Personal' => 'Personal Problem',
+            'Physical' => 'Physical Injury',
+            'Safety' => 'Safety Hazard',
+            'Facilities' => 'Building & Facilities',
+            'Equipment' => 'Equipment & Devices',
+        ];
+
+        foreach ($renamed as $stored => $shown) {
+            $page->assertSee('value="'.$stored.'"', false);
+
+            // e(): "Building & Facilities" reaches the page as
+            // "Building &amp; Facilities", so the needle has to be escaped too.
+            $page->assertSee(e($shown), false);
+
+            $this->assertSame($shown, Concern::categoryLabel($stored));
+        }
 
         // And a filed one keeps the stored value while displaying the label.
         $this->actingAs($this->student())->post('/concerns', [
@@ -168,8 +188,54 @@ class CategorySplitAndOtherDetailTest extends TestCase
         $concern = Concern::latest('id')->firstOrFail();
 
         $this->assertSame('Administrative', $concern->category, 'the stored value is the contract');
-        $this->assertSame('Administrator', $concern->category_label);
+        $this->assertSame('System Problem', $concern->category_label);
 
-        fwrite(STDERR, "  [label] shown as Administrator, stored as Administrative: YES\n");
+        fwrite(STDERR, "  [label] vague categories renamed on screen, stored values untouched: YES\n");
+    }
+
+    /**
+     * The staff picker narrows to the people with a part in the category.
+     *
+     * An Academic concern climbs one ladder -- the chair of the student's
+     * programme, their college's dean, then the VPAA -- plus their own
+     * college's office staff. Offering Legal Affairs or Gender and Development
+     * there invites a student to name somebody with no part in it: the concern
+     * still goes to the chair, and a name is attached to a case it has nothing
+     * to do with.
+     *
+     * The narrowing itself runs in the browser and was driven there. This
+     * pins what the page has to hand it: a role and an office on every person,
+     * and the rule to apply.
+     */
+    public function test_the_staff_picker_carries_what_it_needs_to_narrow_by_category(): void
+    {
+        $page = $this->actingAs($this->student())->get('/concerns/create')->assertOk();
+
+        // Every person is tagged with both, or the rule has nothing to read.
+        $page->assertSee('class="person" data-role=', false)
+            ->assertSee('data-office=', false);
+
+        // And the rule itself, with the academic ladder named.
+        $page->assertSee("'Academic': ['Program Chair', 'Dean', 'Vice President for Academic Affairs']", false)
+            ->assertSee('const OWN_COLLEGE', false)
+            ->assertSee('function narrowStaffPicker', false);
+
+        fwrite(STDERR, "  [picker] each person carries a role and an office, and the category rule is on the page\n");
+    }
+
+    /** The dropdown also says what each one covers, before you have to pick. */
+    public function test_the_dropdown_says_what_each_category_covers(): void
+    {
+        $page = $this->actingAs($this->student())->get('/concerns/create')->assertOk();
+
+        $page->assertSee('System Problem — this website itself — a page or button that will not work', false)
+            ->assertSee('Safety Hazard — a hazard that has not caused harm yet', false);
+
+        // Every category carries one, so none is left as a bare word.
+        foreach (Concern::CATEGORIES as $category) {
+            $this->assertArrayHasKey($category, Concern::CATEGORY_HINTS, "{$category} has no clarifier");
+        }
+
+        fwrite(STDERR, "  [label] each option says what it covers, before it is chosen: YES\n");
     }
 }

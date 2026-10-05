@@ -51,6 +51,7 @@ class ConcernController extends Controller
         // office its own complaint. Keep this in step with the roles in
         // User::EMPLOYEE_ROLES.
         'Gender and Development',
+        'Legal Affairs',
         'General Services',
     ];
 
@@ -82,7 +83,11 @@ class ConcernController extends Controller
         // owns the request. Worth knowing when reading complaints that this
         // office cannot resolve much itself -- a high referral rate here is
         // the system working, not failing.
-        'Administrative' => 'Staff Admin',
+        // A fault in the system goes to the people who run the system. It
+        // reached the Administrative Office while this category meant
+        // enrolment, records and fees; it now means the website is broken,
+        // which that office can do nothing about.
+        'Administrative' => 'System Admin',
         // Facilities/equipment problems (a dead lab PC, no water in the CR, a
         // broken aircon) have no human subject and no academic content. They
         // go to the General Services Unit, which per cspc.edu.ph performs
@@ -119,11 +124,18 @@ class ConcernController extends Controller
         'Instructor',
         'Guidance Counselor',
         'Program Chair',
-        'Staff Admin',
+        // Staff Admin is no longer offered as a destination. With the
+        // Administrative category now meaning "this website is broken" and
+        // going to the System Admin, the Administrative Office owns no queue,
+        // and the two sat side by side in the dropdown reading as the same
+        // thing. It remains a ROLE -- people hold it, it can be named in a
+        // concern, and it is still the last resort in routeConcern() so that
+        // nothing is ever left unassigned.
         'System Admin',
         'Dean',
         'Faculty/Staff',
         'Gender and Development',
+        'Legal Affairs',
         'General Services',
     ];
 
@@ -135,14 +147,14 @@ class ConcernController extends Controller
     public const REFERRAL_ROLE_LABELS = [
         'Guidance Counselor'     => 'Guidance Counselor',
         'Program Chair'          => 'Program Chair (one program)',
-        'Staff Admin'            => 'Administrative Office',
-        'System Admin'           => 'System Admin (accounts and roles)',
+        'System Admin'           => 'System Admin (this website)',
         'Vice President for Academic Affairs' => 'VPAA (above the Administration)',
         'Dean'                   => 'Dean (whole college)',
         'Adviser'                => 'Adviser (a college)',
         'Instructor'             => 'Instructor (teaching staff)',
         'Faculty/Staff'          => 'Faculty/Staff (offices & units)',
         'Gender and Development' => 'Gender and Development (GAD)',
+        'Legal Affairs'          => 'Legal Affairs Office (legal counsel)',
         'General Services'       => 'General Services (Facilities)',
     ];
 
@@ -197,14 +209,21 @@ class ConcernController extends Controller
             'sort' => $request->query('sort') === 'oldest' ? 'oldest' : 'newest',
         ];
 
-        // Asking for a finished status IS asking to see finished concerns, so
-        // the hide-resolved default must stand aside. Without this, filtering
-        // to "Resolved" returned an empty list and looked like a bug.
-        $statusIsTerminal = $filters['status'] !== null
-            && in_array($filters['status'], Concern::TERMINAL_STATUSES, true);
+        // An explicit status filter decides for itself. "Show resolved" only
+        // chooses which pile is on screen by default, and picking a status by
+        // name is a more specific request than either pile.
+        $statusChosen = $filters['status'] !== null;
 
         $concerns = Concern::visibleTo($user)
-            ->when(! $showResolved && ! $statusIsTerminal, function ($q) {
+            ->when($showResolved && ! $statusChosen, function ($q) {
+                // The finished pile, on its own. This used to ADD the
+                // finished ones to the open ones, which answered a question
+                // nobody asks: "show me everything, mixed". Somebody looking
+                // for a case they remember settling last term had to read
+                // past every live one to find it.
+                $q->whereIn('status', Concern::TERMINAL_STATUSES);
+            })
+            ->when(! $showResolved && ! $statusChosen, function ($q) {
                 // Hides finished cases of BOTH kinds -- resolved and closed
                 // without action. A closed concern is just as done as a
                 // resolved one, so leaving it in the active list would keep
@@ -364,6 +383,24 @@ class ConcernController extends Controller
             // need to report one.
             'otherStaffByOffice' => $otherStaff
                 ->reject(fn (User $u) => $adviser && $u->id === $adviser->id)
+                // The people who run the system are not part of anybody's
+                // concern. A System Admin administers accounts and roles --
+                // naming one routes a case away from a person who was never
+                // going to handle it, and puts a student's complaint in front
+                // of somebody with no standing in the matter.
+                ->reject(fn (User $u) => optional($u->role)->name === 'System Admin')
+                // One chair chairs one programme. A BS Information Systems
+                // student has exactly one, and the other three in the college
+                // hold no authority over their programme or the people in it
+                // -- they are not alternatives, they are mistakes one click
+                // away. Chairs with no programme recorded stay, since there
+                // is nothing to tell them apart by.
+                ->reject(function (User $u) {
+                    return optional($u->role)->name === 'Program Chair'
+                        && $u->course
+                        && auth()->user()->course
+                        && $u->course !== auth()->user()->course;
+                })
                 ->filter(function (User $u) use ($colleges) {
                     // Not a college? A central office: keep it.
                     if (! in_array($u->department, $colleges, true)) {
@@ -372,8 +409,24 @@ class ConcernController extends Controller
 
                     return $u->department === auth()->user()->department;
                 })
-                ->groupBy(fn (User $u) => $u->department ?: 'Other')
-                ->sortKeys(),
+                ->groupBy(function (User $u) {
+                    $role = optional($u->role)->name;
+
+                    return match ($role) {
+                        'Program Chair' => 'Program Chair',
+                        'Dean' => 'Dean',
+                        'Vice President for Academic Affairs' => 'Vice President for Academic Affairs',
+                        default => 'Staff and offices',
+                    };
+                })
+                // The order a concern climbs: the chair first, then the dean
+                // above them, then the VPAA. Everybody else last.
+                ->sortBy(fn ($people, $group) => array_search($group, [
+                    'Program Chair',
+                    'Dean',
+                    'Vice President for Academic Affairs',
+                    'Staff and offices',
+                ], true)),
         ]);
     }
 
@@ -481,6 +534,34 @@ class ConcernController extends Controller
             $validated['other_category'] = null;
         }
 
+        // The same concern, filed twice.
+        //
+        // Two ways this happens, and both end up here: a double-click or a
+        // refreshed confirmation page, which posts the identical form again
+        // within seconds; and a student who thinks nothing happened the first
+        // time, so writes the same thing again a day later. Either way the
+        // office gets two copies of one problem, each routed and assigned
+        // separately, and a handler resolves one while the other sits open.
+        //
+        // Matched on the student, the category and the text, ignoring case
+        // and surrounding space -- the same complaint retyped with a capital
+        // letter is still the same complaint. Only against concerns that are
+        // still open: once a case is finished, filing it again is a new
+        // report about the same thing, which is allowed and often correct.
+        $alreadyFiled = Concern::where('user_id', $validated['user_id'])
+            ->where('category', $validated['category'])
+            ->whereNotIn('status', Concern::TERMINAL_STATUSES)
+            ->whereRaw('LOWER(TRIM(description)) = ?', [mb_strtolower(trim($validated['description']))])
+            ->latest('id')
+            ->first();
+
+        if ($alreadyFiled) {
+            return redirect()->route('concerns.show', $alreadyFiled)
+                ->with('error', 'You have already submitted this concern — it is #'.$alreadyFiled->id
+                    .', filed '.$alreadyFiled->created_at->diffForHumans()
+                    .', and it is still being handled. Add anything new to that one rather than filing it twice.');
+        }
+
         // 'attachments' is not a column on concerns -- handle it separately.
         $uploadedFiles = $request->file('attachments', []);
         unset($validated['attachments']);
@@ -567,7 +648,26 @@ class ConcernController extends Controller
             ? $this->referralCandidates($concern, $user)
             : collect();
 
-        return view('concerns.show', compact('concern', 'referralCandidates'));
+        // Only the offices somebody eligible is standing in -- and never the
+        // viewer's own.
+        //
+        // Referring a case to the office already reading it is not a hand-off.
+        // A Program Chair was offered "Program Chair", a Dean "Dean"; the
+        // names behind them belong to other programmes and other colleges,
+        // reached only because the one person who does hold the student's
+        // programme is the one doing the referring.
+        //
+        // Every role the viewer holds, not just the primary one: somebody who
+        // is a Faculty/Staff and also runs an office should not be handed
+        // either of their own desks.
+        $ownRoles = $user->allRoleNames();
+
+        $referralDestinations = collect(self::REFERRAL_ROLE_LABELS)
+            ->filter(fn ($label, $role) => $referralCandidates->has($role)
+                && $referralCandidates->get($role)->isNotEmpty()
+                && ! in_array($role, $ownRoles, true));
+
+        return view('concerns.show', compact('concern', 'referralCandidates', 'referralDestinations'));
     }
 
     /**
@@ -659,8 +759,24 @@ class ConcernController extends Controller
             // dropdown, and re-checked against the candidate list below --
             // "exists" alone would let a crafted post hand the case to anyone.
             'referred_to_user_id' => 'nullable|integer|exists:users,id',
-            'investigation_notes' => 'nullable|string',
-            'resolution_notes' => 'nullable|string',
+            // Both are required on every save, not only when resolving. A
+            // status change with no explanation leaves the student watching a
+            // badge move with nothing to read, and leaves the next handler
+            // guessing what was already looked into.
+            //
+            // min:3 rather than bare "required": the TrimStrings middleware
+            // turns a box of spaces into an empty string, and three characters
+            // is the shortest thing that can carry meaning.
+            'investigation_notes' => 'required|string|min:3|max:5000',
+            'resolution_notes' => 'required|string|min:3|max:5000',
+        ], [
+            // Named for what the reader has to do, not for the rule that
+            // failed: "The investigation notes field is required" tells a
+            // handler nothing they did not already see.
+            'investigation_notes.required' => 'Write what you found while looking into this. The student will see it.',
+            'investigation_notes.min' => 'Write what you found while looking into this. The student will see it.',
+            'resolution_notes.required' => 'Write what is being done about this. The student will see it.',
+            'resolution_notes.min' => 'Write what is being done about this. The student will see it.',
         ]);
 
         // When a concern is referred, a destination role is required.
@@ -701,10 +817,22 @@ class ConcernController extends Controller
             }
         }
 
-        // If status is not "referred", clear any previous referral target.
-        if ($validated['status'] !== 'referred') {
-            $validated['referred_to'] = null;
-        }
+        // The office a concern was referred to is KEPT once it moves on.
+        //
+        // It used to be cleared the moment the status changed, so the instant
+        // the Dean resolved a case the chair had sent them, the record of it
+        // ever having been referred was gone: the concern page stopped saying
+        // where it went, and the dashboard's breakdown by office could only
+        // ever show cases still in flight. An administrator asking "how often
+        // do Administrative concerns end up with Records?" got the handful
+        // open at that moment, not the answer.
+        //
+        // Nothing reads this column without also checking the status: every
+        // visibility rule in Concern::scopeVisibleTo() pairs it with
+        // whereNotIn('status', TERMINAL_STATUSES), the list only prints the
+        // arrow while the status is 'referred', and a finished concern cannot
+        // be edited by anyone. So keeping it widens nobody's access -- it only
+        // stops the system forgetting what it did.
 
         // When referring, transfer ownership to a user holding the destination
         // role so that person can actually act on (and resolve) the concern.
@@ -732,15 +860,38 @@ class ConcernController extends Controller
                         ->withInput();
                 }
             } else {
-                $referralRecipient = $this->findHandler($validated['referred_to'], $concern);
+                // No person named, so the office is chosen for them. For a
+                // college role that means the student's OWN college: a chair
+                // sending a Computer Studies case to "Dean" means their dean,
+                // not whichever dean findHandler() reaches first. Only if that
+                // college has nobody in the role does it widen, and then the
+                // error below says so rather than handing the case to a
+                // stranger.
+                // Scoped only when there is a college to scope TO. A concern
+                // whose department is an office rather than a college -- the
+                // Guidance Office, say -- has no "own dean", and narrowing to
+                // one would refuse every referral it could otherwise make.
+                $scoped = in_array($validated['referred_to'], self::COLLEGE_SCOPED_ROLES, true)
+                    && $concern->department
+                    && in_array($concern->department, $this->collegeNames(), true);
+
+                $referralRecipient = $scoped
+                    ? $this->findHandlerInCollege($validated['referred_to'], $concern)
+                    : $this->findHandler($validated['referred_to'], $concern);
             }
 
             // If there is no one in the destination role, the referral cannot
             // be completed -- reject it rather than silently stranding the
             // concern with no valid handler.
             if (! $referralRecipient) {
+                // Name the college when the role is scoped to one. "There is
+                // no Dean available" is puzzling when six of them are on file;
+                // "no Dean for the College of Computer Studies" says what is
+                // actually missing, and points at the fix.
+                $where = ($scoped ?? false) ? ' for the '.$concern->department : '';
+
                 return redirect()->back()
-                    ->withErrors(['referred_to' => 'There is currently no ' . $validated['referred_to'] . ' available to receive this referral. Please choose another destination.'])
+                    ->withErrors(['referred_to' => 'There is currently no '.$validated['referred_to'].$where.' available to receive this referral. Please choose another destination.'])
                     ->withInput();
             }
 
@@ -1345,8 +1496,45 @@ class ConcernController extends Controller
      */
     private function referralCandidates(Concern $concern, User $user)
     {
+        $colleges = $this->collegeNames();
+
         return User::query()
             ->whereHas('role', fn ($q) => $q->whereIn('name', self::REFERRAL_ROLES))
+            // The student's own college, and nowhere else.
+            //
+            // The list used to hold every college's people, merely SORTED so
+            // that the right ones came first. A Computer Studies case
+            // therefore offered all seven deans, and picking the wrong one was
+            // a single mis-click that handed a student's concern to a college
+            // with no connection to them, the programme or the people in it.
+            //
+            // Central offices stay: Guidance, General Services, the VPAA and
+            // the administrators serve every college, so they are not scoped
+            // to one. Anyone with no department recorded stays too -- removing
+            // them would quietly shrink the list over a missing field.
+            ->where(function ($q) use ($concern, $colleges) {
+                $q->whereNull('department')
+                    ->orWhereNotIn('department', $colleges);
+
+                if ($concern->department) {
+                    $q->orWhere('department', $concern->department);
+                }
+            })
+            // A college-bound role stays inside the student's own college,
+            // including Faculty/Staff. Without this, "refer to Faculty/Staff"
+            // on a Computer Studies case offered the Legal Affairs Office,
+            // Records, Health Services and the ICT Unit -- every office in the
+            // institution, none of them with any part in it.
+            //
+            // Only when the concern itself belongs to a college. One filed
+            // from an office has no college to be kept inside.
+            ->when(
+                $concern->department && in_array($concern->department, $colleges, true),
+                fn ($q) => $q->where(function ($sub) use ($concern) {
+                    $sub->where('department', $concern->department)
+                        ->orWhereHas('role', fn ($r) => $r->whereNotIn('name', self::COLLEGE_SCOPED_ROLES));
+                })
+            )
             ->where('id', '!=', $user->id)
             // Nobody the concern names, however many that is.
             ->whereNotIn('id', $concern->subjectIds())
@@ -1365,8 +1553,92 @@ class ConcernController extends Controller
             ->orderByRaw('CASE WHEN department = ? THEN 0 ELSE 1 END', [$concern->department])
             ->orderBy('name')
             ->get()
+            ->pipe(fn ($people) => $this->narrowChairsToTheProgramme($people, $concern))
             ->groupBy(fn (User $candidate) => $candidate->role->name);
     }
+
+    /**
+     * A Program Chair chairs ONE programme, so only that one is offered.
+     *
+     * Scoping to the college was not enough: Computer Studies has four chairs,
+     * and a BS Information Systems case listed all four. Three of them chair a
+     * programme the student is not enrolled in and have no standing over the
+     * people in it, so they are not alternatives -- they are mistakes waiting
+     * to be clicked.
+     *
+     * If no chair matches the programme, it matters why. A programme with no
+     * chair recorded falls back to the college's chairs -- some are stored
+     * without a programme, and several colleges are covered by a placeholder,
+     * so narrowing to nothing would leave a case that could not be referred.
+     * But where the programme does have a chair and they were left out --
+     * they are the one referring, or the concern is about them -- the other
+     * chairs are not stand-ins, and none is offered.
+     *
+     * @param  \Illuminate\Support\Collection<int, User>  $people
+     * @return \Illuminate\Support\Collection<int, User>
+     */
+    private function narrowChairsToTheProgramme($people, Concern $concern)
+    {
+        if (! $concern->course) {
+            return $people;
+        }
+
+        $isChair = fn (User $u) => optional($u->role)->name === 'Program Chair';
+
+        $theirs = $people->filter(fn (User $u) => $isChair($u) && $u->course === $concern->course);
+
+        if ($theirs->isEmpty()) {
+            // Nobody matched, which has two very different causes.
+            //
+            // The programme's chair may have been left out on purpose: they
+            // are the one referring, or the concern is about them. The other
+            // chairs are not stand-ins for them -- they chair different
+            // programmes -- so the office is simply not offered.
+            //
+            // Or the programme has no chair recorded at all, which is the case
+            // this fallback was written for: some chairs are stored without a
+            // programme, and several colleges are covered by a placeholder.
+            // There the college's chairs are the best available answer.
+            $programmeHasAChair = User::whereHas('role', fn ($q) => $q->where('name', 'Program Chair'))
+                ->where('course', $concern->course)
+                ->exists();
+
+            return $programmeHasAChair
+                ? $people->reject($isChair)
+                : $people;
+        }
+
+        return $people->reject(fn (User $u) => $isChair($u) && $u->course !== $concern->course);
+    }
+
+    /**
+     * What counts as a college, as opposed to a central office.
+     *
+     * COURSES_BY_COLLEGE names the six that enrol undergraduates; the Graduate
+     * School has a dean and no entry there. Anywhere a dean sits is a college,
+     * and everything else -- Guidance, General Services, ICT, Records -- serves
+     * the whole institution and is never scoped to one.
+     *
+     * @return list<string>
+     */
+    private function collegeNames(): array
+    {
+        return array_values(array_unique(array_merge(
+            array_keys(User::COURSES_BY_COLLEGE),
+            User::whereHas('role', fn ($q) => $q->where('name', 'Dean'))
+                ->whereNotNull('department')
+                ->distinct()
+                ->pluck('department')
+                ->all()
+        )));
+    }
+
+    /**
+     * Roles that belong to one college. A referral to one of these must stay
+     * inside the student's own, rather than falling through to whoever holds
+     * the role somewhere else.
+     */
+    private const COLLEGE_SCOPED_ROLES = ['Dean', 'Program Chair', 'Adviser', 'Instructor', 'Faculty/Staff'];
 
     /**
      * The same as findHandler(), minus its last resort.

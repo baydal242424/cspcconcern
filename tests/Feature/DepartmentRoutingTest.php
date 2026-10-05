@@ -116,6 +116,8 @@ class DepartmentRoutingTest extends TestCase
         $this->assertSame($counselor->id, $c->assigned_to, 'Should start with the counselor');
 
         $this->actingAs($counselor)->patch("/concerns/{$c->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status' => 'referred', 'referred_to' => 'Dean', 'urgency' => 'Medium',
         ]);
 
@@ -124,7 +126,16 @@ class DepartmentRoutingTest extends TestCase
         $this->assertSame('College of Health Sciences', $this->handler($c)->department);
     }
 
-    public function test_referral_falls_back_when_that_college_has_no_dean(): void
+    /**
+     * A college with no dean of its own is refused, not handed sideways.
+     *
+     * This used to fall back to whichever dean existed, which meant a Health
+     * Sciences student's case could land on the Computer Studies dean -- a
+     * stranger to the student, the programme and the people in it, with no
+     * standing over any of them. Refusing says what is actually missing and
+     * leaves the case with somebody who can still act on it.
+     */
+    public function test_referral_is_refused_when_that_college_has_no_dean(): void
     {
         User::where('email', 'chs@cspc.edu.ph')->delete();
 
@@ -134,12 +145,25 @@ class DepartmentRoutingTest extends TestCase
         ], 'College of Health Sciences');
 
         $counselor = User::where('email', 'counselor@cspc.edu.ph')->firstOrFail();
-        $this->actingAs($counselor)->patch("/concerns/{$c->id}", [
+
+        $response = $this->actingAs($counselor)->patch("/concerns/{$c->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status' => 'referred', 'referred_to' => 'Dean', 'urgency' => 'Medium',
         ]);
 
+        $response->assertSessionHasErrors('referred_to');
+
+        $this->assertStringContainsString(
+            'College of Health Sciences',
+            session('errors')->first('referred_to'),
+            'the message should name the college that has no dean'
+        );
+
+        // And the case stays where it was, rather than being stranded.
         $c->refresh();
-        $this->assertSame('Dean', optional($this->handler($c)->role)->name);
+        $this->assertSame($counselor->id, $c->assigned_to);
+        $this->assertNotSame('referred', $c->status);
     }
 
     public function test_escalation_prefers_the_dean_of_the_same_college(): void

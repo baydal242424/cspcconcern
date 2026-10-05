@@ -131,6 +131,8 @@ class WhatAnInstructorSeesTest extends TestCase
 
         // And they can actually resolve it.
         $this->actingAs($me)->patch("/concerns/{$c->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status' => 'resolved',
             'urgency' => 'Low',
             'resolution_notes' => 'Spoke with the student; timetable corrected.',

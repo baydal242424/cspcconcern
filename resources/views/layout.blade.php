@@ -357,6 +357,13 @@
         }
 
         footer{text-align:center; color:var(--muted); padding:2rem 1rem 3rem; font-size:.85rem}
+        .footer-link{color:var(--muted); text-decoration:underline; text-underline-offset:3px}
+        .footer-link:hover{color:var(--ink)}
+        .footer-link.is-here{color:var(--ink); font-weight:600}
+        .footer-sep{margin:0 .55rem; color:var(--line)}
+        @media(max-width:520px){
+            .footer-sep{display:block; visibility:hidden; height:.35rem}
+        }
 
         @media (max-width:768px){
             .grid-2{grid-template-columns:1fr; gap:1rem}
@@ -378,7 +385,89 @@
             h1{font-size:1.2rem}
         }
         @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
-    </style>
+        /* ---- Concern timeline ------------------------------------------------
+       Two columns: a fixed label column and a track. The track and the date
+       header are each their own grid of one cell per day, so a bar is placed
+       by column number and span, and the day cells underneath keep the row
+       stripes and the today line showing through it. */
+    .tl-card{background:var(--surface,#fff); border:1px solid var(--line,#e7ebf1);
+        border-radius:var(--radius,16px); box-shadow:var(--shadow-sm,0 1px 3px rgba(16,30,66,.05));
+        padding:1.4rem 1.5rem 1rem; margin:1.5rem 0}
+    .tl-head{display:flex; flex-wrap:wrap; gap:1rem; align-items:flex-start;
+        justify-content:space-between; margin-bottom:1.1rem}
+    .tl-title{font-size:1.05rem; font-weight:700; letter-spacing:-.01em;
+        color:var(--ink,#1f2733); margin:0}
+    .tl-range{font-size:.82rem; color:var(--muted,#64748b); margin:.15rem 0 0}
+
+    .tl-legend{display:flex; flex-wrap:wrap; gap:.9rem; list-style:none; margin:0; padding:0}
+    .tl-legend li{display:flex; align-items:center; gap:.4rem;
+        font-size:.76rem; color:var(--muted,#64748b); font-weight:500}
+    .tl-dot{width:9px; height:9px; border-radius:50%; flex:0 0 auto}
+
+    /* One palette for the legend dot and the bar that matches it. */
+    .tl-c-submitted{background:#f59e0b}
+    .tl-c-in_progress{background:#3b82f6}
+    .tl-c-referred{background:#a855f7}
+    .tl-c-resolved{background:#10b981}
+    .tl-c-closed_no_action{background:#94a3b8}
+    .tl-c-today{background:#f59e0b}
+
+    .tl-scroll{overflow-x:auto; padding-bottom:.3rem}
+    .tl-grid{display:grid; grid-template-columns:210px 1fr; min-width:640px}
+
+    .tl-corner{font-size:.66rem; text-transform:uppercase; letter-spacing:.09em;
+        color:var(--muted,#64748b); font-weight:700;
+        display:flex; align-items:flex-end; padding:0 .9rem .65rem 0}
+
+    .tl-days{display:grid;
+        grid-template-columns:repeat(var(--tl-days), minmax(32px, 1fr))}
+    .tl-day{display:flex; flex-direction:column; align-items:center; gap:.1rem;
+        padding-bottom:.65rem}
+    .tl-dow{font-size:.58rem; font-weight:700; letter-spacing:.06em;
+        color:var(--muted,#64748b)}
+    .tl-dom{font-size:.84rem; font-weight:700; color:var(--ink,#1f2733)}
+    .tl-day.is-today .tl-dow,
+    .tl-day.is-today .tl-dom{color:#f59e0b}
+
+    .tl-label{padding:.5rem .9rem .5rem 0; border-top:1px solid var(--line,#e7ebf1);
+        display:flex; flex-direction:column; gap:.1rem; justify-content:center}
+    .tl-name{font-size:.84rem; font-weight:600; color:var(--ink,#1f2733);
+        text-decoration:none; line-height:1.3}
+    .tl-name:hover{color:var(--brand,#2f5bea); text-decoration:underline}
+    .tl-name-plain{cursor:default}
+    .tl-name-plain:hover{color:var(--ink,#1f2733); text-decoration:none}
+    .tl-when{font-size:.71rem; color:var(--muted,#64748b)}
+
+    .tl-track{position:relative; display:grid;
+        grid-template-columns:repeat(var(--tl-days), minmax(32px, 1fr));
+        align-items:center; border-top:1px solid var(--line,#e7ebf1); min-height:46px}
+    /* Alternating stripes, so the eye can follow a row across fourteen
+       columns without losing it. Applied to both halves of the row. */
+    /* Children run: corner, day header, then a label/track pair per row.
+       Every SECOND row is therefore children 5-6, 9-10, 13-14 and so on --
+       nth-of-type counted both halves as divs and tinted every row. */
+    .tl-grid > :nth-child(4n+5), .tl-grid > :nth-child(4n+6){background:#fafbfd}
+    .tl-cell{grid-row:1; height:100%; border-left:1px solid #f2f5fa}
+    .tl-cell.is-today{background:rgba(245,158,11,.08);
+        border-left:1px dashed #f59e0b; border-right:1px dashed #f59e0b}
+
+    .tl-bar{grid-row:1; height:21px; border-radius:999px; display:flex; align-items:center;
+        justify-content:center; text-decoration:none; margin:0 3px; position:relative; z-index:1;
+        box-shadow:0 1px 3px rgba(16,30,66,.18); transition:transform .12s}
+    .tl-bar:hover{transform:translateY(-1px)}
+    .tl-bar-text{font-size:.63rem; font-weight:700; color:#fff; letter-spacing:.02em;
+        white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding:0 .55rem}
+
+    .tl-month{text-align:center; font-size:.68rem; font-weight:800; color:#f59e0b;
+        letter-spacing:.1em; margin:.7rem 0 0}
+
+    @media(max-width:640px){
+        .tl-grid{grid-template-columns:150px 1fr}
+        .tl-card{padding:1.1rem 1rem .8rem}
+        .tl-head{gap:.6rem}
+    }
+
+</style>
 </head>
 <body>
     <nav class="navbar">
@@ -388,14 +477,13 @@
         </div>
         <div class="navbar-nav">
             @if (Auth::check())
-                @if (in_array(optional(Auth::user()->role)->name, ['System Admin', 'Staff Admin'], true))
+                @if (Auth::user()->hasAnyRole(['System Admin', 'Staff Admin']))
                     <a href="{{ route('dashboard') }}" class="{{ request()->routeIs('dashboard') ? 'active' : '' }}">Dashboard</a>
                 @endif
                 <a href="{{ route('concerns.index') }}" class="{{ request()->routeIs('concerns.*') ? 'active' : '' }}">Concerns</a>
-                @if (in_array(optional(Auth::user()->role)->name, ['System Admin', 'Staff Admin'], true))
+                @if (Auth::user()->hasAnyRole(['System Admin', 'Staff Admin']))
                     <a href="{{ route('admin.users') }}" class="{{ request()->routeIs('admin.users') ? 'active' : '' }}">Manage Users</a>
                 @endif
-                <a href="{{ route('policy') }}" class="{{ request()->routeIs('policy') ? 'active' : '' }}">Policy</a>
                 @include('partials.notification-bell')
                 <span>{{ Auth::user()->name }} ({{ optional(Auth::user()->role)->name ?? 'N/A' }})</span>
                 <form action="{{ route('logout') }}" method="POST">
@@ -403,7 +491,6 @@
                     <button type="submit">Logout</button>
                 </form>
             @else
-                <a href="{{ route('policy') }}" class="{{ request()->routeIs('policy') ? 'active' : '' }}">Policy</a>
                 <a href="{{ route('login') }}" class="{{ request()->routeIs('login') ? 'active' : '' }}">Login</a>
             @endif
         </div>
@@ -422,6 +509,8 @@
     </div>
 
     <footer>
+        <a href="{{ route('policy') }}" class="footer-link {{ request()->routeIs('policy') ? 'is-here' : '' }}">Data Privacy &amp; Confidentiality Policy</a>
+        <span class="footer-sep">|</span>
         © {{ date('Y') }} Camarines Sur Polytechnic Colleges. All Rights Reserved.
     </footer>
 

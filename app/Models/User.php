@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Notifications\Notifiable;
 
 /**
@@ -49,12 +50,14 @@ use Illuminate\Notifications\Notifiable;
     // The staff equivalent of student_id, issued by a different office.
     'employee_id', 'course',
     // The student's class section, e.g. 3A. Staff leave it null.
-    'section', 'google_id', 'status', 'requested_role_id', 'role_requested_at', 'approved_by', 'approved_at', 'last_seen_at', 'banned_by', 'banned_at', 'ban_reason', 'email_verified_at'])]
+    'section', 'google_id', 'status', 'requested_role_id', 'role_requested_at', 'approved_by', 'approved_at', 'last_seen_at', 'banned_by', 'banned_at', 'ban_reason', 'email_verified_at',
+    // When they agreed to the privacy policy, and to which wording of it.
+    'policy_accepted_at', 'policy_version'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, Notifiable, SoftDeletes;
 
     /** How recently last_seen_at must have ticked for the account to count as "online". */
     private const ONLINE_THRESHOLD_MINUTES = 5;
@@ -140,6 +143,12 @@ class User extends Authenticatable
         'Staff Admin',
         'Head of School',
         'Gender and Development',
+        // The Legal Affairs Office. Kept in step with
+        // ConcernController::STAFF_ROLES, which says so in its own comment:
+        // a role missing here is an employee the system does not count as
+        // one, so they survive an employee-wide operation and keep appearing
+        // in pickers that were meant to be empty.
+        'Legal Affairs',
         'General Services',
     ];
 
@@ -192,6 +201,30 @@ class User extends Authenticatable
      * concern's department is taken from the reporter's account, so this must
      * be filled in before they can file one.
      */
+    /**
+     * The wording of the policy currently in force.
+     *
+     * Bumped whenever the page is rewritten in a way that changes what is
+     * being agreed to. Everyone is then asked again, because an agreement to
+     * the old wording is not an agreement to the new one -- the September
+     * rewrite, for instance, removed a promise of anonymity the system had
+     * stopped keeping.
+     */
+    public const POLICY_VERSION = '2026-09';
+
+    /**
+     * Have they agreed to the policy in force?
+     *
+     * Asked once, not at every sign-in. A notice shown on every visit is a
+     * notice nobody reads -- it becomes a door to push through, and the
+     * agreement it collects means nothing.
+     */
+    public function hasAcceptedPolicy(): bool
+    {
+        return $this->policy_accepted_at !== null
+            && $this->policy_version === self::POLICY_VERSION;
+    }
+
     public function needsProfileCompletion(): bool
     {
         if (optional($this->role)->name !== 'Student') {
@@ -229,6 +262,7 @@ class User extends Authenticatable
             // cast it came back as a string, and Manage Users threw a 500 the
             // first time any staff member asked for a role.
             'role_requested_at' => 'datetime',
+            'policy_accepted_at' => 'datetime',
             'password' => 'hashed',
         ];
     }
@@ -278,6 +312,54 @@ class User extends Authenticatable
             ->orderBy('section');
     }
 
+    /**
+     * Extra roles, beyond the one in users.role_id.
+     *
+     * The primary role is still the one the account is listed as and the one
+     * routing matches on when choosing a handler. These add what a role
+     * normally grants -- what the person can read, and the pages they can open
+     * -- so an office staff member who also covers Staff Admin sees both
+     * without giving up either.
+     */
+    public function additionalRoles()
+    {
+        return $this->belongsToMany(Role::class, 'role_user')->withTimestamps();
+    }
+
+    /**
+     * Every role this person holds, primary first.
+     *
+     * @return list<string>
+     */
+    public function allRoleNames(): array
+    {
+        $names = [];
+
+        if ($primary = optional($this->role)->name) {
+            $names[] = $primary;
+        }
+
+        foreach ($this->additionalRoles as $role) {
+            if (! in_array($role->name, $names, true)) {
+                $names[] = $role->name;
+            }
+        }
+
+        return $names;
+    }
+
+    /** Does this person hold this role at all -- primary or additional? */
+    public function hasRole(string $name): bool
+    {
+        return in_array($name, $this->allRoleNames(), true);
+    }
+
+    /** Does this person hold any of these roles? */
+    public function hasAnyRole(array $names): bool
+    {
+        return array_intersect($names, $this->allRoleNames()) !== [];
+    }
+
     /** The role this person has asked an administrator to grant them. */
     public function requestedRole()
     {
@@ -321,6 +403,30 @@ class User extends Authenticatable
     public static function finalYearFor(?string $course): int
     {
         return self::YEARS_BY_COURSE[$course] ?? 4;
+    }
+
+    /**
+     * The year levels a programme actually runs to, for a dropdown.
+     *
+     * Every year picker offered 1 to 6. No programme here runs to six, and
+     * only Architecture runs to five, so four of the six choices on an
+     * ordinary student's form were years that cannot exist -- and the one
+     * that can, year 5, was offered to students who would never reach it.
+     * The server already refused them; the form should not propose them.
+     *
+     * @return list<int>
+     */
+    public static function yearLevelsFor(?string $course): array
+    {
+        return range(1, self::finalYearFor($course));
+    }
+
+    /**
+     * The longest any programme runs, which bounds every year field.
+     */
+    public static function longestProgrammeYears(): int
+    {
+        return max(4, ...array_values(self::YEARS_BY_COURSE));
     }
 
     /**

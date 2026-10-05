@@ -52,6 +52,8 @@ class ReporterNeverHandlesOwnConcernTest extends TestCase
         ]);
 
         $this->actingAs($this->u('staff@cspc.edu.ph'))->patch("/concerns/{$concern->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status' => 'referred',
             'referred_to' => 'Dean',
             'urgency' => 'Medium',
@@ -107,6 +109,8 @@ class ReporterNeverHandlesOwnConcernTest extends TestCase
         ]);
 
         $this->actingAs($staff)->patch("/concerns/{$concern->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status' => 'referred',
             'referred_to' => 'Dean',
             'referred_to_user_id' => $dean->id,

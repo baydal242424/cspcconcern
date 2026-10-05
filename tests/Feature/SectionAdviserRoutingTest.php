@@ -183,7 +183,7 @@ class SectionAdviserRoutingTest extends TestCase
             'student_id' => '2026-00123',
             'department' => 'College of Computer Studies',
             'course' => self::COURSE,
-            'section' => '3a',
+            'year' => 3, 'section_letter' => 'A',
         ])->assertRedirect();
 
         $this->assertSame('3A', $student->fresh()->section);
@@ -195,14 +195,22 @@ class SectionAdviserRoutingTest extends TestCase
     public function test_a_malformed_section_is_rejected(): void
     {
         $student = User::where('email', 'student2@my.cspc.edu.ph')->firstOrFail();
+        $before = $student->section;
 
         $this->actingAs($student)->post('/complete-profile', [
             'student_id' => '2026-00123',
             'department' => 'College of Computer Studies',
             'course' => self::COURSE,
-            'section' => 'third year A',
-        ])->assertSessionHasErrors('section');
+            // The form offers two dropdowns now, so nonsense cannot be typed
+            // -- but a hand-posted form still can, and the server is what
+            // decides.
+            'year' => 'third',
+            'section_letter' => 'year A',
+        ])->assertSessionHasErrors(['year', 'section_letter']);
 
-        fwrite(STDERR, "  [profile] 'third year A' refused\n");
+        // Whatever they had stays as it was: a refused change changes nothing.
+        $this->assertSame($before, $student->fresh()->section);
+
+        fwrite(STDERR, "  [profile] a hand-posted nonsense year and section is refused\n");
     }
 }

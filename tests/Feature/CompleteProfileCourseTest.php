@@ -55,9 +55,11 @@ class CompleteProfileCourseTest extends TestCase
             'student_id' => '2023-00123',
             'department' => 'College of Computer Studies',
             'course' => 'BS Information Technology',
-            // Required: it identifies the student's class adviser, who takes
-            // four of the eleven categories before anyone else.
-            'section' => '3A',
+            // Required: they identify the student's class adviser, who takes
+            // four of the eleven categories before anyone else. Two fields
+            // rather than one box, so "3-A" and "III-A" cannot be entered.
+            'year' => 3,
+            'section_letter' => 'A',
         ], $overrides);
     }
 

@@ -96,6 +96,19 @@ class RoleSeeder extends Seeder
                 'description' => 'Center for Gender and Development; receives referred gender-related and sexual harassment cases (CMO No. 3 s. 2022)',
             ],
             [
+                // Referral target only, like GAD above. A student does not
+                // file "a legal matter"; a handler decides a case needs legal
+                // counsel and sends it here.
+                //
+                // It had no role of its own and sat inside Gender and
+                // Development, because referred_to stores a ROLE NAME and
+                // there was nothing else to store. Two unrelated offices
+                // behind one door: choosing GAD offered the lawyer, and
+                // choosing the lawyer meant choosing GAD.
+                'name' => 'Legal Affairs',
+                'description' => 'Legal Affairs Office; receives cases needing legal counsel, including Disciplinary Board and CMO No. 3 s. 2022 referrals',
+            ],
+            [
                 // The General Services Unit is CSPC's maintenance front door:
                 // per cspc.edu.ph it performs "routine maintenance on all the
                 // buildings, grounds, facilities and other equipment", with

@@ -124,7 +124,7 @@ class InstructorPickerAndProgrammeTest extends TestCase
     }
 
     /**
-     * The office picker has to say which office.
+     * The picker has to say who each person is.
      *
      * It was a flat list of "Name -- Role", and the commonest role there is
      * "Faculty/Staff", which names no office at all: the ICT Unit, Records,
@@ -134,11 +134,13 @@ class InstructorPickerAndProgrammeTest extends TestCase
      * concern AWAY from the person named, so picking the wrong one sends it to
      * the very office it should be kept from.
      *
-     * Worst case in the real data: one lawyer heads both Human Rights
-     * Education and the Legal Affairs Office under two accounts, so two
-     * consecutive rows were identical but for a role name.
+     * It is grouped by what somebody IS now -- the chair, the dean, the VPAA,
+     * then everybody else -- which is the order a concern climbs. Grouping by
+     * office scattered those three across a dozen headings with one name under
+     * each. The line still carries the office, which is what tells two
+     * Faculty/Staff apart.
      */
-    public function test_the_office_picker_says_which_office_each_person_belongs_to(): void
+    public function test_the_picker_groups_people_by_what_they_are(): void
     {
         $officeStaff = User::where('email', 'mict@cspc.edu.ph')->firstOrFail();
         $this->assertNotEmpty($officeStaff->department);
@@ -148,21 +150,28 @@ class InstructorPickerAndProgrammeTest extends TestCase
 
         $grouped = $resp->viewData('otherStaffByOffice');
 
-        $this->assertTrue(
-            $grouped->has($officeStaff->department),
-            'The picker must be grouped by office, not presented as one flat list'
+        // The rungs that exist, in the order a concern climbs them. A heading
+        // appears only when somebody is under it -- a college with no chair on
+        // record should not show an empty "Program Chair".
+        $ladder = ['Program Chair', 'Dean', 'Vice President for Academic Affairs', 'Staff and offices'];
+        $headings = collect($grouped)->keys()->values()->all();
+
+        $this->assertSame(
+            array_values(array_intersect($ladder, $headings)),
+            $headings,
+            'the headings must follow the order a concern climbs'
         );
 
+        $this->assertContains('Staff and offices', $headings);
+
         $this->assertTrue(
-            $grouped->get($officeStaff->department)->contains('id', $officeStaff->id),
-            'A member of an office must be listed under that office'
+            $grouped->get('Staff and offices')->contains('id', $officeStaff->id),
+            'An office staff member belongs under the general heading'
         );
 
-        // And it must reach the page, not just the view data. The picker is a
-        // list of checkboxes rather than a <select multiple>, because naming
-        // two people in one of those needs a Ctrl key and most students file
-        // from a phone.
-        $resp->assertSee('<p class="people-group">'.e($officeStaff->department).'</p>', false);
+        // And the office still reaches the page beside their name, which is
+        // what tells two Faculty/Staff apart.
+        $resp->assertSee(e($officeStaff->department), false);
 
         fwrite(STDERR, "  [picker] office staff grouped under their office: YES\n");
     }

@@ -23,6 +23,7 @@ class UserSeeder extends Seeder
         $head_role = Role::where('name', 'Head of School')->first();
         $depthead_role = Role::where('name', 'Dean')->first();
         $gad_role = Role::where('name', 'Gender and Development')->first();
+        $legal_role = Role::where('name', 'Legal Affairs')->first();
         $gsu_role = Role::where('name', 'General Services')->first();
         $registrar_role = Role::where('name', 'Registrar')->first();
 
@@ -312,12 +313,16 @@ class UserSeeder extends Seeder
             // its own -- it sees only what is referred or assigned to it.
             ['gad@cspc.edu.ph', 'Ms. Gigi V. Severo', $gad_role, 'Center for Gender and Development'],
 
-            // The Legal Affairs Office sits in the same role so a case can be
-            // referred to legal counsel through the same gate. The handbook
-            // requires the Disciplinary Board be chaired by a member of the
-            // Integrated Bar (or someone with a legal background), and CMO
-            // No. 3 s. 2022 sexual-harassment cases are legal matters, so
-            // this is the office those referrals need to reach.
+            // The Legal Affairs Office has its own destination now. It used to
+            // share the GAD role, because referred_to stores a ROLE NAME and
+            // there was none to store for legal counsel -- so two unrelated
+            // offices sat behind one door.
+            //
+            // The handbook requires the Disciplinary Board be chaired by a
+            // member of the Integrated Bar (or someone with a legal
+            // background), and CMO No. 3 s. 2022 sexual-harassment cases are
+            // legal matters, so this office still has to be reachable -- by
+            // its own name.
             //
             // She is also the Data Privacy Officer, which matters for a system
             // holding students' mental-health and harassment reports.
@@ -326,7 +331,7 @@ class UserSeeder extends Seeder
             // addresses. Her Human Rights Education row (chre@, below) stays
             // Faculty/Staff; whichever address she signs in with, a row
             // matches, so she is never auto-provisioned as an unknown account.
-            ['lao@cspc.edu.ph', 'Atty. Maria Francia S. Abaca', $gad_role, 'Legal Affairs Office'],
+            ['lao@cspc.edu.ph', 'Atty. Maria Francia S. Abaca', $legal_role, 'Legal Affairs Office'],
             ['chre@cspc.edu.ph', 'Atty. Maria Francia S. Abaca', $staff_role, 'Center for Human Rights Education'],
 
             // NOT seeded: sas@cspc.edu.ph (Dr. Jay L. Luzon, Director, Student

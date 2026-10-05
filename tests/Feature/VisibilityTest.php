@@ -78,30 +78,33 @@ class VisibilityTest extends TestCase
         $this->actingAs($admin)->get("/concerns/{$mh->id}")->assertForbidden();
     }
 
-    /** Admin DOES see Administrative concerns */
-    public function test_admin_sees_administrative_concerns(): void
+    /** The System Admin DOES see reports that the system is broken */
+    public function test_the_system_admin_sees_reports_about_the_system(): void
     {
-        // Administrative routes to the OFFICE, so the office has to be able to
-        // read that category -- a concern assigned to somebody who cannot open
-        // it is worse than an unassigned one, because the queue looks handled.
+        // The category routes to them, so they have to be able to read it -- a
+        // concern assigned to somebody who cannot open it is worse than an
+        // unassigned one, because the queue looks handled.
         //
-        // And the people who run the system do NOT read it. That window
-        // existed only because one Admin role did both jobs; splitting it into
-        // System Admin and Staff Admin removed the reason, and this is the
-        // narrowest the operational role has ever been.
+        // The window moved here with the category. The Administrative Office
+        // held it while the category meant enrolment, records and fees; it now
+        // means "this website is broken", which that office cannot act on.
         $a = $this->makeConcern(['category'=>'Administrative']);
 
         $this->assertTrue(
-            Concern::whereKey($a->id)->visibleTo($this->staffAdmin())->exists(),
-            'the administrative office must be able to read what routes to it'
-        );
-
-        $this->assertFalse(
             Concern::whereKey($a->id)->visibleTo($this->u('admin@cspc.edu.ph'))->exists(),
-            'a System Admin has no standing view of any category'
+            'the people who run the system must be able to read what routes to them'
         );
 
-        fwrite(STDERR, "  [routing] the office reads Administrative, the System Admin does not: YES\n");
+        // And the Administrative Office does not. It held this window while
+        // the category meant enrolment, records and fees; a broken page is not
+        // theirs to fix, and a standing view of it would be a window into
+        // students' reports they have no reason to read.
+        $this->assertFalse(
+            Concern::whereKey($a->id)->visibleTo($this->staffAdmin())->exists(),
+            'the Administrative Office has no standing view of system reports'
+        );
+
+        fwrite(STDERR, "  [routing] the System Admin reads system reports, the office does not: YES\n");
     }
 
     /**
@@ -132,27 +135,38 @@ class VisibilityTest extends TestCase
         fwrite(STDERR, "  [counselor] sees Mental Health: YES\n");
     }
 
-    /** REFERRAL: staff refers an Academic case to the office -> it can now see it */
-    public function test_referral_to_admin_grants_visibility(): void
+    /**
+     * REFERRAL: staff refers an Academic case on -> the receiver can now see it
+     *
+     * This used to refer to the Administrative Office, which is no longer
+     * offered as a destination: with the Administrative category now meaning
+     * "this website is broken" and going to the System Admin, that office owns
+     * no queue, and the two read as the same thing in the dropdown. The
+     * guarantee is unchanged -- a referral is what opens a case to an office
+     * that had no standing view of it.
+     */
+    public function test_a_referral_grants_the_receiver_visibility(): void
     {
         $staff = $this->u('staff@cspc.edu.ph');
-        $admin = $this->staffAdmin();
+        $admin = $this->u('admin@cspc.edu.ph');
         $c = $this->makeConcern(['category'=>'Academic','assigned_to'=>$staff->id]);
 
-        // before referral, the office cannot see this Academic case
+        // before referral, they cannot see this Academic case
         $this->assertFalse(Concern::whereKey($c->id)->visibleTo($admin)->exists());
 
         // staff refers it to Admin via the update endpoint
         $this->actingAs($staff)->patch("/concerns/{$c->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status' => 'referred',
-            'referred_to' => 'Staff Admin',
+            'referred_to' => 'System Admin',
         ]);
         $c->refresh();
         fwrite(STDERR, "  [referral] status={$c->status} referred_to=".var_export($c->referred_to,true)."\n");
 
-        $this->assertEquals('Staff Admin', $c->referred_to);
+        $this->assertEquals('System Admin', $c->referred_to);
         $this->assertTrue(Concern::whereKey($c->id)->visibleTo($admin)->exists(),
-            'Admin should see a case referred to Admin');
+            'the office a case was referred to should be able to read it');
     }
 
     /** REFERRAL VALIDATION: referring with no destination is rejected */
@@ -161,6 +175,8 @@ class VisibilityTest extends TestCase
         $staff = $this->u('staff@cspc.edu.ph');
         $c = $this->makeConcern(['category'=>'Academic','assigned_to'=>$staff->id]);
         $resp = $this->actingAs($staff)->patch("/concerns/{$c->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
             'status' => 'referred',
             'referred_to' => '',
         ]);

@@ -47,7 +47,14 @@ class AdminUserManagementTest extends TestCase
         $this->assertSame('System Admin', $admin->fresh()->role->name);
     }
 
-    public function test_deleting_a_user_removes_the_account_and_their_own_concerns(): void
+    /**
+     * Deleting takes the account out of use and keeps what it filed.
+     *
+     * This used to assert the opposite -- row gone, concerns gone with it --
+     * which is what made an accidental deletion unrecoverable. The concern
+     * survives, hidden from every list, so the person can be put back.
+     */
+    public function test_deleting_a_user_retires_the_account_and_keeps_their_concerns(): void
     {
         $admin = User::where('email', 'admin@cspc.edu.ph')->first();
         $student = User::where('email', 'student@my.cspc.edu.ph')->first();
@@ -67,11 +74,34 @@ class AdminUserManagementTest extends TestCase
             ->delete("/admin/users/{$student->id}");
 
         $response->assertRedirect('/admin/users');
-        $this->assertDatabaseMissing('users', ['id' => $student->id]);
-        $this->assertDatabaseMissing('concerns', ['id' => $concern->id]);
+
+        // Gone from everything that looks for an account...
+        $this->assertNull(User::find($student->id));
+        $this->assertNotNull(User::withTrashed()->find($student->id)->deleted_at);
+
+        // ...and nothing destroyed behind it.
+        $this->assertDatabaseHas('concerns', ['id' => $concern->id]);
+        $this->assertNotNull(Concern::find($concern->id), 'the concern itself is not deleted');
+
+        // But out of sight: nobody can work a case whose reporter is gone.
+        $head = User::whereHas('role', fn ($q) => $q->where('name', 'Head of School'))->first();
+
+        if ($head) {
+            $this->assertFalse(
+                Concern::visibleTo($head)->where('id', $concern->id)->exists(),
+                'a deleted reporter takes their concerns out of every queue'
+            );
+        }
     }
 
-    public function test_deleting_a_user_involved_in_referrals_does_not_fail(): void
+    /**
+     * Referrals are no longer collateral.
+     *
+     * They used to be deleted first, because the foreign key would not let
+     * the row go otherwise. Nothing is destroyed now, so the record of who
+     * sent the case where stays readable on the concern.
+     */
+    public function test_deleting_a_user_involved_in_referrals_leaves_the_referral_intact(): void
     {
         $admin = User::where('email', 'admin@cspc.edu.ph')->first();
         $staff = User::where('email', 'staff@cspc.edu.ph')->first();
@@ -101,9 +131,12 @@ class AdminUserManagementTest extends TestCase
             ->delete("/admin/users/{$staff->id}");
 
         $response->assertRedirect('/admin/users');
-        $this->assertDatabaseMissing('users', ['id' => $staff->id]);
-        $this->assertDatabaseMissing('referrals', ['id' => $referral->id]);
-        // The concern itself belongs to the student, not the deleted staff member.
+        $this->assertNull(User::find($staff->id));
+
+        // The hand-off they made is still on the record.
+        $this->assertDatabaseHas('referrals', ['id' => $referral->id]);
+
+        // The concern belongs to the student, who is still here.
         $this->assertDatabaseHas('concerns', ['id' => $concern->id]);
     }
 

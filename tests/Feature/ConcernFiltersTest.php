@@ -69,6 +69,60 @@ class ConcernFiltersTest extends TestCase
         fwrite(STDERR, "  [filters] category, description and concern number all narrow the list\n");
     }
 
+    /**
+     * The two buttons swap the list; they do not stack it.
+     *
+     * "Show resolved" used to ADD the finished concerns to the open ones,
+     * which answers a question nobody asks -- "show me everything, mixed".
+     * Somebody looking for a case they remember settling last term had to
+     * read past every live one to find it.
+     */
+    public function test_show_resolved_shows_the_finished_ones_only(): void
+    {
+        $open = $this->concern(['status' => 'submitted']);
+
+        $resolved = $this->concern(['status' => 'resolved']);
+        $resolved->forceFill(['resolved_at' => now()])->save();
+
+        $closed = $this->concern(['status' => 'closed_no_action']);
+        $closed->forceFill(['closed_at' => now()])->save();
+
+        $student = $this->student();
+
+        // The default pile: open only.
+        $this->assertSame(
+            [$open->id],
+            $this->actingAs($student)->get('/concerns')->assertOk()
+                ->viewData('concerns')->pluck('id')->all()
+        );
+
+        // The other pile: finished only, both kinds, and the open one gone.
+        $finished = $this->actingAs($student)->get('/concerns?show_resolved=1')->assertOk();
+        $ids = $finished->viewData('concerns')->pluck('id')->all();
+
+        $this->assertContains($resolved->id, $ids);
+        $this->assertContains($closed->id, $ids, 'closed without action is finished too');
+        $this->assertNotContains($open->id, $ids, 'an open concern must not appear in the finished list');
+
+        // And the page says which pile you are looking at.
+        $finished->assertSee('Finished — resolved and closed', false)
+            ->assertSee('Show active', false);
+
+        fwrite(STDERR, "  [filters] Show resolved swaps to the finished pile instead of adding to the open one\n");
+    }
+
+    /** An empty finished pile is not an empty account. */
+    public function test_an_empty_finished_pile_says_so(): void
+    {
+        $this->concern(['status' => 'submitted']);
+
+        $this->actingAs($this->student())->get('/concerns?show_resolved=1')->assertOk()
+            ->assertSee('Nothing has been finished yet.', false)
+            ->assertDontSee("You haven't submitted any concerns yet", false);
+
+        fwrite(STDERR, "  [filters] nothing finished yet reads as that, not as nothing filed\n");
+    }
+
     /** Asking for a resolved status overrides the hide-resolved default. */
     public function test_filtering_to_a_finished_status_shows_finished_concerns(): void
     {

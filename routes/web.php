@@ -45,6 +45,12 @@ Route::get('/auth/google/callback', [AuthController::class, 'handleGoogleCallbac
 // decide to submit a concern.
 Route::view('/policy', 'policy')->name('policy');
 
+// Agreeing to it. Signed-in only, and deliberately outside the gate below --
+// the gate lets this route through, or accepting would be impossible.
+Route::post('/policy/accept', [AuthController::class, 'acceptPolicy'])
+    ->middleware(['auth', 'track.last_seen'])
+    ->name('policy.accept');
+
 // Protected routes. track.last_seen stamps last_seen_at for the admin
 // online/last-active view and signs a user out immediately if banned.
 // Students provisioned by CSPC Mail sign-in have no college/course yet. They
@@ -55,7 +61,10 @@ Route::middleware(['auth', 'track.last_seen'])->group(function () {
     Route::post('/complete-profile', [AuthController::class, 'completeProfile'])->name('profile.complete.post');
 });
 
-Route::middleware(['auth', 'track.last_seen', 'profile.complete'])->group(function () {
+// policy.accepted comes after profile.complete, so a new student gives their
+// details first and then reads the policy: two steps with one job each,
+// rather than one screen asking for everything at once.
+Route::middleware(['auth', 'track.last_seen', 'profile.complete', 'policy.accepted'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     // No 'edit' route: a concern is final once submitted. Staff still act on
     // one through 'update' (the status form on the show page).
@@ -82,9 +91,14 @@ Route::middleware(['auth', 'track.last_seen', 'profile.complete'])->group(functi
 
     // Admin: view all accounts, ban/unban, change role, delete (authorization checked inside the controller)
     Route::get('/admin/users', [AdminController::class, 'index'])->name('admin.users');
+    Route::post('/admin/users', [AdminController::class, 'storeUser'])->name('admin.users.store');
     Route::post('/admin/users/{user}/ban', [AdminController::class, 'ban'])->name('admin.users.ban');
     Route::post('/admin/users/{user}/unban', [AdminController::class, 'unban'])->name('admin.users.unban');
     Route::post('/admin/users/{user}/role', [AdminController::class, 'updateRole'])->name('admin.users.role');
+    // A second hat: extra roles that grant what they can read and open,
+    // without changing who concerns are routed to.
+    Route::post('/admin/users/{user}/additional-roles', [AdminController::class, 'updateAdditionalRoles'])
+        ->name('admin.users.additionalRoles');
     // Start of the school year: move every student up a year level in one
     // action, rather than editing a digit on 500-odd accounts by hand. Both
     // are POST because they change data, and the undo reverses the last run
@@ -100,4 +114,11 @@ Route::middleware(['auth', 'track.last_seen', 'profile.complete'])->group(functi
     // The irregular student's way back in after their year was closed.
     Route::post('/admin/users/{user}/reactivate', [AdminController::class, 'reactivate'])->name('admin.users.reactivate');
     Route::delete('/admin/users/{user}', [AdminController::class, 'destroy'])->name('admin.users.destroy');
+
+    // Both act on accounts that are already deleted, so the route binding has
+    // to look past the soft delete to find them at all.
+    Route::post('/admin/users/{user}/restore', [AdminController::class, 'restore'])
+        ->withTrashed()->name('admin.users.restore');
+    Route::delete('/admin/users/{user}/erase', [AdminController::class, 'forceDestroy'])
+        ->withTrashed()->name('admin.users.erase');
 });

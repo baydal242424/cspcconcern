@@ -43,7 +43,8 @@
         <li><strong>The staff member it is assigned to</strong> &mdash; always, from the moment it is routed to them.</li>
         <li><strong>The office that handles that kind of concern.</strong> The Guidance Office sees counselling
             cases (Mental Health, Personal, Bullying, Harassment). The General Services Unit sees Facilities and
-            Equipment. The Administration sees Administrative requests. None of them sees the others' categories.</li>
+            Equipment. The System Admin sees reports of faults in the system itself. None of them sees the
+            others' categories.</li>
         <li><strong>Class advisers, Program Chairs and Deans share one open queue</strong> for newly submitted
             Academic, Physical, Safety and Others concerns, so a case is picked up even when the first handler is
             away. Once it is assigned, it belongs to the person handling it.</li>
@@ -59,8 +60,8 @@
         <li><strong>Academic, Physical, Safety, Others</strong> &mdash; your own <strong>class adviser</strong>
             first. If your class has no adviser on record yet, an instructor of your college receives it instead.</li>
         <li><strong>Mental Health, Personal, Bullying, Harassment</strong> &mdash; the <strong>Guidance Office</strong>.</li>
-        <li><strong>Administrative</strong> &mdash; the <strong>Administration office</strong>, which often refers it
-            on to whichever office owns the request.</li>
+        <li><strong>System Problem</strong> &mdash; a fault in this website goes to the <strong>System
+            Admin</strong>, who maintain it.</li>
         <li><strong>Facilities, Equipment</strong> &mdash; the <strong>General Services Unit</strong>.</li>
     </ul>
     <p>You may tick <strong>&ldquo;I do not want this to go to my class adviser&rdquo;</strong> on the form. You do
@@ -109,9 +110,12 @@
     <h3 style="margin:1.4rem 0 .5rem;">9. Keeping &amp; Removing Information</h3>
     <p>Concerns are kept so that they can be followed up, reviewed, and counted for institutional reporting. Counts
     used for reporting &mdash; how many concerns of each kind, how long they took &mdash; contain no names.</p>
-    <p>An administrator can delete an account; doing so also deletes the concerns that person filed. At the end of a
-    school year, final-year student accounts are closed as graduated, which ends their access. A student still
-    enrolled can ask an administrator to reopen their account.</p>
+    <p>An administrator can delete an account. The account stops working at once, and the concerns that person filed
+    are hidden from everyone &mdash; but they are kept, so that a deletion made by mistake can be undone. Signing in
+    again restores the account and everything filed under it. An administrator can also erase a deleted account for
+    good, which removes the concerns and the uploaded files with it and cannot be undone.</p>
+    <p>At the end of a school year, final-year student accounts are closed as graduated, which ends their access. A
+    student still enrolled can ask an administrator to reopen their account.</p>
 
     <h3 style="margin:1.4rem 0 .5rem;">10. Obligations of Privileged Users</h3>
     <p>Anyone with privileged access &mdash; the Head of School, Deans, and administrators &mdash; must not disclose
@@ -141,12 +145,38 @@
     audit trail) and partly by institutional governance. Technology limits who <em>can</em>
     access information; this policy governs whether they <em>should</em>.</p>
 
-    <div style="margin-top:1.5rem;">
-        @auth
-            <a href="{{ route('concerns.create') }}" class="btn btn-primary">Submit a Concern</a>
+    {{-- The agreement, shown once.
+         A signed-in person who has not yet agreed meets this on their first
+         visit and never again, unless the policy is rewritten -- which makes
+         it a different promise, so everybody is asked afresh. A notice shown
+         at every sign-in is a door people push through without reading, and
+         the agreement it collects is worth nothing. --}}
+    @auth
+        @if (! Auth::user()->hasAcceptedPolicy())
+            <div style="margin-top:1.75rem; background:#eef2ff; border:1px solid #dbe2ff; border-radius:12px; padding:1.25rem;">
+                <p style="margin:0 0 0.9rem; font-weight:600;">Before you use the system</p>
+                <p style="margin:0 0 1.1rem; color:#475569; font-size:0.92rem;">
+                    Please confirm you have read this policy. It explains who reads your concern, where
+                    it goes, and what the system keeps. You will only be asked once.
+                </p>
+                <form action="{{ route('policy.accept') }}" method="POST" style="margin:0;">
+                    @csrf
+                    <button type="submit" class="btn btn-primary">I have read and accept this policy</button>
+                </form>
+            </div>
         @else
+            <div style="margin-top:1.5rem;">
+                <p style="color:#64748b; font-size:0.85rem; margin-bottom:0.75rem;">
+                    You accepted this policy on
+                    {{ Auth::user()->policy_accepted_at->local()->format('M d, Y') }}.
+                </p>
+                <a href="{{ route('concerns.create') }}" class="btn btn-primary">Submit a Concern</a>
+            </div>
+        @endif
+    @else
+        <div style="margin-top:1.5rem;">
             <a href="{{ route('login') }}" class="btn btn-primary">Sign in to Report</a>
-        @endauth
-    </div>
+        </div>
+    @endauth
 </div>
 @endsection
