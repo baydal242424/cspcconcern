@@ -47,9 +47,15 @@ class LegalAffairsIsItsOwnDoorTest extends TestCase
         $this->assertSame('Legal Affairs', $this->lawyer()->role->name);
         $this->assertSame('Gender and Development', $this->gadOfficer()->role->name);
 
-        // Her other account, at Human Rights Education, is untouched.
-        $otherAccount = User::where('email', 'chre@cspc.edu.ph')->firstOrFail();
-        $this->assertSame('Faculty/Staff', $otherAccount->role->name);
+        // And she holds ONE account. A second row at Human Rights Education
+        // used to be seeded for her other directory address; it put the same
+        // name twice into every staff picker, with only a role to tell the
+        // two apart.
+        $this->assertSame(
+            1,
+            User::where('name', 'Atty. Maria Francia S. Abaca')->count(),
+            'one person, one account'
+        );
 
         fwrite(STDERR, "  [legal] the lawyer and the GAD officer hold different roles\n");
     }

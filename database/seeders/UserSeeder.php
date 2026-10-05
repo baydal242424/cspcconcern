@@ -328,11 +328,17 @@ class UserSeeder extends Seeder
             // holding students' mental-health and harassment reports.
             //
             // Atty. Abaca appears twice in CSPC's directory, under two
-            // addresses. Her Human Rights Education row (chre@, below) stays
-            // Faculty/Staff; whichever address she signs in with, a row
-            // matches, so she is never auto-provisioned as an unknown account.
+            // addresses -- Legal Affairs and Human Rights Education. She is
+            // seeded ONCE, at the Legal Affairs Office, because that is the
+            // post this system routes to.
+            //
+            // The second row used to be seeded as well, so that whichever
+            // address she signed in with, a row matched. It cost a duplicate
+            // name on every screen that lists staff, which was reported as a
+            // bug twice, and it guarded against something that is no longer a
+            // problem: signing in on the other address now makes a dormant
+            // account an administrator can correct from Manage Users.
             ['lao@cspc.edu.ph', 'Atty. Maria Francia S. Abaca', $legal_role, 'Legal Affairs Office'],
-            ['chre@cspc.edu.ph', 'Atty. Maria Francia S. Abaca', $staff_role, 'Center for Human Rights Education'],
 
             // NOT seeded: sas@cspc.edu.ph (Dr. Jay L. Luzon, Director, Student
             // Affairs Services). The handbook makes SASO the official intake
