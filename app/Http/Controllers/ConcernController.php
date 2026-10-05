@@ -236,12 +236,33 @@ class ConcernController extends Controller
             ->when($filters['from'], fn ($q, $from) => $q->where('created_at', '>=', $from->startOfDay()))
             ->when($filters['to'], fn ($q, $to) => $q->where('created_at', '<=', $to->endOfDay()))
             ->when($filters['q'], function ($q, $term) {
-                // A concern number or words from the description. Grouped so
+                // A concern number, or words from the description. Grouped so
                 // the OR cannot escape the visibility and filter clauses
                 // around it -- ungrouped, "or id = 4" would have returned
                 // concern #4 to anybody who typed it.
                 $q->where(function ($sub) use ($term) {
-                    $sub->where('description', 'like', '%'.$term.'%');
+                    $sub->where(function ($words) use ($term) {
+                        // Every word must appear, anywhere and in any order.
+                        // Matching the typed text as one string found a
+                        // concern only where the words sat together in that
+                        // exact order -- fine for a reference number, useless
+                        // for prose. Somebody who filed a letter-length
+                        // account remembers two or three words from it a
+                        // fortnight later, not a contiguous phrase.
+                        //
+                        // Capped, because the box accepts a paste: the first
+                        // few words of a letter identify it, and three
+                        // hundred LIKEs would not find it any better.
+                        foreach (array_slice(self::searchWords($term), 0, 10) as $word) {
+                            // ESCAPE spelled out, because the drivers disagree:
+                            // MySQL treats a backslash as an escape inside LIKE
+                            // by default and SQLite treats it as an ordinary
+                            // character, so the same escaped term matched in
+                            // production and missed under test. '!' needs no
+                            // escaping of its own in either dialect.
+                            $words->whereRaw("description LIKE ? ESCAPE '!'", ['%'.$word.'%']);
+                        }
+                    });
 
                     if (is_numeric($digits = ltrim($term, '#'))) {
                         $sub->orWhere('id', (int) $digits);
@@ -1609,6 +1630,32 @@ class ConcernController extends Controller
         }
 
         return $people->reject(fn (User $u) => $isChair($u) && $u->course !== $concern->course);
+    }
+
+    /**
+     * The words of a search box, ready for a LIKE.
+     *
+     * Split on any run of whitespace, so a phrase pasted out of a concern --
+     * newlines, double spaces and all -- becomes the words it is made of.
+     *
+     * LIKE's own wildcards are escaped, with '!' rather than a backslash:
+     * MySQL reads a backslash inside LIKE as an escape by default and SQLite
+     * does not, so a backslash matched in production and missed under test.
+     * Without any escaping, a student searching for "100%" asked the database
+     * for "anything containing 100 followed by anything", which quietly
+     * matches far more than they meant; an underscore does the same for any
+     * single character.
+     *
+     * @return list<string>
+     */
+    private static function searchWords(string $term): array
+    {
+        $words = preg_split('/\s+/u', trim($term), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        return array_values(array_map(
+            fn (string $word) => str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $word),
+            $words
+        ));
     }
 
     /**

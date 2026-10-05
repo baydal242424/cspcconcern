@@ -103,8 +103,11 @@ class StudentTimelinePrivacyTest extends TestCase
         ])->assertRedirect();
     }
 
-    /** The student is told their concern moved, never where it moved to. */
-    public function test_the_student_is_not_shown_who_is_holding_their_concern(): void
+    /**
+     * The student is told who holds their case, and not the route it
+     * took to get there.
+     */
+    public function test_the_student_is_told_who_holds_it_but_not_the_route(): void
     {
         $concern = $this->aConcern();
         $staff = $this->u('staff@cspc.edu.ph');
@@ -114,23 +117,22 @@ class StudentTimelinePrivacyTest extends TestCase
 
         $resp = $this->studentView($concern);
 
-        $resp->assertSee('Referred to another office');
+        // Who has it now, by name. A student with a complaint needs somebody
+        // to follow it up with; "an office of the college" named nobody,
+        // which is the thing people complain about in the first place.
+        $resp->assertSee('Being handled by');
+        $resp->assertSee($counselor->name);
 
-        // Not the office, and not the person standing in it -- anywhere on
-        // the page. The timeline was only one of three places that named the
-        // desk: the status badge read "Referred → Guidance Counselor" and the
-        // details panel carried "Assigned to Dr. Maria Reyes — Guidance
-        // Counselor · Guidance Office". Hiding one and leaving the others is
-        // not hiding anything.
-        $resp->assertDontSee('Guidance Counselor');
-        $resp->assertDontSee($counselor->name);
+        // What they do not get is the ROUTE. The timeline says the case moved
+        // on, not which desks it crossed to get here -- that is what would
+        // let a reporter work out who has read it.
+        $resp->assertSee('Referred to another office');
+        $resp->assertDontSee('Referred to Guidance Counselor');
+
+        // And the staff-only phrasing stays staff-only.
         $resp->assertDontSee('Assigned to');
 
-        // They are still told it is with somebody.
-        $resp->assertSee('Being handled by');
-        $resp->assertSee('An office of the college');
-
-        fwrite(STDERR, "  [timeline] the student sees the state, not the desk\n");
+        fwrite(STDERR, "  [timeline] the student is told who holds it, not the route it took\n");
     }
 
     /**

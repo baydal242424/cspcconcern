@@ -190,12 +190,23 @@
                         <dd>{{ $concern->referred_to }}</dd>
                     @endif
                 @else
-                    {{-- The reporter is told their case is with somebody, which
-                         is the part that concerns them. --}}
+                    {{-- The reporter is told WHO has their case, by name.
+                         It read "An office of the college" for a while, which
+                         was a step too far: a student with a complaint needs
+                         somebody to follow it up with, and an office that
+                         names nobody is the thing people complain about.
+
+                         What they still do not get is the ROUTE -- the list
+                         of every desk it passed through on the way here. That
+                         is the part the Activity Timeline below collapses,
+                         and the part that would let them work out who read
+                         it. Who holds it now is accountability; who held it
+                         before is a map. --}}
                     <dt>Being handled by</dt>
                     <dd>
                         @if ($concern->assignedUser)
-                            An office of the college
+                            {{ $concern->assignedUser->name }}
+                            <span style="color:var(--muted);">&mdash; {{ $describe($concern->assignedUser) ?: 'no role recorded' }}</span>
                         @else
                             Not yet assigned
                         @endif
