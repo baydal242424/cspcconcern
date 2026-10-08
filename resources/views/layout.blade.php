@@ -436,7 +436,42 @@
             h1{font-size:1.2rem}
         }
         @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
-        /* ---- "This happened again" ---- */
+        /* ---- Attaching evidence ----------------------------------------------
+       A drop zone wrapped around the real file input, not a replacement for
+       it: the input still holds the files and still submits them. The list
+       below exists because a FileList cannot be edited, so the native
+       control has no way to drop one file -- picking again replaces the
+       whole set. */
+    .dropzone{position:relative; border:2px dashed var(--line,#e7ebf1); border-radius:14px;
+        background:#fcfdff; padding:1.5rem 1.1rem; text-align:center; transition:.15s}
+    .dropzone.is-over{border-color:var(--brand,#2f5bea); background:var(--brand-50,#eef2ff)}
+    /* Kept in the layout, not display:none -- a hidden input cannot be
+       focused, and the keyboard needs to reach it. */
+    .dropzone-input{position:absolute; width:1px; height:1px; opacity:0; pointer-events:none}
+    .dropzone-lead{margin:0; font-size:.92rem; color:var(--ink,#1f2733)}
+    .dropzone-sub{margin:.3rem 0 0; font-size:.78rem; color:var(--muted,#64748b)}
+    .dropzone-browse{background:none; border:none; padding:0; font:inherit; cursor:pointer;
+        color:var(--brand,#2f5bea); font-weight:600; text-decoration:underline}
+    .dropzone-input:focus-visible + .dropzone-lead .dropzone-browse,
+    .dropzone-browse:focus-visible{outline:2px solid var(--brand,#2f5bea); outline-offset:3px}
+
+    .file-list{list-style:none; margin:.7rem 0 0; padding:0; display:flex;
+        flex-direction:column; gap:.4rem}
+    .file-row{display:flex; align-items:center; gap:.7rem; padding:.5rem .7rem;
+        border:1px solid var(--line,#e7ebf1); border-radius:10px; background:#fff}
+    .file-row.is-too-big{border-color:#f6c9cf; background:var(--danger-bg,#fde7ea)}
+    .file-name{flex:1 1 auto; min-width:0; font-size:.88rem; overflow:hidden;
+        text-overflow:ellipsis; white-space:nowrap}
+    .file-size{flex:0 0 auto; font-size:.78rem; color:var(--muted,#64748b)}
+    .file-row.is-too-big .file-size{color:var(--danger-ink,#a31726); font-weight:600}
+    .file-remove{flex:0 0 auto; width:26px; height:26px; border-radius:50%;
+        border:1px solid var(--line,#e7ebf1); background:#fff; cursor:pointer;
+        font-size:1.05rem; line-height:1; color:var(--muted,#64748b)}
+    .file-remove:hover{background:var(--danger-bg,#fde7ea); color:var(--danger-ink,#a31726);
+        border-color:#f6c9cf}
+    .file-note{margin:.55rem 0 0; font-size:.82rem; color:var(--danger-ink,#a31726)}
+
+    /* ---- "This happened again" ---- */
     .follows-up{background:var(--warn-bg,#fff4d6); border:1px solid #f3dca0; color:#7a5200;
         border-radius:12px; padding:.9rem 1.1rem; margin-bottom:1.4rem; font-size:.9rem}
     .follows-up strong{display:block; margin-bottom:.25rem}
