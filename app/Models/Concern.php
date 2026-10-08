@@ -335,6 +335,7 @@ class Concern extends Model
 
     protected $fillable = [
         'user_id',
+        'follows_up_on_id',
         'category',
         // Only set when category is Others -- what the student called it.
         'other_category',
@@ -492,6 +493,41 @@ class Concern extends Model
     public function auditLogs()
     {
         return $this->hasMany(AuditLog::class);
+    }
+
+    /**
+     * The settled concern this one was reported as a repeat of.
+     *
+     * Harassment is the case this exists for. A student reports
+     * somebody, it is handled, the case is resolved -- and months
+     * later the same person does it again. Filed unconnected, the
+     * fact that matters most is missing: that it already happened
+     * once and was upheld.
+     */
+    public function followsUpOn()
+    {
+        return $this->belongsTo(self::class, 'follows_up_on_id');
+    }
+
+    /**
+     * Later concerns reported as a repeat of this one.
+     */
+    public function followUps()
+    {
+        return $this->hasMany(self::class, 'follows_up_on_id');
+    }
+
+    /**
+     * Whether its reporter may report this one again.
+     *
+     * Only once it is settled -- while it is open there is nothing to
+     * repeat, and the duplicate guard in store() would refuse it
+     * anyway -- and only by the person who filed it.
+     */
+    public function canBeReportedAgainBy(User $user): bool
+    {
+        return $user->id === $this->user_id
+            && in_array($this->status, self::TERMINAL_STATUSES, true);
     }
 
     /**

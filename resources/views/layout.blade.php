@@ -436,7 +436,14 @@
             h1{font-size:1.2rem}
         }
         @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
-        /* ---- Concern timeline ------------------------------------------------
+        /* ---- "This happened again" ---- */
+    .follows-up{background:var(--warn-bg,#fff4d6); border:1px solid #f3dca0; color:#7a5200;
+        border-radius:12px; padding:.9rem 1.1rem; margin-bottom:1.4rem; font-size:.9rem}
+    .follows-up strong{display:block; margin-bottom:.25rem}
+    .follows-up p{margin:0; line-height:1.55}
+    .follows-up a{color:inherit; font-weight:700}
+
+    /* ---- Concern timeline ------------------------------------------------
        Two columns: a fixed label column and a track. The track and the date
        header are each their own grid of one cell per day, so a bar is placed
        by column number and span, and the day cells underneath keep the row

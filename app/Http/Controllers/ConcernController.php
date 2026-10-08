@@ -312,8 +312,25 @@ class ConcernController extends Controller
     /**
      * Show the form for creating a new concern.
      */
-    public function create()
+    public function create(Request $request)
     {
+        // Reporting a settled concern again. The student arrives here
+        // from a Report again button on their own resolved case, and
+        // the form opens on the same category and the same person --
+        // the one thing they should not have to type a second time is
+        // who did it.
+        $followsUpOn = null;
+
+        if ($id = $request->query('follows_up_on')) {
+            $candidate = Concern::with('subjects')->find($id);
+
+            // Theirs, and settled. Anything else is somebody reading
+            // an id off the address bar.
+            if ($candidate && $candidate->canBeReportedAgainBy(Auth::user())) {
+                $followsUpOn = $candidate;
+            }
+        }
+
         // Staff-type users the student can name as the subject of a
         // conflict-of-interest concern (so it is routed away from them).
         // Split into two pickers: students looking for "my teacher" should not
@@ -384,6 +401,7 @@ class ConcernController extends Controller
         $adviserUnknown = ! $adviser && filled(auth()->user()->section);
 
         return view('concerns.create', [
+            'followsUpOn' => $followsUpOn,
             // Grouped by college so a long list stays navigable. Instructors
             // from every college are offered, not just the student's own --
             // general-education subjects are taught across colleges.
@@ -513,6 +531,7 @@ class ConcernController extends Controller
             // an accusation: they need not report the adviser to ask that
             // somebody else read this.
             'skip_adviser' => ['nullable', 'boolean'],
+            'follows_up_on_id' => ['nullable', 'integer'],
             'attachments' => ['nullable', 'array', 'max:'.config('concerns.max_attachments')],
             // Extensions only. The paired mimetypes rule went with the
             // short list: phones label the same recording half a dozen
@@ -592,6 +611,18 @@ class ConcernController extends Controller
                 ->with('error', 'You have already submitted this concern — it is #'.$alreadyFiled->id
                     .', filed '.$alreadyFiled->created_at->diffForHumans()
                     .', and it is still being handled. Add anything new to that one rather than filing it twice.');
+        }
+
+        // The concern this one repeats, re-checked here rather than trusted
+        // from the form: it has to be the reporter's own and already
+        // settled, or the link is dropped. A wrong parent would show a
+        // handler somebody else's history.
+        if (! empty($validated['follows_up_on_id'])) {
+            $parent = Concern::find($validated['follows_up_on_id']);
+
+            $validated['follows_up_on_id'] = $parent && $parent->canBeReportedAgainBy(Auth::user())
+                ? $parent->id
+                : null;
         }
 
         // 'attachments' is not a column on concerns -- handle it separately.

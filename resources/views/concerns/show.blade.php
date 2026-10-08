@@ -491,6 +491,51 @@
         </div>
     @endif
 
+    {{-- Reporting it again. Not a reopen: the first finding stays exactly as
+         it is, because a second incident is the one thing that must not be
+         allowed to overwrite the first. The new concern carries a link back,
+         so whoever picks it up starts out knowing this has happened before. --}}
+    @if ($concern->canBeReportedAgainBy(Auth::user()))
+        <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
+        <div>
+            <h2 class="section-title" style="margin-bottom:.4rem;">Has this happened again?</h2>
+            <p style="color:var(--muted); font-size:.9rem; margin:0 0 .9rem; max-width:62ch;">
+                This concern is settled. If the same thing has happened since, report it
+                again &mdash; it opens a new case linked to this one, so the staff who
+                handle it can see it is not the first time.
+            </p>
+            <a href="{{ route('concerns.create', ['follows_up_on' => $concern->id]) }}"
+               class="btn btn-primary">Report this again</a>
+        </div>
+    @endif
+
+    {{-- Earlier reports of the same thing, and later ones. A handler opening
+         a harassment case needs to know at a glance that it is the second
+         time, not read to the bottom of a timeline to find out. --}}
+    @if ($concern->followsUpOn || $concern->followUps->isNotEmpty())
+        <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
+        <div>
+            <h2 class="section-title" style="margin-bottom:.6rem;">Reported before</h2>
+            <ul style="margin:0; padding-left:1.1rem; color:var(--ink); font-size:.92rem; line-height:1.7;">
+                @if ($concern->followsUpOn)
+                    <li>
+                        Follows
+                        <a href="{{ route('concerns.show', $concern->followsUpOn) }}">#{{ $concern->followsUpOn->id }}</a>,
+                        settled
+                        {{ optional($concern->followsUpOn->resolved_at ?: $concern->followsUpOn->updated_at)->local()->format('M d, Y') }}.
+                    </li>
+                @endif
+                @foreach ($concern->followUps as $later)
+                    <li>
+                        Reported again as
+                        <a href="{{ route('concerns.show', $later) }}">#{{ $later->id }}</a>
+                        on {{ $later->created_at->local()->format('M d, Y') }}.
+                    </li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
     {{-- Referral history lives in the Activity Timeline above (audit log
          entries), which is the single faithful record of every hand-off. --}}
 

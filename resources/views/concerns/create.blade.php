@@ -10,6 +10,25 @@
     <form action="{{ route('concerns.store') }}" method="POST" enctype="multipart/form-data">
         @csrf
 
+        @if (!empty($followsUpOn))
+            {{-- Re-checked in store(): a hidden field is a suggestion, and
+                 the wrong parent would show a handler somebody else's
+                 history. --}}
+            <input type="hidden" name="follows_up_on_id" value="{{ $followsUpOn->id }}">
+
+            <div class="follows-up">
+                <strong>This has happened again.</strong>
+                <p>
+                    You are reporting concern
+                    <a href="{{ route('concerns.show', $followsUpOn) }}">#{{ $followsUpOn->id }}</a>
+                    again &mdash; {{ $followsUpOn->category_label ?? $followsUpOn->category }}, settled on
+                    {{ optional($followsUpOn->resolved_at ?: $followsUpOn->updated_at)->local()->format('M d, Y') }}.
+                    Describe what has happened <em>since</em>. The staff who pick this up can
+                    see the first report and what came of it, so you do not need to repeat it.
+                </p>
+            </div>
+        @endif
+
         <div class="form-group">
             <label for="category">Concern Category *</label>
             <select name="category" id="category" required>
