@@ -56,7 +56,7 @@ Route::post('/policy/accept', [AuthController::class, 'acceptPolicy'])
 // Students provisioned by CSPC Mail sign-in have no college/course yet. They
 // must supply them before using the app, so this pair sits OUTSIDE the
 // profile.complete middleware to avoid a redirect loop.
-Route::middleware(['auth', 'track.last_seen', 'no.cache'])->group(function () {
+Route::middleware(['auth', 'track.last_seen'])->group(function () {
     Route::get('/complete-profile', [AuthController::class, 'showCompleteProfile'])->name('profile.complete');
     Route::post('/complete-profile', [AuthController::class, 'completeProfile'])->name('profile.complete.post');
 });
@@ -64,7 +64,7 @@ Route::middleware(['auth', 'track.last_seen', 'no.cache'])->group(function () {
 // policy.accepted comes after profile.complete, so a new student gives their
 // details first and then reads the policy: two steps with one job each,
 // rather than one screen asking for everything at once.
-Route::middleware(['auth', 'track.last_seen', 'profile.complete', 'policy.accepted', 'no.cache'])->group(function () {
+Route::middleware(['auth', 'track.last_seen', 'profile.complete', 'policy.accepted'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     // No 'edit' route: a concern is final once submitted. Staff still act on
     // one through 'update' (the status form on the show page).

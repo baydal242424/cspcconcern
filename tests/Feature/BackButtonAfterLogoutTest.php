@@ -42,13 +42,20 @@ class BackButtonAfterLogoutTest extends TestCase
         return [
             'the concern list' => ['/concerns'],
             'the filing form' => ['/concerns/create'],
+            // Outside the auth groups, and still renders the navbar: a
+            // cached copy of this showed the signed-in bar after logout,
+            // which is the page the problem was reported on.
+            'the policy page' => ['/policy'],
+            'the landing page' => ['/'],
         ];
     }
 
     #[\PHPUnit\Framework\Attributes\DataProvider('signedInPages')]
     public function test_a_signed_in_page_is_not_stored(string $path): void
     {
-        $response = $this->actingAs($this->student())->get($path)->assertOk();
+        // Not assertOk: the landing page redirects a signed-in student to
+        // their list, and a redirect is cached like anything else.
+        $response = $this->actingAs($this->student())->get($path);
 
         $cacheControl = strtolower((string) $response->headers->get('Cache-Control'));
 
@@ -71,17 +78,24 @@ class BackButtonAfterLogoutTest extends TestCase
         fwrite(STDERR, "  [back] after logout the URL sends them to sign in\n");
     }
 
-    /** The login page is not made uncacheable for no reason. */
-    public function test_the_login_page_is_left_alone(): void
+    /**
+     * Every page, including the login page.
+     *
+     * Sparing it was the first attempt, on the reasoning that nothing there
+     * is private. The rule has to be whole to be worth anything: the policy
+     * page and the landing page are not private either, and both render the
+     * navbar, so a cached copy of either came back wearing the signed-in bar.
+     * One uncached page is one page the Back button can still return to.
+     */
+    public function test_even_the_login_page_is_not_stored(): void
     {
         $response = $this->get('/login')->assertOk();
 
-        $this->assertStringNotContainsString(
+        $this->assertStringContainsString(
             'no-store',
-            strtolower((string) $response->headers->get('Cache-Control')),
-            'nothing on the login page is worth slowing every visit for'
+            strtolower((string) $response->headers->get('Cache-Control'))
         );
 
-        fwrite(STDERR, "  [back] the login page is left cacheable\n");
+        fwrite(STDERR, "  [back] the login page is not stored either\n");
     }
 }

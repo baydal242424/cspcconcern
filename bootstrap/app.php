@@ -18,6 +18,14 @@ return Application::configure(basePath: dirname(__DIR__))
         // forwarded headers restores the real scheme and host.
         $middleware->trustProxies(at: '*');
 
+        // Every page, not only the signed-in ones. The policy page and the
+        // landing page sit outside the auth groups and still render the
+        // navbar, so a cached copy of either showed the signed-in bar after
+        // logout -- which is exactly what pressing Back brought back.
+        $middleware->web(append: [
+            \App\Http\Middleware\NoBrowserCache::class,
+        ]);
+
         $middleware->alias([
             'track.last_seen' => \App\Http\Middleware\UpdateLastSeen::class,
             'profile.complete' => \App\Http\Middleware\EnsureStudentProfileComplete::class,
