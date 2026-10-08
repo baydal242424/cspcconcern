@@ -153,6 +153,66 @@ class Concern extends Model
      *
      * @var array<string, string>
      */
+    /**
+     * What the handler's own notes are called, per category.
+     *
+     * "Investigation Notes" was the label for all eleven. Most of them are
+     * not investigations: a grade query is a record being checked, a dead
+     * lab PC is a thing being inspected, and a counselling case is written
+     * up. Bullying and Harassment keep the word, because there it is
+     * accurate and the notes form part of a record that may be read back.
+     *
+     * The column, the field and the rule requiring it are unchanged -- this
+     * is what it is CALLED, and a name that misdescribes the work invites
+     * notes that misdescribe it too.
+     */
+    public const HANDLING_NOTE_LABELS = [
+        'Academic' => 'Review Notes',
+        'Mental Health' => 'Case Notes',
+        'Personal' => 'Case Notes',
+        'Bullying' => 'Investigation Notes',
+        'Harassment' => 'Investigation Notes',
+        'Administrative' => 'Diagnosis Notes',
+        'Facilities' => 'Inspection Notes',
+        'Equipment' => 'Inspection Notes',
+        'Physical' => 'Assessment Notes',
+        'Safety' => 'Assessment Notes',
+        'Others' => 'Handling Notes',
+    ];
+
+    /**
+     * The placeholder under each of those, asking for the right thing.
+     */
+    public const HANDLING_NOTE_HINTS = [
+        'Academic' => 'What did you check, and what did the records or the instructor say?',
+        'Mental Health' => 'What came out of speaking with them, and what support was offered?',
+        'Personal' => 'What came out of speaking with them, and what support was offered?',
+        'Bullying' => 'What did you find while looking into this?',
+        'Harassment' => 'What did you find while looking into this?',
+        'Administrative' => 'What was wrong, and what caused it?',
+        'Facilities' => 'What did you find when it was checked?',
+        'Equipment' => 'What did you find when it was checked?',
+        'Physical' => 'What did you find when you looked into the incident?',
+        'Safety' => 'What did you find when the hazard was assessed?',
+        'Others' => 'What did you find while handling this?',
+    ];
+
+    /**
+     * What to call this concern's handler notes.
+     */
+    public function handlingNoteLabel(): string
+    {
+        return self::HANDLING_NOTE_LABELS[$this->category] ?? 'Handling Notes';
+    }
+
+    /**
+     * What to ask for in them.
+     */
+    public function handlingNoteHint(): string
+    {
+        return self::HANDLING_NOTE_HINTS[$this->category] ?? 'What did you find while handling this?';
+    }
+
     public const CATEGORY_HINTS = [
         'Academic' => 'grades, subjects, schedules, teaching',
         'Mental Health' => 'stress, anxiety, how you are coping',

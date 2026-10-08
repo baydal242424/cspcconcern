@@ -416,7 +416,7 @@
     @if ($concern->investigation_notes)
         <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
         <div>
-            <h2 class="section-title">Investigation Notes</h2>
+            <h2 class="section-title">{{ $concern->handlingNoteLabel() }}</h2>
             <p class="user-text">{{ $concern->investigation_notes }}</p>
         </div>
     @endif
@@ -766,9 +766,14 @@
                      checks again -- required is a rule, and a rule enforced
                      only in the page is a suggestion. --}}
                 <div class="form-group">
-                    <label for="investigation_notes">Investigation Notes *</label>
+                    {{-- Named for the work the category actually asks for.
+                         "Investigation Notes" was the label on all eleven,
+                         and most of them are not investigations: a grade
+                         query is a record being checked, a dead lab PC is
+                         inspected, a counselling case is written up. --}}
+                    <label for="investigation_notes">{{ $concern->handlingNoteLabel() }} *</label>
                     <textarea name="investigation_notes" id="investigation_notes" required minlength="3"
-                              placeholder="What did you find while looking into this?">{{ old('investigation_notes', $concern->investigation_notes) }}</textarea>
+                              placeholder="{{ $concern->handlingNoteHint() }}">{{ old('investigation_notes', $concern->investigation_notes) }}</textarea>
                     @error('investigation_notes')
                         <p style="color: var(--danger-ink); font-size: 0.85rem; margin-top: 0.35rem;">{{ $message }}</p>
                     @enderror
