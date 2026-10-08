@@ -324,7 +324,7 @@
         <div class="form-group">
             <label for="attachments">Attach evidence <span style="font-weight:normal;color:#666;">(optional)</span></label>
             <input type="file" name="attachments[]" id="attachments" multiple accept=".jpg,.jpeg,.png,.pdf">
-            <p style="font-size: 0.82rem; color: #666; margin-top: 0.4rem;">You may attach up to 5 files (JPG, PNG, or PDF), 5&nbsp;MB each. Evidence is optional — you can submit without it. Your files are stored privately and can only be viewed by the staff authorized to handle your concern.</p>
+            <p style="font-size: 0.82rem; color: #666; margin-top: 0.4rem;">You may attach up to {{ config('concerns.max_attachments') }} files &mdash; pictures, video, sound recordings, documents or a ZIP &mdash; up to {{ config('concerns.max_attachment_mb') }}&nbsp;MB each. Evidence is optional, and you can submit without it. Your files are stored privately and can only be viewed by the staff authorized to handle your concern.</p>
             @error('attachments')
                 <div style="color: #dc3545; font-size: 0.85rem; margin-top: 0.25rem;">{{ $message }}</div>
             @enderror
@@ -635,7 +635,11 @@
                     // different thing, and still has a home: it is about
                     // conduct, so it goes under a category that still offers
                     // the box rather than under the broken item.
-                    const NAMEABLE = ['Academic', 'Physical', 'Safety', 'Others'];
+                    // Physical is absent: an injury that has already happened
+                    // is reported so somebody can see to the student, not so
+                    // somebody can be named for it. Safety stays, because a
+                    // hazard is often somebody's to have left there.
+                    const NAMEABLE = ['Academic', 'Safety', 'Others'];
 
                     // Who can be named, per category. An Academic concern
                     // climbs one ladder -- the chair of the student's

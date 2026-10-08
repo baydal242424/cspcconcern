@@ -210,7 +210,10 @@ class TheAcademicLadderTest extends TestCase
         // Facilities and Equipment were dropped: they describe a thing
         // that is broken, not somebody's conduct, so there is nobody for a
         // student to name under either.
-        $page->assertSee("const NAMEABLE = ['Academic', 'Physical', 'Safety', 'Others']", false);
+        // Physical left too: an injury that has already happened is
+        // reported so somebody can see to the student, not so somebody can
+        // be named for it.
+        $page->assertSee("const NAMEABLE = ['Academic', 'Safety', 'Others']", false);
 
         // Physical and Safety can still name somebody, but no longer the
         // academic ladder: they reach Guidance, and an injury or a hazard

@@ -513,13 +513,18 @@ class ConcernController extends Controller
             // an accusation: they need not report the adviser to ask that
             // somebody else read this.
             'skip_adviser' => ['nullable', 'boolean'],
-            'attachments' => ['nullable', 'array', 'max:5'],
-            'attachments.*' => ['file', 'mimes:jpg,jpeg,png,pdf', 'mimetypes:image/jpeg,image/png,application/pdf', 'max:5120'],
+            'attachments' => ['nullable', 'array', 'max:'.config('concerns.max_attachments')],
+            // Extensions only. The paired mimetypes rule went with the
+            // short list: phones label the same recording half a dozen
+            // ways -- video/quicktime, video/mp4, application/octet-stream
+            // -- and a student whose evidence is refused for a header
+            // they cannot see has no way to act on the message.
+            'attachments.*' => ['file', 'mimes:'.implode(',', config('concerns.attachment_extensions')),
+                'max:'.(config('concerns.max_attachment_mb') * 1024)],
         ], [
-            'attachments.max' => 'You can attach at most 5 files.',
-            'attachments.*.mimes' => 'Only JPG, PNG, or PDF files are allowed.',
-            'attachments.*.mimetypes' => 'Only JPG, PNG, or PDF files are allowed.',
-            'attachments.*.max' => 'Each file must be 5 MB or smaller.',
+            'attachments.max' => 'You can attach at most '.config('concerns.max_attachments').' files.',
+            'attachments.*.mimes' => 'Pictures, video, sound, documents and ZIP files can be attached. Programs and scripts cannot.',
+            'attachments.*.max' => 'Each file must be '.config('concerns.max_attachment_mb').' MB or smaller.',
         ]);
 
         $validated['user_id'] = Auth::id();

@@ -17,6 +17,55 @@ class AttachmentSecurityTest extends TestCase {
     private function u($e){return User::where('email',$e)->firstOrFail();}
     private function line($t){fwrite(STDERR,"  $t\n");}
 
+    /**
+     * A phone video is evidence too.
+     *
+     * The list was JPG, PNG and PDF, so the commonest thing a student has --
+     * a clip of the hazard, the damage or the incident -- could not be sent
+     * at all. Pictures, video, sound, documents and a ZIP are accepted now.
+     *
+     * @return array<string, array{0: string, 1: string}>
+     */
+    public static function evidenceKinds(): array {
+        return [
+            'a phone video' => ['clip.mp4', 'video/mp4'],
+            'an iPhone video' => ['clip.mov', 'video/quicktime'],
+            'a voice recording' => ['note.m4a', 'audio/mp4'],
+            'a screenshot' => ['shot.png', 'image/png'],
+            'a phone photo' => ['photo.heic', 'image/heic'],
+            'a letter' => ['letter.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+            'a bundle' => ['evidence.zip', 'application/zip'],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('evidenceKinds')]
+    public function test_the_kinds_of_evidence_a_student_actually_has(string $name, string $mime): void {
+        $this->actingAs($this->u('student@my.cspc.edu.ph'))->post('/concerns',[
+            'category'=>'Academic','department'=>'College of Computer Studies',
+            'description'=>'a description long enough to pass the rule',
+            'attachments'=>[UploadedFile::fake()->create($name, 400, $mime)],
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(1, \DB::table('attachments')->count(), $name);
+        \DB::table('attachments')->delete();
+
+        $this->line("[kind] {$name} accepted");
+    }
+
+    /** A program is not evidence, whatever it is called. */
+    public function test_a_program_is_still_refused(): void {
+        $resp=$this->actingAs($this->u('student@my.cspc.edu.ph'))->post('/concerns',[
+            'category'=>'Academic','department'=>'College of Computer Studies',
+            'description'=>'a description long enough to pass the rule',
+            'attachments'=>[UploadedFile::fake()->create('tool.exe', 10, 'application/octet-stream')],
+        ]);
+
+        $resp->assertSessionHasErrors('attachments.0');
+        $this->assertSame(0, \DB::table('attachments')->count());
+
+        $this->line("[kind] an executable is refused");
+    }
+
     /** Guardrail 1+2+4: a valid image uploads, stored on private disk with a randomized name */
     public function test_valid_image_uploads_and_is_stored_privately(): void {
         $this->actingAs($this->u('student@my.cspc.edu.ph'))->post('/concerns',[
@@ -46,13 +95,17 @@ class AttachmentSecurityTest extends TestCase {
 
     /** Guardrail 5: oversized file (>5MB) is rejected */
     public function test_oversized_file_rejected(): void {
-        $big=UploadedFile::fake()->create('big.pdf',6000,'application/pdf'); // 6 MB
+        // One kilobyte past whatever the limit is set to, so the test follows
+        // the configured ceiling instead of pinning a number that moved once
+        // students started sending video.
+        $overBy1KB = (config('concerns.max_attachment_mb') * 1024) + 1;
+        $big=UploadedFile::fake()->create('big.pdf', $overBy1KB, 'application/pdf');
         $resp=$this->actingAs($this->u('student@my.cspc.edu.ph'))->post('/concerns',[
             'category'=>'Academic','department'=>'College of Computer Studies','description'=>'toobig',
             'attachments'=>[$big],
         ]);
         $resp->assertSessionHasErrors('attachments.0');
-        $this->line("[size] 6MB file rejected: yes");
+        $this->line("[size] a file over the limit is rejected: yes");
     }
 
     /** Guardrail 6: more than 5 files rejected */
