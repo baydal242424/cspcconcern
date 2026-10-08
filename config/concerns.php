@@ -1,5 +1,42 @@
 <?php
 
+/**
+ * What this server will actually accept, in bytes.
+ *
+ * PHP writes these as "2M", "8M", "1G" or "-1" for no limit.
+ */
+$toBytes = static function (string $size): int {
+    $size = trim($size);
+
+    if ($size === '' || $size === '-1') {
+        return PHP_INT_MAX;
+    }
+
+    $unit = strtolower(substr($size, -1));
+    $number = (int) $size;
+
+    return match ($unit) {
+        'g' => $number * 1024 * 1024 * 1024,
+        'm' => $number * 1024 * 1024,
+        'k' => $number * 1024,
+        default => $number,
+    };
+};
+
+/**
+ * The real ceiling: the lowest of the two PHP applies.
+ *
+ * upload_max_filesize caps one file; post_max_size caps the whole request,
+ * form fields included, so it binds first whenever it is the smaller. Both
+ * are refused by PHP before Laravel is reached -- the request simply arrives
+ * empty -- so a bigger number in this file buys nothing and produces a blank
+ * page where a message should be.
+ */
+$ceiling = min(
+    $toBytes((string) ini_get('upload_max_filesize')),
+    $toBytes((string) ini_get('post_max_size'))
+);
+
 return [
 
     /*
@@ -7,19 +44,27 @@ return [
     | Evidence attachments
     |--------------------------------------------------------------------------
     |
-    | The app's own limit. It is NOT the only one that applies: PHP refuses an
-    | upload larger than upload_max_filesize before Laravel ever sees it, and
-    | a host usually caps the request body at its edge well below that. Raising
-    | the number here alone changes nothing -- it only stops the app rejecting
-    | what the server already accepted.
+    | Taken from the server rather than written down, because a number written
+    | down is a promise the server does not keep. "5 MB each" was on the form
+    | for months while PHP was set to 2M: a 3 MB file was refused before
+    | Laravel was reached, and the student saw a blank page rather than the
+    | message explaining why.
     |
-    | Local XAMPP ships with upload_max_filesize=2M and post_max_size=8M, which
-    | is why "5 MB each" was never true: a 3 MB file was refused by PHP and the
-    | student saw an empty page rather than the message.
+    | Reading it back means the form, the validation rule and the error text
+    | all say the same true thing on whatever machine this runs on -- the 2M
+    | of a default php.ini, the 40M of this XAMPP, or whatever the host allows
+    | in production.
+    |
+    | To raise it, raise upload_max_filesize AND post_max_size in php.ini and
+    | restart the server; this follows. CONCERN_MAX_ATTACHMENT_MB can only
+    | lower it further, never past what PHP will take.
     |
     */
 
-    'max_attachment_mb' => (int) env('CONCERN_MAX_ATTACHMENT_MB', 1024),
+    'max_attachment_mb' => max(1, (int) min(
+        (int) floor($ceiling / 1048576),
+        (int) env('CONCERN_MAX_ATTACHMENT_MB', PHP_INT_MAX)
+    )),
 
     'max_attachments' => (int) env('CONCERN_MAX_ATTACHMENTS', 5),
 
