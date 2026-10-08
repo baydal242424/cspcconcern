@@ -287,10 +287,16 @@ class Concern extends Model
         'Faculty/Staff',
     ];
 
+    /**
+     * The categories an Adviser, Program Chair or Dean sees without
+     * being sent them.
+     *
+     * Physical and Safety left when they stopped routing to the class
+     * adviser: a standing window into a category that no longer
+     * arrives there shows the academic ladder other people's work.
+     */
     public const TEACHING_CATEGORIES = [
         'Academic',
-        'Physical',
-        'Safety',
         'Others',
     ];
 

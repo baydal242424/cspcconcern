@@ -507,8 +507,8 @@
                     'Administrative': 'the people who run this website',
                     'Facilities': 'the General Services Unit',
                     'Equipment': 'the General Services Unit',
-                    'Physical': 'your class adviser',
-                    'Safety': 'your class adviser',
+                    'Physical': 'the Guidance Office',
+                    'Safety': 'the Guidance Office',
                     'Others': 'your class adviser'
                 };
 
@@ -548,11 +548,11 @@
                 // headed "this concern is about a particular person".
                 const NAMEABLE_ROLES = {
                     'Academic': ['Program Chair', 'Dean', 'Vice President for Academic Affairs'],
-                    // Physical and Safety reach the class adviser too, so a
-                    // student asking for somebody else climbs the same rungs:
-                    // the chair of their programme, their dean, the VPAA.
-                    'Physical': ['Program Chair', 'Dean', 'Vice President for Academic Affairs'],
-                    'Safety': ['Program Chair', 'Dean', 'Vice President for Academic Affairs'],
+                    // Physical and Safety have no entry: they reach Guidance
+                    // now, not the academic ladder, and an injury or a
+                    // hazard can involve anyone on campus. Offering a chair
+                    // and a dean there pointed a student at the two people
+                    // least likely to have been present.
                 };
 
                 // The student's own college, whose people stay offered

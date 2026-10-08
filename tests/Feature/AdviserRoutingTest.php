@@ -12,7 +12,10 @@ use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 /**
- * Academic, Physical, Safety and Others reach a student's adviser first.
+ * Academic and Others reach a student's adviser first. Physical and Safety
+ * used to as well; they go to Guidance now, because an injury that has
+ * already happened and a hazard that has not hurt anybody yet are not
+ * teaching matters.
  *
  * The adviser is the tier a student actually meets, above the instructor and
  * below the programme chair. The interesting cases are the two edges: what
@@ -73,11 +76,11 @@ class AdviserRoutingTest extends TestCase
     }
 
     /** All four categories the adviser now owns behave the same way. */
-    public function test_the_adviser_takes_all_four_categories(): void
+    public function test_the_adviser_takes_the_teaching_categories(): void
     {
         $adviser = $this->personIn('Adviser', 'College of Computer Studies', 'adviser.ccs@cspc.edu.ph');
 
-        foreach (['Academic', 'Physical', 'Safety', 'Others'] as $category) {
+        foreach (['Academic', 'Others'] as $category) {
             $concern = $this->fileAs($this->student(), $category);
 
             $this->assertSame(
@@ -87,7 +90,31 @@ class AdviserRoutingTest extends TestCase
             );
         }
 
-        fwrite(STDERR, "  [adviser] Academic, Physical, Safety and Others all reach them\n");
+        fwrite(STDERR, "  [adviser] Academic and Others both reach them\n");
+    }
+
+    /** And the two that moved reach Guidance instead. */
+    public function test_injury_and_hazard_go_to_guidance(): void
+    {
+        $adviser = $this->personIn('Adviser', 'College of Computer Studies', 'adviser.ccs@cspc.edu.ph');
+
+        foreach (['Physical', 'Safety'] as $category) {
+            $concern = $this->fileAs($this->student(), $category);
+
+            $this->assertNotSame(
+                $adviser->id,
+                $concern->assigned_to,
+                "{$category} should no longer reach the adviser"
+            );
+
+            $this->assertSame(
+                'Guidance Counselor',
+                optional(optional($concern->assignedUser)->role)->name,
+                "{$category} should reach Guidance"
+            );
+        }
+
+        fwrite(STDERR, "  [adviser] injury and hazard reach Guidance instead\n");
     }
 
     /**

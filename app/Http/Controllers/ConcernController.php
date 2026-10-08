@@ -107,8 +107,14 @@ class ConcernController extends Controller
         // offices owns their problem.
         'Facilities' => 'General Services',
         'Equipment' => 'General Services',
-        'Physical' => 'Adviser',
-        'Safety' => 'Adviser',
+        // Not the class adviser. An injury that has already happened and
+        // a hazard that has not hurt anybody yet are not teaching
+        // matters: the first needs somebody trained to sit with the
+        // student, the second needs passing to whoever can make the
+        // place safe. Guidance is the office that does both and
+        // refers onward.
+        'Physical' => 'Guidance Counselor',
+        'Safety' => 'Guidance Counselor',
         'Others' => 'Adviser',
     ];
 

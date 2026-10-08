@@ -46,9 +46,9 @@ class CategorySplitAndOtherDetailTest extends TestCase
 
             $this->assertSame($category, $concern->category);
             $this->assertSame(
-                'Instructor',
+                'Guidance Counselor',
                 optional(optional($concern->assignedUser)->role)->name,
-                "{$category} should reach an instructor"
+                "{$category} should reach Guidance"
             );
 
             fwrite(STDERR, "  [route] {$category} -> ".optional($concern->assignedUser)->name.PHP_EOL);
@@ -68,9 +68,9 @@ class CategorySplitAndOtherDetailTest extends TestCase
     /** Both sit in the shared teaching queue. */
     public function test_both_appear_in_the_open_teaching_queue(): void
     {
-        // The queue moved up a tier with the Adviser role: Academic, Physical,
-        // Safety and Others reach an adviser first, and an instructor is
-        // referral-gated.
+        // Physical and Safety left the teaching queue when they stopped
+        // routing to the class adviser. An adviser has no standing claim on
+        // an injury or a hazard any more; Guidance does.
         $adviser = User::create([
             'name' => 'Queue Adviser',
             'email' => 'queue.adviser@cspc.edu.ph',
@@ -91,10 +91,25 @@ class CategorySplitAndOtherDetailTest extends TestCase
                 'is_anonymous' => false,
             ]);
 
-            $this->assertTrue(Concern::visibleTo($adviser)->pluck('id')->contains($c->id));
+            $this->assertFalse(
+                Concern::visibleTo($adviser)->pluck('id')->contains($c->id),
+                "{$category} is Guidance's work now, not the adviser's"
+            );
         }
 
-        fwrite(STDERR, "  [queue] both visible to every adviser until claimed\n");
+        // What the adviser does still hold a standing claim on.
+        $academic = Concern::create([
+            'user_id' => $this->student()->id,
+            'category' => 'Academic',
+            'department' => 'College of Computer Studies',
+            'description' => 'Unclaimed, sitting in the queue.',
+            'status' => 'submitted',
+            'is_anonymous' => false,
+        ]);
+
+        $this->assertTrue(Concern::visibleTo($adviser)->pluck('id')->contains($academic->id));
+
+        fwrite(STDERR, "  [queue] injury and hazard left the adviser queue; Academic stayed\n");
     }
 
     /** Others cannot be filed without saying what it is. */

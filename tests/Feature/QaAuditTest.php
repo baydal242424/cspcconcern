@@ -23,13 +23,35 @@ class QaAuditTest extends TestCase
 
     private function submit(array $overrides = []): Concern
     {
-        $this->actingAs($this->u('student@my.cspc.edu.ph'))->post('/concerns', array_merge([
+        $payload = array_merge([
             // description must satisfy the min:20 rule or the POST silently 302s
             // back with errors and no concern is created
             'category'=>'Academic','department'=>'College of Computer Studies',
             'description'=>'qa test concern with a long enough description',
-        ], $overrides));
-        return Concern::orderByDesc('id')->first();
+        ], $overrides);
+
+        // "Others" has to say what it is, or the POST is refused.
+        if (($payload['category'] ?? null) === 'Others' && empty($payload['other_category'])) {
+            $payload['other_category'] = 'Lost property';
+        }
+
+        $before = Concern::max('id');
+
+        $this->actingAs($this->u('student@my.cspc.edu.ph'))->post('/concerns', $payload);
+
+        $concern = Concern::orderByDesc('id')->first();
+
+        // Without this the helper hands back the PREVIOUS concern whenever a
+        // POST is refused, and the caller asserts against the wrong row. The
+        // routing matrix passed for "Others" that way for months: the row it
+        // read was the Safety concern filed just before it, which happened to
+        // reach the same role.
+        $this->assertTrue(
+            $concern && $concern->id !== $before,
+            'the POST created no concern -- the payload was refused'
+        );
+
+        return $concern;
     }
 
     public function test_all_departments_are_accepted(): void
@@ -63,8 +85,11 @@ class QaAuditTest extends TestCase
             'Administrative'           => 'System Admin',
             'Facilities'               => 'General Services',
             'Equipment'                => 'General Services',
-            'Physical'                 => 'Instructor',
-            'Safety'                   => 'Instructor',
+            // Physical and Safety go to Guidance now: an injury that has
+            // happened and a hazard that has not hurt anybody yet are not
+            // teaching matters.
+            'Physical'                 => 'Guidance Counselor',
+            'Safety'                   => 'Guidance Counselor',
             'Others'                   => 'Instructor',
         ];
         // submit each with a DELIBERATELY mismatched department to prove dept can't hijack routing
@@ -90,10 +115,9 @@ class QaAuditTest extends TestCase
     /** Staff must SEE a concern routed to them. */
     /**
      * Whoever routing picked can see it. Named that way rather than acting as
-     * a fixed account: Safety reaches the student's adviser now, falling back
-     * to an instructor of their college, so which person holds it depends on
-     * who exists -- and the thing worth asserting is that the handler can
-     * open their own work.
+     * a fixed account: Safety reaches Guidance, and which counsellor holds
+     * it depends on who exists -- the thing worth asserting is that whoever
+     * it reached can open their own work.
      */
     public function test_the_assigned_handler_sees_the_concern(): void
     {

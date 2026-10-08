@@ -160,8 +160,13 @@ class TheAcademicLadderTest extends TestCase
     /**
      * The ladder serves every category that reaches the class adviser.
      *
-     * Academic, Physical, Safety and Others all start there, so all four climb
-     * the same rungs when the adviser is skipped or named.
+     * Academic and Others start there, so both climb the same rungs when the
+     * adviser is skipped or named.
+     *
+     * Physical and Safety used to be here too. They go to Guidance now --
+     * an injury that has already happened and a hazard that has not hurt
+     * anybody yet are not teaching matters -- so they never touch this
+     * ladder and are covered by AdviserRoutingTest instead.
      *
      * @return array<string, array{0: string}>
      */
@@ -169,8 +174,6 @@ class TheAcademicLadderTest extends TestCase
     {
         return [
             'Academic' => ['Academic'],
-            'Physical injury' => ['Physical'],
-            'Safety hazard' => ['Safety'],
             'Others' => ['Others'],
         ];
     }
@@ -207,11 +210,15 @@ class TheAcademicLadderTest extends TestCase
         // Facilities and Equipment were dropped: they describe a thing
         // that is broken, not somebody's conduct, so there is nobody for a
         // student to name under either.
-        $page->assertSee("const NAMEABLE = ['Academic', 'Physical', 'Safety', 'Others']", false)
-            ->assertSee("'Physical': ['Program Chair', 'Dean', 'Vice President for Academic Affairs']", false)
-            ->assertSee("'Safety': ['Program Chair', 'Dean', 'Vice President for Academic Affairs']", false);
+        $page->assertSee("const NAMEABLE = ['Academic', 'Physical', 'Safety', 'Others']", false);
 
-        fwrite(STDERR, "  [ladder] the form offers naming on all four adviser categories\n");
+        // Physical and Safety can still name somebody, but no longer the
+        // academic ladder: they reach Guidance, and an injury or a hazard
+        // can involve anyone on campus, so no entry means everybody.
+        $page->assertDontSee("'Physical': ['Program Chair'", false)
+            ->assertDontSee("'Safety': ['Program Chair'", false);
+
+        fwrite(STDERR, "  [ladder] the form still offers naming, minus the ladder on injury and hazard\n");
     }
 
     // ------------------------------------------------------------- the picker
