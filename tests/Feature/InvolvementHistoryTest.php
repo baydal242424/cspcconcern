@@ -43,7 +43,7 @@ class InvolvementHistoryTest extends TestCase
         // counselor resolves (no 403)
         $resp=$this->actingAs($counselor)->patch("/concerns/{$c->id}",[
             'investigation_notes' => 'Looked into this and spoke with the people involved.',
-            'resolution_notes' => 'Recorded what is being done about it.','status'=>'resolved','urgency'=>'Low','resolution_notes'=>'done']);
+            'resolution_notes' => 'Recorded what is being done about it.','status'=>'resolved','resolution_attachments'=>[\Illuminate\Http\UploadedFile::fake()->create('proof.jpg', 50, 'image/jpeg')],'urgency'=>'Low','resolution_notes'=>'done']);
         fwrite(STDERR,"  [resolve] counselor update status: ".$resp->getStatusCode()." (expect 302, not 403)\n");
         $this->assertNotEquals(403,$resp->getStatusCode());
         $c->refresh();

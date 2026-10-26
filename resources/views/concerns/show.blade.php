@@ -281,14 +281,24 @@
         <p class="user-text">{{ $concern->description }}</p>
     </div>
 
-    {{-- Evidence attachments. Links go through a controller that re-checks
-         authorization, so only users allowed to see this concern can download. --}}
-    @if ($concern->attachments->count() > 0)
+    {{-- Files, in two groups that answer opposite questions: what the
+         student says happened, and what the handler did about it. They were
+         one list, so proof of a repair sat under a heading that called it
+         the student's evidence.
+
+         Links go through a controller that re-checks authorization, so only
+         users allowed to see this concern can download. --}}
+    @foreach ([
+        ['Evidence Attachments', $concern->evidence, 'What the student attached.'],
+        ['Proof of Resolution', $concern->resolutionProof, 'Attached by the staff who settled this.'],
+    ] as [$heading, $files, $blurb])
+    @if ($files->count() > 0)
         <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
         <div>
-            <h2 class="section-title">Evidence Attachments ({{ $concern->attachments->count() }})</h2>
+            <h2 class="section-title">{{ $heading }} ({{ $files->count() }})</h2>
+            <p style="color:var(--muted); font-size:.85rem; margin:-.4rem 0 .9rem;">{{ $blurb }}</p>
             <div style="display:flex; flex-direction:column; gap:0.6rem;">
-                @foreach ($concern->attachments as $attachment)
+                @foreach ($files as $attachment)
                     <a href="{{ route('concerns.attachment', [$concern, $attachment]) }}"
                        style="display:flex; align-items:center; gap:0.7rem; padding:0.7rem 0.9rem; border:1px solid #e2e8f0; border-radius:10px; text-decoration:none; color:#1f2733;">
                         <span style="flex-shrink:0; color:#64748b; display:inline-flex;" aria-hidden="true">
@@ -308,6 +318,7 @@
             </div>
         </div>
     @endif
+    @endforeach
 
     {{-- Break-glass identity reveal: only for Head of School, only on
          anonymous concerns. Reason required; the action is fully logged. --}}
@@ -550,7 +561,9 @@
         <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
         <div>
             <h2 class="section-title" style="margin-bottom: 1.5rem;">Update Concern Status</h2>
-            <form action="{{ route('concerns.update', $concern) }}" method="POST">
+            {{-- multipart because resolving takes proof. Without it the
+                 files are dropped silently on the way out of the browser. --}}
+            <form action="{{ route('concerns.update', $concern) }}" method="POST" enctype="multipart/form-data">
                 @csrf
                 @method('PATCH')
 
@@ -580,6 +593,35 @@
                         <option value="referred" {{ $concern->status === 'referred' ? 'selected' : '' }}>Refer</option>
                         <option value="closed_no_action" {{ $concern->status === 'closed_no_action' ? 'selected' : '' }}>Closed — no action needed</option>
                     </select>
+                </div>
+
+                {{-- Shown only when resolving, and required then. A concern
+                     marked resolved with nothing behind it asks the student
+                     to take somebody's word for it; a photograph of the
+                     repaired aircon or a scan of the corrected record is the
+                     difference between "we fixed it" and showing them.
+
+                     Asked only on the move TO resolved -- correcting a typo
+                     on an already-resolved case does not ask again. --}}
+                <div class="form-group" id="resolution-proof-group"
+                     @if ($concern->status === 'resolved') style="display:none;" @endif>
+                    <label for="resolution_attachments">Proof this was dealt with *</label>
+                    <input type="file" name="resolution_attachments[]" id="resolution_attachments" multiple
+                           accept="{{ collect(config('concerns.attachment_extensions'))->map(fn ($e) => '.'.$e)->implode(',') }}">
+                    <div style="color:var(--muted); font-size:0.82rem; margin-top:0.25rem;">
+                        A photo of the repair, a scan of the corrected record, a signed memo &mdash;
+                        up to {{ config('concerns.max_attachments') }} files,
+                        {{ config('concerns.max_attachment_mb') }}&nbsp;MB each.
+                        The student sees these too.
+                    </div>
+                    @error('resolution_attachments')
+                        <div style="color:#dc3545; font-size:0.85rem; margin-top:0.25rem;">{{ $message }}</div>
+                    @enderror
+                    @foreach ($errors->get('resolution_attachments.*') as $fileErrors)
+                        @foreach ($fileErrors as $msg)
+                            <div style="color:#dc3545; font-size:0.85rem; margin-top:0.25rem;">{{ $msg }}</div>
+                        @endforeach
+                    @endforeach
                 </div>
 
                 {{-- Shown only when closing without action. Required, and the
@@ -687,6 +729,8 @@
                         var statusEl = document.getElementById('status');
                         var referGroup = document.getElementById('refer-to-group');
                         var closureGroup = document.getElementById('closure-group');
+                        var proofGroup = document.getElementById('resolution-proof-group');
+                        var ALREADY_RESOLVED = @json($concern->status === 'resolved');
                         var officeEl = document.getElementById('referred_to');
                         var personGroup = document.getElementById('refer-person-group');
                         var personEl = document.getElementById('referred_to_user_id');
@@ -796,6 +840,13 @@
                             }
                             if (closureGroup) {
                                 closureGroup.style.display = (statusEl.value === 'closed_no_action') ? 'block' : 'none';
+                            }
+                            if (proofGroup) {
+                                // Only on the move TO resolved. A case already
+                                // resolved is not asked for the receipt again
+                                // when somebody fixes a typo in the notes.
+                                proofGroup.style.display =
+                                    (statusEl.value === 'resolved' && !ALREADY_RESOLVED) ? 'block' : 'none';
                             }
                             syncPeople();
                         }

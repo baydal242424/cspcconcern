@@ -12,8 +12,15 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Attachment extends Model
 {
+    /** A student's evidence of what happened. */
+    public const KIND_EVIDENCE = 'evidence';
+
+    /** A handler's proof of what was done about it. */
+    public const KIND_RESOLUTION = 'resolution';
+
     protected $fillable = [
         'concern_id',
+        'kind',
         'uploaded_by',
         'original_name',
         'stored_path',

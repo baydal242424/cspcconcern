@@ -17,7 +17,7 @@ class NullRoleAttackTest extends TestCase {
         }
         $r=$this->actingAs($nr)->patch("/concerns/{$c->id}",[
             'investigation_notes' => 'Looked into this and spoke with the people involved.',
-            'resolution_notes' => 'Recorded what is being done about it.','status'=>'resolved','urgency'=>'Low']);
+            'resolution_notes' => 'Recorded what is being done about it.','status'=>'resolved','resolution_attachments'=>[\Illuminate\Http\UploadedFile::fake()->create('proof.jpg', 50, 'image/jpeg')],'urgency'=>'Low']);
         fwrite(STDERR,"  [null-role] PATCH update -> ".$r->getStatusCode()."\n");
         $this->assertNotEquals(500,$r->getStatusCode());
     }

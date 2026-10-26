@@ -36,7 +36,7 @@ class AggressiveQaTest extends TestCase
         $this->actingAs($this->u('student@my.cspc.edu.ph'))->patch("/concerns/{$c->id}",[
             'investigation_notes' => 'Looked into this and spoke with the people involved.',
             'resolution_notes' => 'Recorded what is being done about it.',
-            'status'=>'resolved','urgency'=>'Critical','category'=>'Academic',
+            'status'=>'resolved','resolution_attachments'=>[\Illuminate\Http\UploadedFile::fake()->create('proof.jpg', 50, 'image/jpeg')],'urgency'=>'Critical','category'=>'Academic',
             'department'=>'College of Computer Studies',
             'description'=>'an edited description of acceptable length',
         ]);

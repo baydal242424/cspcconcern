@@ -127,7 +127,7 @@ class ProgramChairRoleTest extends TestCase
         $this->actingAs($chair)->patch("/concerns/{$concern->id}", [
             'investigation_notes' => 'Looked into this and spoke with the people involved.',
             'resolution_notes' => 'Recorded what is being done about it.',
-            'status' => 'resolved',
+            'status' => 'resolved','resolution_attachments'=>[\Illuminate\Http\UploadedFile::fake()->create('proof.jpg', 50, 'image/jpeg')],
             'urgency' => 'Medium',
             'resolution_notes' => 'Spoke with the instructor; grades released.',
         ])->assertRedirect();

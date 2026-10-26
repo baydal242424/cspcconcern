@@ -95,7 +95,7 @@ class DelegateWithinOfficeTest extends TestCase
         $this->actingAs($staffer)->patch("/concerns/{$concern->id}", [
             'investigation_notes' => 'Looked into this and spoke with the people involved.',
             'resolution_notes' => 'Recorded what is being done about it.',
-            'status' => 'resolved',
+            'status' => 'resolved','resolution_attachments'=>[\Illuminate\Http\UploadedFile::fake()->create('proof.jpg', 50, 'image/jpeg')],
             'urgency' => 'Low',
             'resolution_notes' => 'Washer replaced.',
         ])->assertRedirect();

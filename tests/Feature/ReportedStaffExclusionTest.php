@@ -26,7 +26,7 @@ class ReportedStaffExclusionTest extends TestCase {
         // and cannot update it
         $r2=$this->actingAs($staff)->patch("/concerns/{$c->id}",[
             'investigation_notes' => 'Looked into this and spoke with the people involved.',
-            'resolution_notes' => 'Recorded what is being done about it.','status'=>'resolved','urgency'=>'Low']);
+            'resolution_notes' => 'Recorded what is being done about it.','status'=>'resolved','resolution_attachments'=>[\Illuminate\Http\UploadedFile::fake()->create('proof.jpg', 50, 'image/jpeg')],'urgency'=>'Low']);
         $c->refresh();
         $this->line("[coi] reported staff update -> status still '{$c->status}'");
         $this->assertNotEquals('resolved',$c->status);

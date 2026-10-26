@@ -28,7 +28,7 @@ class ListAndTimelineTest extends TestCase
           'status'=>'submitted','is_anonymous'=>false,'assigned_to'=>$staff->id]);
         $this->actingAs($staff)->patch("/concerns/{$resolved->id}",[
             'investigation_notes' => 'Looked into this and spoke with the people involved.',
-            'resolution_notes' => 'Recorded what is being done about it.','status'=>'resolved','urgency'=>'Low','resolution_notes'=>'done']);
+            'resolution_notes' => 'Recorded what is being done about it.','status'=>'resolved','resolution_attachments'=>[\Illuminate\Http\UploadedFile::fake()->create('proof.jpg', 50, 'image/jpeg')],'urgency'=>'Low','resolution_notes'=>'done']);
 
         // default list: resolved hidden
         $def=$this->actingAs($staff)->get('/concerns');
@@ -57,7 +57,7 @@ class ListAndTimelineTest extends TestCase
             'resolution_notes' => 'Recorded what is being done about it.','status'=>'referred','referred_to'=>'Guidance Counselor','urgency'=>'Low']);
         $this->actingAs($counselor)->patch("/concerns/{$c->id}",[
             'investigation_notes' => 'Looked into this and spoke with the people involved.',
-            'resolution_notes' => 'Recorded what is being done about it.','status'=>'resolved','urgency'=>'Low','resolution_notes'=>'done']);
+            'resolution_notes' => 'Recorded what is being done about it.','status'=>'resolved','resolution_attachments'=>[\Illuminate\Http\UploadedFile::fake()->create('proof.jpg', 50, 'image/jpeg')],'urgency'=>'Low','resolution_notes'=>'done']);
 
         $resp=$this->actingAs($counselor)->get("/concerns/{$c->id}");
         $resp->assertOk();

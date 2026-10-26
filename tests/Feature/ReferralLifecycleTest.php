@@ -54,7 +54,7 @@ class ReferralLifecycleTest extends TestCase
         $this->actingAs($this->u('counselor@cspc.edu.ph'))->patch("/concerns/{$c->id}", [
             'investigation_notes' => 'Looked into this and spoke with the people involved.',
             'resolution_notes' => 'Recorded what is being done about it.',
-            'status'=>'resolved','urgency'=>'Low','resolution_notes'=>'done',
+            'status'=>'resolved','resolution_attachments'=>[\Illuminate\Http\UploadedFile::fake()->create('proof.jpg', 50, 'image/jpeg')],'urgency'=>'Low','resolution_notes'=>'done',
         ]);
         $c->refresh();
         $this->assertEquals('resolved', $c->status);
@@ -86,7 +86,7 @@ class ReferralLifecycleTest extends TestCase
         $this->actingAs($counselor)->patch("/concerns/{$c->id}", [
             'investigation_notes' => 'Looked into this and spoke with the people involved.',
             'resolution_notes' => 'Recorded what is being done about it.',
-            'status'=>'resolved','urgency'=>'Low','resolution_notes'=>'done',
+            'status'=>'resolved','resolution_attachments'=>[\Illuminate\Http\UploadedFile::fake()->create('proof.jpg', 50, 'image/jpeg')],'urgency'=>'Low','resolution_notes'=>'done',
         ]);
         $resolvedVisible = Concern::whereKey($c->id)->visibleTo($counselor)->exists();
         fwrite(STDERR, "  [scope] counselor sees while open: ".($openVisible?'YES':'NO').", after resolve (handled by her -> history): ".($resolvedVisible?'YES':'NO')."\n");

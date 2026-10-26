@@ -27,7 +27,7 @@ class RefFixesTest extends TestCase {
         // dept head resolves it
         $r=$this->actingAs($depthead)->patch("/concerns/{$c->id}",[
             'investigation_notes' => 'Looked into this and spoke with the people involved.',
-            'resolution_notes' => 'Recorded what is being done about it.','status'=>'resolved','urgency'=>'Medium','resolution_notes'=>'handled']);
+            'resolution_notes' => 'Recorded what is being done about it.','status'=>'resolved','resolution_attachments'=>[\Illuminate\Http\UploadedFile::fake()->create('proof.jpg', 50, 'image/jpeg')],'urgency'=>'Medium','resolution_notes'=>'handled']);
         $c->refresh();
         $this->line("[refer] dept head resolve -> status '{$c->status}' (resp ".$r->getStatusCode().")");
         $this->assertEquals('resolved',$c->status,'Dean must be able to resolve');

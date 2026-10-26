@@ -162,7 +162,7 @@ class ReferringToTheDeanTest extends TestCase
 
         $this->actingAs($holder)->put("/concerns/{$concern->id}", [
             'investigation_notes' => 'Looked into this and spoke with the people involved.',
-            'resolution_notes' => 'Recorded what is being done about it.','status' => 'resolved'])->assertRedirect();
+            'resolution_notes' => 'Recorded what is being done about it.','status' => 'resolved','resolution_attachments'=>[\Illuminate\Http\UploadedFile::fake()->create('proof.jpg', 50, 'image/jpeg')]])->assertRedirect();
 
         // No longer waiting with another office...
         $this->assertSame(0, Concern::where('status', 'referred')->count());
@@ -204,7 +204,7 @@ class ReferringToTheDeanTest extends TestCase
         $holder = User::findOrFail($concern->fresh()->assigned_to);
         $this->actingAs($holder)->put("/concerns/{$concern->id}", [
             'investigation_notes' => 'Looked into this and spoke with the people involved.',
-            'resolution_notes' => 'Recorded what is being done about it.','status' => 'resolved'])->assertRedirect();
+            'resolution_notes' => 'Recorded what is being done about it.','status' => 'resolved','resolution_attachments'=>[\Illuminate\Http\UploadedFile::fake()->create('proof.jpg', 50, 'image/jpeg')]])->assertRedirect();
 
         // Once finished, the standing window closes again even though the
         // column still names them.

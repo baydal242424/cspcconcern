@@ -117,7 +117,7 @@ class ANewStudentGetsEmailsTest extends TestCase
         $this->actingAs($adviser)
             ->put("/concerns/{$concern->id}", [
             'investigation_notes' => 'Looked into this and spoke with the people involved.',
-            'resolution_notes' => 'Recorded what is being done about it.','status' => 'resolved'])
+            'resolution_notes' => 'Recorded what is being done about it.','status' => 'resolved','resolution_attachments'=>[\Illuminate\Http\UploadedFile::fake()->create('proof.jpg', 50, 'image/jpeg')]])
             ->assertRedirect();
 
         Notification::assertSentToTimes($student, ConcernStatusUpdated::class, 2);

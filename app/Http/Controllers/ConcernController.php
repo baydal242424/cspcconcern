@@ -678,6 +678,7 @@ class ConcernController extends Controller
 
                 Attachment::create([
                     'concern_id' => $concern->id,
+                    'kind' => Attachment::KIND_EVIDENCE,
                     'uploaded_by' => Auth::id(),
                     'original_name' => $file->getClientOriginalName(),
                     'stored_path' => $path,
@@ -868,7 +869,25 @@ class ConcernController extends Controller
             'investigation_notes.min' => 'Write what you found while looking into this. The student will see it.',
             'resolution_notes.required' => 'Write what is being done about this. The student will see it.',
             'resolution_notes.min' => 'Write what is being done about this. The student will see it.',
+            'resolution_attachments.*.mimes' => 'Pictures, video, sound, documents and ZIP files can be attached. Programs and scripts cannot.',
+            'resolution_attachments.*.max' => 'Each file must be '.config('concerns.max_attachment_mb').' MB or smaller.',
         ]);
+
+        // Resolving takes proof. Required on the move TO resolved and not on
+        // later saves of an already resolved case, so correcting a typo a
+        // week afterwards does not ask for the receipt again.
+        //
+        // Checked here rather than with required_if so the message can say
+        // what is wanted: "a file" is not an instruction, and a handler who
+        // has just fixed an aircon needs to be told a photograph of it will
+        // do.
+        $isResolving = $validated['status'] === 'resolved' && $concern->status !== 'resolved';
+
+        if ($isResolving && empty($request->file('resolution_attachments'))) {
+            return redirect()->back()
+                ->withErrors(['resolution_attachments' => 'Attach something showing this was dealt with — a photo of the repair, a scan of the corrected record, a signed memo. The student sees it too.'])
+                ->withInput();
+        }
 
         // When a concern is referred, a destination role is required.
         if ($validated['status'] === 'referred' && empty($validated['referred_to'])) {
@@ -1010,7 +1029,28 @@ class ConcernController extends Controller
             $validated['closed_at'] = now();
         }
 
+        // Not a column on concerns, and held back until the row is saved.
+        $proofFiles = $request->file('resolution_attachments', []);
+        unset($validated['resolution_attachments']);
+
         $concern->update($validated);
+
+        // Stored exactly like a student's evidence -- private disk, random
+        // filename, original name kept only as a label -- and marked as
+        // proof so the two can be told apart on the page.
+        foreach ($proofFiles as $file) {
+            $path = $file->store('attachments', 'local');
+
+            Attachment::create([
+                'concern_id' => $concern->id,
+                'kind' => Attachment::KIND_RESOLUTION,
+                'uploaded_by' => Auth::id(),
+                'original_name' => $file->getClientOriginalName(),
+                'stored_path' => $path,
+                'mime_type' => $file->getClientMimeType(),
+                'size_bytes' => $file->getSize(),
+            ]);
+        }
 
         $statusChanged = $oldStatus !== $validated['status'];
         $isReferral = $validated['status'] === 'referred' && ! empty($validated['referred_to']);

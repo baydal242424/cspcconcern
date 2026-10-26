@@ -17,7 +17,7 @@ class AggressiveQa2Test extends TestCase {
         $c=$this->mk(['assigned_to'=>$staff->id,'category'=>'Academic']); // never referred to counselor
         $r=$this->actingAs($this->u('counselor@cspc.edu.ph'))->patch("/concerns/{$c->id}",[
             'investigation_notes' => 'Looked into this and spoke with the people involved.',
-            'resolution_notes' => 'Recorded what is being done about it.','status'=>'resolved','urgency'=>'Low']);
+            'resolution_notes' => 'Recorded what is being done about it.','status'=>'resolved','resolution_attachments'=>[\Illuminate\Http\UploadedFile::fake()->create('proof.jpg', 50, 'image/jpeg')],'urgency'=>'Low']);
         $c->refresh();
         $this->line("[hijack] counselor resolving staff's non-referred concern -> status '{$c->status}' (want submitted)");
         $this->assertNotEquals('resolved',$c->status);
@@ -85,7 +85,7 @@ class AggressiveQa2Test extends TestCase {
             'category'=>'Academic','department'=>'College of Computer Studies',
             'description'=>'legit edit attempting to smuggle staff fields','is_anonymous'=>0,
             'assigned_to'=>$this->u('admin@cspc.edu.ph')->id, // try to reassign
-            'status'=>'resolved', // try to resolve
+            'status'=>'resolved','resolution_attachments'=>[\Illuminate\Http\UploadedFile::fake()->create('proof.jpg', 50, 'image/jpeg')], // try to resolve
         ]);
         $c->refresh();
         $this->line("[mass-assign] student edit -> status='{$c->status}' assigned_to=".$c->assigned_to);

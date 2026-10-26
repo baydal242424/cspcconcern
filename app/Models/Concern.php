@@ -583,6 +583,18 @@ class Concern extends Model
         return $this->hasMany(AuditLog::class);
     }
 
+    /** What the student attached to show what happened. */
+    public function evidence()
+    {
+        return $this->hasMany(Attachment::class)->where('kind', Attachment::KIND_EVIDENCE);
+    }
+
+    /** What the handler attached to show what was done about it. */
+    public function resolutionProof()
+    {
+        return $this->hasMany(Attachment::class)->where('kind', Attachment::KIND_RESOLUTION);
+    }
+
     /**
      * The settled concern this one was reported as a repeat of.
      *
