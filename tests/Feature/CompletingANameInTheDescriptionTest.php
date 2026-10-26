@@ -43,13 +43,22 @@ class CompletingANameInTheDescriptionTest extends TestCase
         return json_decode($m[1] ?? '[]', true) ?: [];
     }
 
-    /** The box and its list are on the page. */
+    /** The box and its list are on the page, and the @ opens it. */
     public function test_the_completer_is_rendered(): void
     {
         $html = $this->form();
 
         $this->assertStringContainsString('id="mention-box"', $html);
         $this->assertStringContainsString('var PEOPLE =', $html);
+
+        // Opened by an @, not by every word being typed: matching each
+        // word made the list appear over and over while somebody was
+        // writing an ordinary sentence. The @ is the person asking.
+        $this->assertStringContainsString('function currentMention()', $html);
+        $this->assertStringContainsString('before.match(/@(', $html);
+
+        // And the form says the @ is there, or nobody finds it.
+        $this->assertStringContainsString('to name a staff member', $html);
         $this->assertNotEmpty($this->people(), 'there should be somebody to complete');
 
         fwrite(STDERR, '  [mention] the completer is on the form with '.count($this->people())." names\n");

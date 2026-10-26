@@ -172,6 +172,9 @@
 
             <div style="display:flex; justify-content:space-between; margin-top:0.5rem; font-size:0.85rem;">
                 <span id="char-hint" style="color:#dc3545;">Please write at least 20 characters.</span>
+                {{-- Nothing else says the @ is there, and a feature nobody
+                     finds is a feature nobody has. --}}
+                <span style="color:#60708a;">Type <strong>&#64;</strong> to name a staff member.</span>
                 <span id="char-count" style="color:#60708a;">0 / 2000</span>
             </div>
             @error('description')
@@ -1045,17 +1048,31 @@
                 var active = -1;
                 var wordStart = 0;
 
-                // The run of non-space characters ending at the caret, plus
-                // the one before it: people are looked up by surname as often
-                // as by first name, and "Dela Cruz" is two words.
-                function currentFragment() {
+                // What follows an "@" at the caret, or null.
+                //
+                // Triggered by the @ rather than by any word being typed.
+                // Matching every word meant the list appeared over and over
+                // while somebody was writing an ordinary sentence -- the
+                // point of the @ is that the person asks for it.
+                //
+                // The fragment may hold spaces, because people are looked
+                // up by surname as often as by first name and "Dela Cruz"
+                // is two words. It stops at the second one so a whole
+                // paragraph after a stray @ is not treated as a search.
+                function currentMention() {
                     var caret = area.selectionStart;
                     var before = area.value.slice(0, caret);
-                    var match = before.match(/(\S+(?: \S+)?)$/);
+                    var match = before.match(/@([^@
+]{0,40})$/);
 
                     if (!match) return null;
 
-                    wordStart = caret - match[1].length;
+                    // More than two words after it and they have moved on.
+                    if (match[1].split(/\s+/).length > 2) return null;
+
+                    // wordStart covers the @ as well: choosing a name
+                    // replaces the marker with it.
+                    wordStart = caret - match[1].length - 1;
 
                     return match[1];
                 }
@@ -1117,17 +1134,20 @@
                 }
 
                 area.addEventListener('input', function () {
-                    var fragment = currentFragment();
+                    var fragment = currentMention();
 
-                    if (!fragment || fragment.length < 2) {
+                    if (fragment === null) {
                         hide();
                         return;
                     }
 
-                    var needle = fragment.toLowerCase();
+                    // "@" on its own offers everybody, the way a chat does.
+                    // Waiting for two letters first meant the marker looked
+                    // like it had done nothing.
+                    var needle = fragment.trim().toLowerCase();
 
                     matches = PEOPLE.filter(function (person) {
-                        return person.name.toLowerCase().indexOf(needle) !== -1;
+                        return needle === '' || person.name.toLowerCase().indexOf(needle) !== -1;
                     }).slice(0, 6);
 
                     active = matches.length ? 0 : -1;
