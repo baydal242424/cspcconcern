@@ -53,6 +53,29 @@
             @enderror
         </div>
 
+        {{-- The second step: what kind of thing, within the office that will
+             read it. Hidden until a category is chosen, because its options
+             depend entirely on that choice -- the script below rebuilds them
+             rather than hiding the ones that do not apply, since a hidden
+             <option> is not honoured in every browser.
+
+             Others is the one category with no list, and it has its own
+             question below instead. --}}
+        <div class="form-group" id="subcategory-group" style="display:none;">
+            <label for="subcategory">What is it about? <span style="font-weight:normal;color:#666;">(optional)</span></label>
+            <select name="subcategory" id="subcategory"
+                    data-old="{{ old('subcategory') }}">
+                <option value="">-- Select --</option>
+            </select>
+            <div style="color:var(--muted); font-size:0.82rem; margin-top:0.25rem;">
+                The office is the same either way. This tells them what kind of case
+                it is before they open it.
+            </div>
+            @error('subcategory')
+                <div style="color: #dc3545; font-size: 0.85rem; margin-top: 0.25rem;">{{ $message }}</div>
+            @enderror
+        </div>
+
         {{-- "Others" is the one category that does not say what it is. Without
              this the handler opens a concern labelled Others and has to read
              the whole description before knowing what kind of thing it is --
@@ -741,6 +764,10 @@
                 // to offer the General Services staff, the Dean and the Staff
                 // Admin, which put the people who FIX the thing on a list
                 // headed "this concern is about a particular person".
+                // Straight from Concern::SUBCATEGORIES, so the form cannot
+                // offer one the server will refuse, or miss one that was added.
+                const SUBCATEGORIES = @json(\App\Models\Concern::SUBCATEGORIES);
+
                 const NAMEABLE_ROLES = {
                     'Academic': ['Program Chair', 'Dean', 'Vice President for Academic Affairs'],
                     // Physical and Safety have no entry: they reach Guidance
@@ -893,6 +920,42 @@
                         // cannot submit a label belonging to a category that no
                         // longer applies.
                         if (!isOther && otherInput) { otherInput.value = ''; }
+                    }
+
+                    // The second dropdown. Its options belong to the chosen
+                    // category, so they are REBUILT on every change rather
+                    // than hidden: a hidden <option> is not honoured in every
+                    // browser, and a list that silently keeps the wrong
+                    // choices is worse than no list.
+                    const subGroup = document.getElementById('subcategory-group');
+                    const subEl = document.getElementById('subcategory');
+
+                    if (subGroup && subEl) {
+                        const options = SUBCATEGORIES[cat] || [];
+                        const wanted = subEl.value || subEl.dataset.old || '';
+
+                        subEl.textContent = '';
+
+                        const blank = document.createElement('option');
+                        blank.value = '';
+                        blank.textContent = '-- Select --';
+                        subEl.appendChild(blank);
+
+                        options.forEach(function (label) {
+                            const option = document.createElement('option');
+                            option.value = label;
+                            option.textContent = label;
+                            subEl.appendChild(option);
+                        });
+
+                        // Keep what they picked only if the new category still
+                        // offers it; otherwise it would be submitted against a
+                        // category it does not belong to.
+                        subEl.value = options.indexOf(wanted) !== -1 ? wanted : '';
+                        subEl.dataset.old = '';
+
+                        const hasOptions = options.length > 0;
+                        subGroup.style.display = hasOptions ? 'block' : 'none';
                     }
 
                     // Show the confidentiality note only for sensitive categories.

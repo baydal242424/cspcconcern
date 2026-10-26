@@ -213,6 +213,116 @@ class Concern extends Model
         return self::HANDLING_NOTE_HINTS[$this->category] ?? 'What did you find while handling this?';
     }
 
+    /**
+     * What each category breaks down into.
+     *
+     * A category says which office reads the concern; a sub-category says
+     * what the concern is. "Academic" covers a disputed grade, a timetable
+     * clash and an instructor's conduct, and the handler could only tell
+     * which by reading the description -- fine for one case, useless for
+     * counting a term's worth.
+     *
+     * Routing is unchanged: the same office receives it either way. This is
+     * what lands on their desk already sorted.
+     *
+     * Others has no list on purpose. It is the category for things the list
+     * does not cover, and it already asks the student to say what it is.
+     */
+    public const SUBCATEGORIES = [
+        'Academic' => [
+            'Grades',
+            'Subjects & enrolment',
+            'Class schedule',
+            'Teaching & instructor conduct',
+            'Requirements & deadlines',
+        ],
+        'Mental Health' => [
+            'Stress & anxiety',
+            'Depression & low mood',
+            'Grief & loss',
+            'Self-harm risk',
+        ],
+        'Personal' => [
+            'Family',
+            'Financial',
+            'Housing',
+            'Relationship',
+        ],
+        'Bullying' => [
+            'Physical',
+            'Verbal',
+            'Online',
+            'Exclusion',
+        ],
+        'Harassment' => [
+            'Sexual harassment',
+            'Discrimination',
+            'Threats & intimidation',
+            'Stalking',
+        ],
+        'Administrative' => [
+            'Cannot sign in',
+            'Page will not load',
+            'Wrong information shown',
+            'Something else broken',
+        ],
+        'Facilities' => [
+            'Water',
+            'Electricity & lighting',
+            'Aircon & ventilation',
+            'Rooms & furniture',
+            'Toilets',
+            'Exits & walkways',
+        ],
+        'Equipment' => [
+            'Computers',
+            'Laboratory equipment',
+            'Internet & network',
+            'Chairs & tables',
+            'Projectors',
+        ],
+        'Physical' => [
+            'Classroom',
+            'Laboratory',
+            'Sports & PE',
+            'Walkway or stairs',
+            'On the way to campus',
+        ],
+        'Safety' => [
+            'Damaged stairs or floor',
+            'Exposed wiring',
+            'Blocked exit',
+            'Slippery area',
+            'Fire risk',
+        ],
+    ];
+
+    /**
+     * The sub-categories a category offers, or none.
+     *
+     * @return list<string>
+     */
+    public static function subcategoriesFor(?string $category): array
+    {
+        return self::SUBCATEGORIES[$category] ?? [];
+    }
+
+    /**
+     * Whether a sub-category belongs to the category it was filed under.
+     *
+     * Checked server-side as well as in the form: a dropdown is a
+     * suggestion, and "Grades" on a broken aircon would be counted as an
+     * academic complaint for the rest of the year.
+     */
+    public static function subcategoryBelongsTo(?string $category, ?string $subcategory): bool
+    {
+        if ($subcategory === null || $subcategory === '') {
+            return self::subcategoriesFor($category) === [];
+        }
+
+        return in_array($subcategory, self::subcategoriesFor($category), true);
+    }
+
     public const CATEGORY_HINTS = [
         'Academic' => 'grades, subjects, schedules, teaching',
         'Mental Health' => 'stress, anxiety, how you are coping',
@@ -337,6 +447,7 @@ class Concern extends Model
         'user_id',
         'follows_up_on_id',
         'category',
+        'subcategory',
         // Only set when category is Others -- what the student called it.
         'other_category',
         'department',

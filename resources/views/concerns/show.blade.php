@@ -40,6 +40,12 @@
                     {{ $concern->category_label }}@if ($concern->other_category)
                         <span style="color:var(--muted);">&mdash; {{ $concern->other_category }}</span>
                     @endif
+                    {{-- The sub-category sits beside the label for the same
+                         reason "Others" does: the category says which office
+                         reads this, and that alone does not say what it is. --}}
+                    @if ($concern->subcategory)
+                        <span style="color:var(--muted);">&mdash; {{ $concern->subcategory }}</span>
+                    @endif
                 </dd>
 
                 <dt>Urgency</dt>

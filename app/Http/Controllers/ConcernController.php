@@ -259,6 +259,10 @@ class ConcernController extends Controller
                         // Capped, because the box accepts a paste: the first
                         // few words of a letter identify it, and three
                         // hundred LIKEs would not find it any better.
+                        // The sub-category is searched with the body: a
+                        // handler looking for "grades" means the kind of
+                        // case, not only concerns that happen to use the
+                        // word in their description.
                         foreach (array_slice(self::searchWords($term), 0, 10) as $word) {
                             // ESCAPE spelled out, because the drivers disagree:
                             // MySQL treats a backslash as an escape inside LIKE
@@ -266,7 +270,10 @@ class ConcernController extends Controller
                             // character, so the same escaped term matched in
                             // production and missed under test. '!' needs no
                             // escaping of its own in either dialect.
-                            $words->whereRaw("description LIKE ? ESCAPE '!'", ['%'.$word.'%']);
+                            $words->whereRaw(
+                                "(description LIKE ? ESCAPE '!' OR COALESCE(subcategory, '') LIKE ? ESCAPE '!')",
+                                ['%'.$word.'%', '%'.$word.'%']
+                            );
                         }
                     });
 
@@ -499,6 +506,27 @@ class ConcernController extends Controller
             // "Others" is the one category that does not say what it is, so it
             // has to say here. Required for that alone; ignored for the rest.
             'other_category' => ['nullable', 'required_if:category,Others', 'string', 'min:3', 'max:120'],
+            // The sub-category has to belong to the category it was filed
+            // under. A dropdown is a suggestion: "Grades" on a broken aircon
+            // would be counted as an academic complaint for the rest of the
+            // year, and no amount of reading the description undoes a number.
+            // Optional for now, and optional in the form too, so the two
+            // agree. Making it compulsory is one rule away -- a requiredIf on
+            // whether the category offers any -- but it would also put a
+            // classification step between a distressed student and the
+            // Submit button, which is a decision about how the system should
+            // feel, not a technical one.
+            'subcategory' => ['nullable', 'string', 'max:120',
+                function ($attribute, $value, $fail) use ($request) {
+                    $category = $request->input('category');
+
+                    if (! Concern::subcategoryBelongsTo($category, $value)) {
+                        $fail(Concern::subcategoriesFor($category) === []
+                            ? 'That category does not break down any further.'
+                            : 'Choose what this is about.');
+                    }
+                },
+            ],
             // 'department' is NOT accepted from the form: it is the reporter's
             // own college, taken from their account below. Students told us
             // twice which college they belong to otherwise -- once at
