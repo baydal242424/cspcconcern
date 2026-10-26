@@ -1023,8 +1023,6 @@
         </script>
     </form>
 </div>
-@endsection
-
         <script>
             // Completing a name inside the description.
             //
@@ -1255,3 +1253,5 @@
                 area.addEventListener('blur', function () { window.setTimeout(hide, 120); });
             })();
         </script>
+
+@endsection

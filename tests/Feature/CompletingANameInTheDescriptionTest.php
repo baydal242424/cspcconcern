@@ -71,6 +71,35 @@ class CompletingANameInTheDescriptionTest extends TestCase
     }
 
     /**
+     * The script runs after the box it drives.
+     *
+     * It sat after @endsection, and Blade emits anything outside a section
+     * BEFORE the layout -- so the whole feature was served at the very top
+     * of the page, above even the doctype. It looked for an element the
+     * browser had not reached yet, found null, and returned. Typing "@"
+     * did nothing, and nothing said why: no error, no failed request, just
+     * a list that never came.
+     *
+     * Hence the position check rather than a second "is it present" one.
+     * Both halves were always present; only the order was wrong.
+     */
+    public function test_the_script_comes_after_the_box(): void
+    {
+        $html = $this->page();
+
+        $this->assertStringStartsWith('<!DOCTYPE html>', ltrim($html));
+
+        $box = strpos($html, 'id="mention-box"');
+        $script = strpos($html, "getElementById('mention-box')");
+
+        $this->assertNotFalse($box, 'the list is not in the markup');
+        $this->assertNotFalse($script, 'the script is not on the page');
+        $this->assertLessThan($script, $box, 'the script runs before the box exists');
+
+        fwrite(STDERR, "  [mention] the script runs after the box it drives\n");
+    }
+
+    /**
      * When the list opens, and when it stays shut.
      *
      * The rule lives in the page as a regex and a word count. Exercised here
