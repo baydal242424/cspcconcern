@@ -43,6 +43,19 @@ class NotificationController extends Controller
         // The concern may since have been deleted; fall back to the list
         // rather than 404-ing on a stale notification.
         if ($notification->concern_id && $notification->concern) {
+            // A notice can belong to somebody who may not open the
+            // concern behind it: the person a complaint names is told
+            // an investigation has begun and is walled out of the case
+            // itself. Sending them to a 403 would answer a reasonable
+            // click with an accusation they cannot read.
+            $mayOpen = \App\Models\Concern::visibleTo(Auth::user())
+                ->whereKey($notification->concern_id)
+                ->exists();
+
+            if (! $mayOpen) {
+                return redirect()->route('concerns.index');
+            }
+
             return redirect()->route('concerns.show', $notification->concern_id);
         }
 

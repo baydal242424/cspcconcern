@@ -144,10 +144,32 @@
                     <p style="margin-top:0.5rem; color:#64748b;">Take your time. If a concern is sensitive, share only what you feel safe sharing. Your report is submitted under your name and is visible only to the staff member handling it.</p>
                 </div>
             </details>
+            {{-- position:relative so the name dropdown below anchors here. --}}
+            <div style="position:relative;">
             <textarea name="description" id="description" rows="6"
                 minlength="20" maxlength="2000"
                 placeholder="Example: On March 3rd during our 9:00 AM class in Room 204, ... (describe the situation, dates, and people involved)."
                 style="overflow-wrap:anywhere;" required>{{ old('description') }}</textarea>
+
+            {{-- Name completion inside the description.
+                 Typing a few letters of somebody's name offers the full one,
+                 so "Mr. Panizal" does not go in as "mr panizal" or, worse, as
+                 a different Panizal.
+
+                 The list is the SAME set the "about a particular person"
+                 picker already offers, and those names are already rendered
+                 on this page. An autocomplete over every account would turn
+                 the filing form into a directory: type "a" and read back
+                 eight hundred students, their programmes and their sections.
+
+                 It inserts text and nothing else. Mentioning somebody in the
+                 description is not the same as naming them as the subject of
+                 the concern -- that is the checkbox below, and it carries
+                 consequences this does not: the person named is walled out of
+                 the case and it is routed over their head. --}}
+            <div id="mention-box" class="mention-box" hidden role="listbox" aria-label="Matching names"></div>
+            </div>
+
             <div style="display:flex; justify-content:space-between; margin-top:0.5rem; font-size:0.85rem;">
                 <span id="char-hint" style="color:#dc3545;">Please write at least 20 characters.</span>
                 <span id="char-count" style="color:#60708a;">0 / 2000</span>
@@ -999,3 +1021,142 @@
     </form>
 </div>
 @endsection
+
+        <script>
+            // Completing a name inside the description.
+            //
+            // The caret's current word is matched against the people this
+            // form already lists. Choosing one replaces that partial word
+            // with the full name -- nothing more: the text is still text, and
+            // naming somebody as the SUBJECT of a concern is the checkbox
+            // below, which walls them out of the case and routes it over
+            // their head.
+            (function () {
+                var box = document.getElementById('mention-box');
+                var area = document.getElementById('description');
+
+                if (!box || !area) return;
+
+                var PEOPLE = @json($mentionable ?? []);
+
+                if (!PEOPLE.length) return;
+
+                var matches = [];
+                var active = -1;
+                var wordStart = 0;
+
+                // The run of non-space characters ending at the caret, plus
+                // the one before it: people are looked up by surname as often
+                // as by first name, and "Dela Cruz" is two words.
+                function currentFragment() {
+                    var caret = area.selectionStart;
+                    var before = area.value.slice(0, caret);
+                    var match = before.match(/(\S+(?: \S+)?)$/);
+
+                    if (!match) return null;
+
+                    wordStart = caret - match[1].length;
+
+                    return match[1];
+                }
+
+                function hide() {
+                    box.hidden = true;
+                    box.textContent = '';
+                    matches = [];
+                    active = -1;
+                }
+
+                function choose(name) {
+                    var caret = area.selectionStart;
+
+                    area.value = area.value.slice(0, wordStart) + name + area.value.slice(caret);
+
+                    var at = wordStart + name.length;
+                    area.setSelectionRange(at, at);
+                    area.focus();
+
+                    // The character counter and the minimum-length hint both
+                    // listen for this; setting .value fires nothing.
+                    area.dispatchEvent(new Event('input', { bubbles: true }));
+
+                    hide();
+                }
+
+                function render() {
+                    box.textContent = '';
+
+                    matches.forEach(function (person, index) {
+                        var row = document.createElement('button');
+                        row.type = 'button';
+                        row.className = 'mention-row' + (index === active ? ' is-active' : '');
+                        row.setAttribute('role', 'option');
+
+                        var name = document.createElement('span');
+                        name.className = 'mention-name';
+                        name.textContent = person.name;
+
+                        var who = document.createElement('span');
+                        who.className = 'mention-who';
+                        who.textContent = person.who;
+
+                        row.appendChild(name);
+                        row.appendChild(who);
+
+                        // mousedown, not click: the textarea loses focus
+                        // first otherwise and the caret position is gone.
+                        row.addEventListener('mousedown', function (event) {
+                            event.preventDefault();
+                            choose(person.name);
+                        });
+
+                        box.appendChild(row);
+                    });
+
+                    box.hidden = matches.length === 0;
+                }
+
+                area.addEventListener('input', function () {
+                    var fragment = currentFragment();
+
+                    if (!fragment || fragment.length < 2) {
+                        hide();
+                        return;
+                    }
+
+                    var needle = fragment.toLowerCase();
+
+                    matches = PEOPLE.filter(function (person) {
+                        return person.name.toLowerCase().indexOf(needle) !== -1;
+                    }).slice(0, 6);
+
+                    active = matches.length ? 0 : -1;
+                    render();
+                });
+
+                area.addEventListener('keydown', function (event) {
+                    if (box.hidden || !matches.length) return;
+
+                    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                        event.preventDefault();
+                        active = (active + (event.key === 'ArrowDown' ? 1 : -1) + matches.length) % matches.length;
+                        render();
+                        return;
+                    }
+
+                    // Tab as well as Enter: Enter alone is how somebody starts
+                    // a new paragraph, and taking it always would fight them.
+                    if (event.key === 'Tab' || (event.key === 'Enter' && active >= 0)) {
+                        event.preventDefault();
+                        choose(matches[active].name);
+                        return;
+                    }
+
+                    if (event.key === 'Escape') {
+                        hide();
+                    }
+                });
+
+                area.addEventListener('blur', function () { window.setTimeout(hide, 120); });
+            })();
+        </script>

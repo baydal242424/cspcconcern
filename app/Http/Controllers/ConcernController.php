@@ -433,7 +433,9 @@ class ConcernController extends Controller
             // Gender and Development, the ICT Unit, the administration -- are
             // not a college and stay for everybody, because any student may
             // need to report one.
-            'otherStaffByOffice' => $otherStaff
+            // Named as it is built: the completer below reads the very
+            // same list, rather than a second filter that drifts from it.
+            'otherStaffByOffice' => $offerable = $otherStaff
                 ->reject(fn (User $u) => $adviser && $u->id === $adviser->id)
                 // The people who run the system are not part of anybody's
                 // concern. A System Admin administers accounts and roles --
@@ -479,6 +481,20 @@ class ConcernController extends Controller
                     'Vice President for Academic Affairs',
                     'Staff and offices',
                 ], true)),
+
+            // Name completion inside the description, built from the list
+            // directly above so the two can never diverge. An autocomplete
+            // over every account would turn the filing form into a
+            // directory: type "a" and read back eight hundred students with
+            // their programmes and sections. These names are already on the
+            // page, so this discloses nothing new.
+            'mentionable' => collect($offerable)->flatten(1)
+                ->map(fn (User $person) => [
+                    'name' => $person->name,
+                    'who' => trim((optional($person->role)->name ?: '')
+                        .($person->department ? ' · '.$person->department : ''), ' ·'),
+                ])
+                ->unique('name')->sortBy('name')->values(),
         ]);
     }
 
@@ -1131,6 +1147,12 @@ class ConcernController extends Controller
         // to their CSPC address are all handled by the notification service.
         if ($statusChanged || $isReferral) {
             $this->notifications->statusChanged($concern, $validated['status']);
+
+            // Somebody named in a concern is told when work on it
+            // starts -- not who raised it, and not what it says.
+            if ($validated['status'] === 'in_progress') {
+                $this->notifications->investigationBegun($concern);
+            }
         }
 
         // Build a context-aware success message.

@@ -436,7 +436,21 @@
             h1{font-size:1.2rem}
         }
         @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
-        /* ---- Attaching evidence ----------------------------------------------
+        /* ---- Name completion in the description ------------------------------
+       Positioned against the form group so it sits under the textarea.
+       It inserts text and nothing else -- naming somebody as the SUBJECT of
+       a concern is a checkbox, and it carries consequences this does not. */
+    .mention-box{position:absolute; z-index:40; left:0; right:0; margin-top:-.4rem;
+        background:#fff; border:1px solid var(--line,#e7ebf1); border-radius:12px;
+        box-shadow:0 14px 32px -12px rgba(16,30,66,.3); overflow:hidden; max-height:260px;
+        overflow-y:auto}
+    .mention-row{display:flex; flex-direction:column; gap:.1rem; width:100%; text-align:left;
+        padding:.55rem .8rem; background:none; border:none; cursor:pointer; font-family:inherit}
+    .mention-row:hover,.mention-row.is-active{background:var(--brand-50,#eef2ff)}
+    .mention-name{font-size:.9rem; font-weight:600; color:var(--ink,#1f2733)}
+    .mention-who{font-size:.76rem; color:var(--muted,#64748b)}
+
+    /* ---- Attaching evidence ----------------------------------------------
        A drop zone wrapped around the real file input, not a replacement for
        it: the input still holds the files and still submits them. The list
        below exists because a FileList cannot be edited, so the native

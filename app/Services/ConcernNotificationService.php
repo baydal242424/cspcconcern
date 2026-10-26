@@ -81,6 +81,9 @@ class ConcernNotificationService
      * $status is the raw column value ('in_progress', 'referred', ...); the
      * wording shown to the student comes from STATUS_COPY above.
      */
+    /** The notice sent to somebody a concern names. */
+    public const TYPE_NAMED_IN_CONCERN = 'named_in_concern';
+
     public function statusChanged(Concern $concern, string $status): void
     {
         $copy = self::STATUS_COPY[$status] ?? [
@@ -101,6 +104,54 @@ class ConcernNotificationService
             new ConcernStatusUpdated($concern, $copy['label'], $copy['line']),
             $row
         );
+    }
+
+    /**
+     * Tell the person a concern NAMES that it is being looked into.
+     *
+     * Natural justice: somebody should not learn months afterwards
+     * that a complaint naming them was investigated. They are told
+     * when it starts.
+     *
+     * What they are NOT told is who filed it. The subject of a concern
+     * is walled out of the case entirely by the conflict-of-interest
+     * rule in Concern::applyRoleVisibility(), and this notice must not
+     * undo that in its text: no reporter, no description, no category,
+     * no class. A category alone can be enough -- an academic concern
+     * naming an instructor points at the one class they teach -- and a
+     * section narrows it to forty people.
+     *
+     * In-app only, deliberately. An email sitting in a mailbox is
+     * forwardable and quotable by anybody who later reads it, and this
+     * is the one notice whose whole value is in what it withholds.
+     *
+     * Sent once per person per concern: a case that goes in progress,
+     * is referred, and comes back does not tell them twice.
+     */
+    public function investigationBegun(Concern $concern): void
+    {
+        foreach ($concern->subjects as $subject) {
+            $already = Notification::where('user_id', $subject->id)
+                ->where('concern_id', $concern->id)
+                ->where('type', self::TYPE_NAMED_IN_CONCERN)
+                ->exists();
+
+            if ($already) {
+                continue;
+            }
+
+            Notification::create([
+                'user_id' => $subject->id,
+                'type' => self::TYPE_NAMED_IN_CONCERN,
+                'concern_id' => $concern->id,
+                'title' => 'A concern naming you is being looked into',
+                'message' => 'A concern that names you has been taken up by the office'
+                    .' handling it. You will be contacted if anything is needed from you.'
+                    .' You cannot open the concern itself, and who raised it is not disclosed.',
+                // Not emailed: see the note above.
+                'email_sent' => false,
+            ]);
+        }
     }
 
     /**
