@@ -238,19 +238,51 @@ class CategorySplitAndOtherDetailTest extends TestCase
         fwrite(STDERR, "  [picker] each person carries a role and an office, and the category rule is on the page\n");
     }
 
-    /** The dropdown also says what each one covers, before you have to pick. */
-    public function test_the_dropdown_says_what_each_category_covers(): void
+    /**
+     * The options are plain labels, and the explaining happens elsewhere.
+     *
+     * Each one used to carry a clarifier after a dash -- "Academic — grades,
+     * subjects, schedules, teaching" -- because the category alone did not
+     * say what it covered. The sub-category dropdown lists exactly those
+     * things now, item by item, so the dash was the same list twice and made
+     * every row long enough to wrap on a phone.
+     *
+     * Nothing is left unexplained: the line under the select describes the
+     * one category chosen, and the second dropdown breaks it down.
+     */
+    public function test_the_options_are_plain_labels(): void
     {
-        $page = $this->actingAs($this->student())->get('/concerns/create')->assertOk();
+        $html = $this->actingAs($this->student())->get('/concerns/create')
+            ->assertOk()->getContent();
 
-        $page->assertSee('System Problem — this website itself — a page or button that will not work', false)
-            ->assertSee('Safety Hazard — a hazard that has not caused harm yet', false);
+        // The option itself, with nothing trailing it.
+        $this->assertMatchesRegularExpression(
+            '/<option value="Safety"[^>]*>\s*Safety Hazard\s*<\/option>/',
+            $html,
+            'the option should be the label alone'
+        );
 
-        // Every category carries one, so none is left as a bare word.
+        $this->assertStringNotContainsString(
+            'Safety Hazard — a hazard that has not caused harm yet',
+            $html
+        );
+
+        // Still explained, per category, by the line under the select...
+        $this->assertStringContainsString('const scopeByCategory', $html);
+        $this->assertStringContainsString('A hazard that has not caused harm yet', $html);
+
+        // ...and broken down by the second dropdown.
         foreach (Concern::CATEGORIES as $category) {
-            $this->assertArrayHasKey($category, Concern::CATEGORY_HINTS, "{$category} has no clarifier");
+            if ($category === 'Others') {
+                continue;
+            }
+
+            $this->assertNotEmpty(
+                Concern::subcategoriesFor($category),
+                "{$category} says nothing about what it covers"
+            );
         }
 
-        fwrite(STDERR, "  [label] each option says what it covers, before it is chosen: YES\n");
+        fwrite(STDERR, "  [label] plain options; the explaining is done below them\n");
     }
 }

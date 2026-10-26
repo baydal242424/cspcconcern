@@ -323,29 +323,6 @@ class Concern extends Model
         return in_array($subcategory, self::subcategoriesFor($category), true);
     }
 
-    public const CATEGORY_HINTS = [
-        'Academic' => 'grades, subjects, schedules, teaching',
-        'Mental Health' => 'stress, anxiety, how you are coping',
-        'Personal' => 'family, money, housing',
-        'Bullying' => 'threats, intimidation, humiliation',
-        'Harassment' => 'unwanted conduct or discrimination',
-        'Administrative' => 'this website itself — a page or button that will not work',
-        'Facilities' => 'water, electricity, aircon, rooms, exits',
-        'Equipment' => 'computers, lab equipment, chairs, internet',
-        'Physical' => 'an accident or injury that already happened',
-        'Safety' => 'a hazard that has not caused harm yet',
-        'Others' => 'anything not listed above',
-    ];
-
-    /** The category with its clarifier, for the filing form's dropdown. */
-    public static function categoryOptionLabel(?string $category): string
-    {
-        $label = self::categoryLabel($category);
-        $hint = self::CATEGORY_HINTS[$category] ?? null;
-
-        return $hint ? $label.' — '.$hint : $label;
-    }
-
     /** What a student should see for a category. */
     public static function categoryLabel(?string $category): string
     {

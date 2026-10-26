@@ -39,12 +39,19 @@
                      that routing matches on; the label is what a student
                      reads, and the two differ where CATEGORY_LABELS says so. --}}
                 @foreach (\App\Models\Concern::CATEGORIES as $category)
-                    {{-- The option carries its own clarifier. Elsewhere -- the
-                         concern list, the dashboard, a status badge -- the
-                         short label is used, because there the category is
-                         being read back rather than chosen between. --}}
+                    {{-- The plain label. It used to carry a clarifier after a
+                         dash -- "Academic — grades, subjects, schedules,
+                         teaching" -- because the category alone did not say
+                         what it covered. The sub-category dropdown below says
+                         exactly that now, item by item, so the dash was the
+                         same list twice and made every row long enough to
+                         wrap on a phone.
+
+                         The one-line explanation under the select stays: it
+                         is about the ONE category chosen, not all eleven at
+                         once. --}}
                     <option value="{{ $category }}" {{ old('category') === $category ? 'selected' : '' }}>
-                        {{ \App\Models\Concern::categoryOptionLabel($category) }}
+                        {{ \App\Models\Concern::categoryLabel($category) }}
                     </option>
                 @endforeach
             </select>
