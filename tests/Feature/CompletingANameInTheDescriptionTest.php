@@ -9,15 +9,16 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /**
- * Completing somebody's name while writing the description.
+ * Naming somebody with "@" while writing the description.
  *
- * Typing a few letters offers the full name, so "Mr. Panizal" does not go in
- * as "mr panizal" or, worse, as a different Panizal.
+ * Every registered account is reachable. The part that matters is HOW: a
+ * search, not a list shipped with the page. Embedding every account would
+ * put the roster -- names, programmes, sections -- into the HTML of a form
+ * any student can open, readable in full without typing a character.
  *
- * The list is the SAME set the subject picker already offers, and those
- * names are already rendered on this page. An autocomplete over every
- * account would turn the filing form into a directory: type "a" and read
- * back eight hundred students with their programmes and sections.
+ * Two letters at least, eight results at most. Somebody looking up a person
+ * they mean to name has a name in mind; neither limit gets in their way, and
+ * together they stop the box being paged through as a directory.
  */
 class CompletingANameInTheDescriptionTest extends TestCase
 {
@@ -29,105 +30,145 @@ class CompletingANameInTheDescriptionTest extends TestCase
         $this->seed([RoleSeeder::class, UserSeeder::class]);
     }
 
-    private function form(): string
+    private function student(): User
     {
-        return $this->actingAs(User::where('email', 'student@my.cspc.edu.ph')->firstOrFail())
-            ->get('/concerns/create')->assertOk()->getContent();
+        return User::where('email', 'student@my.cspc.edu.ph')->firstOrFail();
     }
 
-    /** @return array<string, mixed> */
-    private function people(): array
+    private function page(): string
     {
-        preg_match('/var PEOPLE = (\[.*?\]);/s', $this->form(), $m);
-
-        return json_decode($m[1] ?? '[]', true) ?: [];
-    }
-
-    /** The box and its list are on the page, and the @ opens it. */
-    public function test_the_completer_is_rendered(): void
-    {
-        $html = $this->form();
-
-        $this->assertStringContainsString('id="mention-box"', $html);
-        $this->assertStringContainsString('var PEOPLE =', $html);
-
-        // Opened by an @, not by every word being typed: matching each
-        // word made the list appear over and over while somebody was
-        // writing an ordinary sentence. The @ is the person asking.
-        $this->assertStringContainsString('function currentMention()', $html);
-        $this->assertStringContainsString('before.match(/@(', $html);
-
-        // And the form says the @ is there, or nobody finds it.
-        $this->assertStringContainsString('to name a staff member', $html);
-        $this->assertNotEmpty($this->people(), 'there should be somebody to complete');
-
-        fwrite(STDERR, '  [mention] the completer is on the form with '.count($this->people())." names\n");
-    }
-
-    /** Each entry says who the person is, not just their name. */
-    public function test_each_entry_says_who_they_are(): void
-    {
-        foreach ($this->people() as $person) {
-            $this->assertArrayHasKey('name', $person);
-            $this->assertArrayHasKey('who', $person);
-            $this->assertNotSame('', trim($person['who']), $person['name'].' has no role or office');
-        }
-
-        fwrite(STDERR, "  [mention] every entry carries a role and an office\n");
+        return $this->actingAs($this->student())->get('/concerns/create')
+            ->assertOk()->getContent();
     }
 
     /**
-     * No student is offered, and no name that is not already on the page.
-     *
-     * This is the part worth guarding. The filing form is reachable by every
-     * student in the college, and a completer over the whole account table
-     * would answer "a" with the roster.
+     * @return array<int, array<string, string>>
      */
-    public function test_it_offers_nobody_the_page_does_not_already_show(): void
+    private function lookup(string $term): array
     {
-        $offered = collect($this->people())->pluck('name');
+        return $this->actingAs($this->student())
+            ->getJson('/concerns-mentionable?q='.urlencode($term))
+            ->assertOk()
+            ->json();
+    }
 
-        $students = User::whereHas('role', fn ($q) => $q->where('name', 'Student'))->pluck('name');
+    /** The box, the trigger, and the hint that it exists. */
+    public function test_the_completer_is_rendered(): void
+    {
+        $html = $this->page();
 
-        foreach ($students as $studentName) {
-            $this->assertFalse(
-                $offered->contains($studentName),
-                'a student was offered for completion: '.$studentName
-            );
-        }
+        $this->assertStringContainsString('id="mention-box"', $html);
 
-        // And every offered name is one the subject picker already holds.
-        // Compared against the view data rather than the rendered HTML:
-        // Blade escapes a name like "Dr. Kenny Niño H. Tagum", so a
-        // substring check against the page fails on the accent alone.
-        $picker = collect($this->actingAs(User::where('email', 'student@my.cspc.edu.ph')->firstOrFail())
-            ->get('/concerns/create')->viewData('otherStaffByOffice'))
-            ->flatten(1)
+        // Opened by an @, not by every word typed: matching each word made
+        // the list appear over and over while somebody wrote a sentence.
+        $this->assertStringContainsString('function currentMention()', $html);
+        $this->assertStringContainsString('before.match(/@(', $html);
+
+        // And the form says it is there, or nobody finds it.
+        $this->assertStringContainsString('to name a staff member', $html);
+
+        fwrite(STDERR, "  [mention] the @ completer is on the form\n");
+    }
+
+    /**
+     * The roster is not in the page.
+     *
+     * This is the guard worth keeping. The filing form is reachable by every
+     * student; a list rendered into it would answer "view source" with the
+     * whole college.
+     */
+    public function test_the_page_does_not_ship_the_roster(): void
+    {
+        $html = $this->page();
+
+        $this->assertStringNotContainsString('var PEOPLE = [{', $html);
+
+        $others = User::whereHas('role', fn ($q) => $q->where('name', 'Student'))
+            ->where('id', '!=', $this->student()->id)
             ->pluck('name');
 
-        foreach ($offered as $name) {
-            $this->assertTrue($picker->contains($name), $name.' is offered but not in the picker');
+        foreach ($others as $name) {
+            $this->assertStringNotContainsString($name, $html, $name.' is rendered into the form');
         }
 
-        fwrite(STDERR, "  [mention] it offers nobody the page does not already show\n");
+        fwrite(STDERR, "  [mention] the page ships no roster\n");
+    }
+
+    /** Anyone registered can be found, students included. */
+    public function test_any_registered_account_can_be_found(): void
+    {
+        $staff = User::where('email', 'counselor@cspc.edu.ph')->firstOrFail();
+        $classmate = User::where('email', 'student2@my.cspc.edu.ph')->firstOrFail();
+
+        foreach ([$staff, $classmate] as $person) {
+            $found = collect($this->lookup(mb_substr($person->name, 0, 4)))->pluck('name');
+
+            $this->assertTrue($found->contains($person->name), $person->name.' was not found');
+        }
+
+        fwrite(STDERR, "  [mention] staff and students are both findable\n");
+    }
+
+    /** One letter returns nothing: that would be the directory. */
+    public function test_a_single_letter_returns_nothing(): void
+    {
+        $this->assertSame([], $this->lookup('a'));
+        $this->assertSame([], $this->lookup(''));
+
+        fwrite(STDERR, "  [mention] one letter returns nothing\n");
+    }
+
+    /** And a broad match is capped. */
+    public function test_results_are_capped(): void
+    {
+        $this->assertLessThanOrEqual(8, count($this->lookup('an')));
+
+        fwrite(STDERR, "  [mention] a broad search is capped at eight\n");
+    }
+
+    /** Each result says who the person is, and nothing beyond that. */
+    public function test_a_result_identifies_without_oversharing(): void
+    {
+        $person = User::where('email', 'student2@my.cspc.edu.ph')->firstOrFail();
+
+        $row = collect($this->lookup(mb_substr($person->name, 0, 4)))
+            ->firstWhere('name', $person->name);
+
+        $this->assertNotNull($row);
+        $this->assertNotSame('', trim($row['who']), 'a bare name cannot be told from a namesake');
+
+        $encoded = json_encode($row);
+
+        $this->assertStringNotContainsString($person->email, $encoded);
+
+        if ($person->student_id) {
+            $this->assertStringNotContainsString((string) $person->student_id, $encoded);
+        }
+
+        fwrite(STDERR, "  [mention] a result identifies without oversharing\n");
+    }
+
+    /** Signed out, it answers nobody. */
+    public function test_it_needs_an_account(): void
+    {
+        $this->get('/concerns-mentionable?q=jon')->assertRedirect(route('login'));
+
+        fwrite(STDERR, "  [mention] the lookup needs an account\n");
     }
 
     /**
      * It inserts text, and only text.
      *
-     * Mentioning somebody in the description is not naming them as the
-     * subject of the concern -- that is the checkbox, and it walls the
-     * person out of the case and routes it over their head.
+     * Naming somebody in the description is not naming them as the SUBJECT
+     * of the concern -- that is the checkbox, and it walls the person out of
+     * the case and routes it over their head.
      */
     public function test_it_only_inserts_text(): void
     {
-        $html = $this->form();
+        $html = $this->page();
 
-        // The chooser writes into the textarea and fires its input event so
-        // the character counter keeps up.
         $this->assertStringContainsString('area.dispatchEvent(new Event(\'input\'', $html);
 
-        // It never ticks the subject box.
         $this->assertStringNotContainsString('about_staff_id', substr(
             $html,
             strpos($html, 'function choose(name)'),

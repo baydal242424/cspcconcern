@@ -449,6 +449,7 @@
     .mention-row:hover,.mention-row.is-active{background:var(--brand-50,#eef2ff)}
     .mention-name{font-size:.9rem; font-weight:600; color:var(--ink,#1f2733)}
     .mention-who{font-size:.76rem; color:var(--muted,#64748b)}
+    .mention-empty{margin:0; padding:.6rem .8rem; font-size:.82rem; color:var(--muted,#64748b)}
 
     /* ---- Attaching evidence ----------------------------------------------
        A drop zone wrapped around the real file input, not a replacement for

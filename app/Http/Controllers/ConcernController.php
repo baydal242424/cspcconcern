@@ -319,6 +319,58 @@ class ConcernController extends Controller
     /**
      * Show the form for creating a new concern.
      */
+    /**
+     * Names for the @ in the description box.
+     *
+     * Every registered account is reachable, which is what was asked for.
+     * It is a SEARCH rather than a list shipped with the page, and that is
+     * the whole of the difference: embedding every account would put the
+     * roster -- names, programmes, sections -- into the HTML of a form any
+     * student can open, readable in full without typing a character.
+     *
+     * Two letters at least, and eight results at most. Somebody looking up
+     * a person they mean to name has a name in mind; neither limit gets in
+     * their way, and together they stop the box being paged through as a
+     * directory.
+     *
+     * Accounts that are deleted drop out on their own -- the model hides
+     * them -- and banned ones are left out here: they cannot sign in, and
+     * offering them invites a student to name somebody already gone.
+     */
+    public function mentionable(Request $request)
+    {
+        $term = trim((string) $request->query('q'));
+
+        if (mb_strlen($term) < 2) {
+            return response()->json([]);
+        }
+
+        $escaped = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $term);
+
+        $people = User::query()
+            ->with('role')
+            ->where('status', 'approved')
+            ->whereRaw("name LIKE ? ESCAPE '!'", ['%'.$escaped.'%'])
+            ->orderBy('name')
+            ->limit(8)
+            ->get();
+
+        return response()->json(
+            $people->map(fn (User $person) => [
+                'name' => $person->name,
+                // Enough to tell two people of the same name apart, and no
+                // more: a student is their programme and class, a staff
+                // member is their post and office. No ID numbers, no email.
+                'who' => trim(implode(' · ', array_filter([
+                    optional($person->role)->name,
+                    $person->course && $person->section
+                        ? $person->course.' '.$person->section
+                        : $person->department,
+                ])), ' ·'),
+            ])->values()
+        );
+    }
+
     public function create(Request $request)
     {
         // Reporting a settled concern again. The student arrives here

@@ -68,6 +68,13 @@ Route::middleware(['auth', 'track.last_seen', 'profile.complete', 'policy.accept
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     // No 'edit' route: a concern is final once submitted. Staff still act on
     // one through 'update' (the status form on the show page).
+    // Name lookup for the @ in the description box. A search rather than a
+    // list shipped with the page: embedding every account would put the
+    // whole roster -- names, programmes, sections -- into the HTML of a
+    // form every student can open, readable without typing anything.
+    Route::get('concerns-mentionable', [ConcernController::class, 'mentionable'])
+        ->name('concerns.mentionable');
+
     Route::resource('concerns', ConcernController::class)->except(['edit']);
     // Break-glass: Head of School reveals a pseudonymous reporter's identity
     // (logged, reason required). Kept separate from the normal update flow.

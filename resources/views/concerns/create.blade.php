@@ -1040,9 +1040,14 @@
 
                 if (!box || !area) return;
 
-                var PEOPLE = @json($mentionable ?? []);
-
-                if (!PEOPLE.length) return;
+                // Looked up on the server, not shipped with the page. The
+                // list is every registered account now, and embedding it
+                // would put the roster -- names, programmes, sections --
+                // into the HTML of a form any student can open, readable
+                // in full without typing a character.
+                var LOOKUP = @json(route('concerns.mentionable'));
+                var lastQuery = null;
+                var timer = null;
 
                 var matches = [];
                 var active = -1;
@@ -1082,6 +1087,9 @@
                     box.textContent = '';
                     matches = [];
                     active = -1;
+                    // Forgotten, so typing the same name again asks again
+                    // rather than sitting on a result that was dismissed.
+                    lastQuery = null;
                 }
 
                 function choose(name) {
@@ -1100,7 +1108,7 @@
                     hide();
                 }
 
-                function render() {
+                function render(note) {
                     box.textContent = '';
 
                     matches.forEach(function (person, index) {
@@ -1130,7 +1138,17 @@
                         box.appendChild(row);
                     });
 
-                    box.hidden = matches.length === 0;
+                    // A word when there is nothing to list: "keep typing"
+                    // and "nobody by that name" are different answers, and
+                    // a box that just vanishes gives neither.
+                    if (!matches.length && note) {
+                        var empty = document.createElement('p');
+                        empty.className = 'mention-empty';
+                        empty.textContent = note;
+                        box.appendChild(empty);
+                    }
+
+                    box.hidden = matches.length === 0 && !note;
                 }
 
                 area.addEventListener('input', function () {
@@ -1141,17 +1159,42 @@
                         return;
                     }
 
-                    // "@" on its own offers everybody, the way a chat does.
-                    // Waiting for two letters first meant the marker looked
-                    // like it had done nothing.
-                    var needle = fragment.trim().toLowerCase();
+                    var needle = fragment.trim();
 
-                    matches = PEOPLE.filter(function (person) {
-                        return needle === '' || person.name.toLowerCase().indexOf(needle) !== -1;
-                    }).slice(0, 6);
+                    // Two letters before asking. "@" alone would mean
+                    // fetching every account on the first keystroke, which
+                    // is the directory this is meant not to be.
+                    if (needle.length < 2) {
+                        matches = [];
+                        active = -1;
+                        render(needle.length ? null : 'Keep typing a name\u2026');
+                        return;
+                    }
 
-                    active = matches.length ? 0 : -1;
-                    render();
+                    if (needle === lastQuery) return;
+
+                    lastQuery = needle;
+
+                    // Debounced: one request when they pause, not one per
+                    // keystroke.
+                    window.clearTimeout(timer);
+                    timer = window.setTimeout(function () {
+                        fetch(LOOKUP + '?q=' + encodeURIComponent(needle), {
+                            headers: { 'Accept': 'application/json' },
+                            credentials: 'same-origin'
+                        })
+                            .then(function (response) { return response.ok ? response.json() : []; })
+                            .then(function (people) {
+                                // They may have typed on, or chosen, while
+                                // this was in flight.
+                                if (lastQuery !== needle) return;
+
+                                matches = people;
+                                active = matches.length ? 0 : -1;
+                                render(matches.length ? null : 'No account by that name');
+                            })
+                            .catch(function () { hide(); });
+                    }, 180);
                 });
 
                 area.addEventListener('keydown', function (event) {
