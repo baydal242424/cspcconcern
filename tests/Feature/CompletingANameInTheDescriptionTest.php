@@ -62,12 +62,53 @@ class CompletingANameInTheDescriptionTest extends TestCase
         // Opened by an @, not by every word typed: matching each word made
         // the list appear over and over while somebody wrote a sentence.
         $this->assertStringContainsString('function currentMention()', $html);
-        $this->assertStringContainsString('before.match(/@(', $html);
+        $this->assertStringContainsString('before.match(/(?:^|\s)@(', $html);
 
         // And the form says it is there, or nobody finds it.
         $this->assertStringContainsString('to name a staff member', $html);
 
         fwrite(STDERR, "  [mention] the @ completer is on the form\n");
+    }
+
+    /**
+     * When the list opens, and when it stays shut.
+     *
+     * The rule lives in the page as a regex and a word count. Exercised here
+     * against the cases that got it wrong: a three-word Filipino name closed
+     * the list halfway through, so the student finished typing by hand --
+     * the one thing this exists to prevent -- and an email address
+     * mid-sentence held it open on "mail.com".
+     *
+     * @return array<string, array{0: string, 1: string|null}>
+     */
+    public static function typing(): array
+    {
+        return [
+            'two letters' => ['@ch', 'ch'],
+            'a name with an initial' => ['@ma.', 'ma.'],
+            'three words of a name' => ['@ma. lovella brondial', 'ma. lovella brondial'],
+            'mid-sentence' => ['it was @ch', 'ch'],
+            'after a line break' => ["first line\n@ch", 'ch'],
+            'an email address' => ['write to e@mail.com here', null],
+            'a paragraph after a stray @' => ['@ one two three four five', null],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('typing')]
+    public function test_the_list_opens_only_where_it_should(string $typed, ?string $expected): void
+    {
+        $opens = preg_match('/(?:^|\s)@([^@\n]{0,40})$/', $typed, $m) === 1
+            && count(preg_split('/\s+/', $m[1])) <= 4;
+
+        $this->assertSame($expected !== null, $opens, json_encode($typed));
+
+        if ($expected !== null) {
+            $this->assertSame($expected, $m[1]);
+        }
+
+
+        fwrite(STDERR, '  [mention] '.json_encode($typed).' -> '
+            .($expected === null ? "no list\n" : 'list on '.json_encode($expected)."\n"));
     }
 
     /**

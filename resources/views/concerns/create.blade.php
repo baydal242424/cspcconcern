@@ -1067,13 +1067,20 @@
                 function currentMention() {
                     var caret = area.selectionStart;
                     var before = area.value.slice(0, caret);
-                    var match = before.match(/@([^@
+                    // The @ has to start a word. Without that, the address
+                    // in "e@mail.com" opened the list mid-sentence and held
+                    // it open on "mail.com".
+                    var match = before.match(/(?:^|\s)@([^@
 ]{0,40})$/);
 
                     if (!match) return null;
 
-                    // More than two words after it and they have moved on.
-                    if (match[1].split(/\s+/).length > 2) return null;
+                    // Four words, not two. "Ma. Lovella Brondial" is three
+                    // tokens and "Dr. Kenny Nino H. Tagum" is five: capping
+                    // at two meant the list vanished halfway through the
+                    // name somebody was still typing, and they finished it
+                    // by hand -- which is the one thing this exists to stop.
+                    if (match[1].split(/\s+/).length > 4) return null;
 
                     // wordStart covers the @ as well: choosing a name
                     // replaces the marker with it.
@@ -1095,9 +1102,16 @@
                 function choose(name) {
                     var caret = area.selectionStart;
 
-                    area.value = area.value.slice(0, wordStart) + name + area.value.slice(caret);
+                    // The @ stays. A textarea cannot style part of its own
+                    // text, so the marker is the only thing that makes a
+                    // mention read as one -- without it the name sat in the
+                    // sentence looking like any other words, and there was
+                    // nothing to show the person had been picked from a list.
+                    var tag = '@' + name + ' ';
 
-                    var at = wordStart + name.length;
+                    area.value = area.value.slice(0, wordStart) + tag + area.value.slice(caret);
+
+                    var at = wordStart + tag.length;
                     area.setSelectionRange(at, at);
                     area.focus();
 
@@ -1183,11 +1197,29 @@
                             headers: { 'Accept': 'application/json' },
                             credentials: 'same-origin'
                         })
-                            .then(function (response) { return response.ok ? response.json() : []; })
+                            .then(function (response) {
+                                // A lapsed session answers with the login
+                                // PAGE, status 200. Parsed as JSON that
+                                // throws, and the list just disappeared with
+                                // nothing said.
+                                var type = response.headers.get('content-type') || '';
+
+                                if (!response.ok || type.indexOf('json') === -1) {
+                                    return null;
+                                }
+
+                                return response.json();
+                            })
                             .then(function (people) {
                                 // They may have typed on, or chosen, while
                                 // this was in flight.
                                 if (lastQuery !== needle) return;
+
+                                if (people === null) {
+                                    matches = [];
+                                    render('Could not look that up. Reload the page.');
+                                    return;
+                                }
 
                                 matches = people;
                                 active = matches.length ? 0 : -1;
