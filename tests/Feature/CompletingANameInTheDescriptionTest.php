@@ -179,6 +179,65 @@ class CompletingANameInTheDescriptionTest extends TestCase
         fwrite(STDERR, "  [mention] staff and students are both findable\n");
     }
 
+    /**
+     * Where the match falls decides the order.
+     *
+     * Only eight rows are offered, and sorted by name alone the cap filled
+     * with the wrong thing. "ch" matches dozens of accounts; alphabetically
+     * that gave every "BS ... Program Chair" in the college -- they sort
+     * under B -- and not one person called Ch-anything. Somebody reaching
+     * for Christian saw no Christians until they had typed three letters.
+     *
+     * So the name starting with it comes first, then a later word starting
+     * with it, then it buried mid-word. The three accounts here are built
+     * rather than seeded so each tier is represented exactly once and the
+     * order asserted is the ranking, not the alphabet: "Quilantang" would
+     * sort before "Quiles" on name alone.
+     */
+    public function test_a_name_beginning_with_the_term_is_offered_first(): void
+    {
+        $tiers = [
+            'starts the name' => 'Quiles Mariano',
+            'starts a later word' => 'Ramon Quilantang',
+            'buried mid-word' => 'Pedro Aquilino',
+        ];
+
+        foreach ($tiers as $name) {
+            User::factory()->create([
+                'name' => $name,
+                'role_id' => $this->student()->role_id,
+                'status' => 'approved',
+            ]);
+        }
+
+        $offered = collect($this->lookup('quil'))->pluck('name')->values();
+
+        $this->assertSame(array_values($tiers), $offered->all());
+
+        fwrite(STDERR, "  [mention] \"quil\" ranks: ".$offered->implode(', ')."\n");
+    }
+
+    /**
+     * And a mid-word match is still reachable.
+     *
+     * Ranking it last is not the same as dropping it: somebody who means
+     * Aquilino can still get there by typing more of the name.
+     */
+    public function test_a_mid_word_match_is_still_reachable(): void
+    {
+        User::factory()->create([
+            'name' => 'Pedro Aquilino',
+            'role_id' => $this->student()->role_id,
+            'status' => 'approved',
+        ]);
+
+        $found = collect($this->lookup('quilino'))->pluck('name');
+
+        $this->assertTrue($found->contains('Pedro Aquilino'), 'a mid-word match became unreachable');
+
+        fwrite(STDERR, "  [mention] \"quilino\" still reaches Pedro Aquilino\n");
+    }
+
     /** One letter returns nothing: that would be the directory. */
     public function test_a_single_letter_returns_nothing(): void
     {

@@ -351,6 +351,23 @@ class ConcernController extends Controller
             ->with('role')
             ->where('status', 'approved')
             ->whereRaw("name LIKE ? ESCAPE '!'", ['%'.$escaped.'%'])
+            // Where the match falls decides the order, because only eight
+            // rows are shown and alphabetical order filled all eight with
+            // the wrong thing. "ch" matches 42 accounts; sorted by name the
+            // list was every "BS ... Program Chair" in the college and not
+            // one person called Ch-anything. Somebody reaching for
+            // Christian had to type three letters before they appeared.
+            //
+            // So: the name starts with it, then a later word starts with it,
+            // then it is buried mid-word ("Lachanibre"). A person typing two
+            // letters is starting somebody's name, not aiming at the middle
+            // of one. Alphabetical within each tier, so the order is still
+            // predictable rather than merely ranked.
+            ->orderByRaw(
+                "CASE WHEN name LIKE ? ESCAPE '!' THEN 0 "
+                ."WHEN name LIKE ? ESCAPE '!' THEN 1 ELSE 2 END",
+                [$escaped.'%', '% '.$escaped.'%']
+            )
             ->orderBy('name')
             ->limit(8)
             ->get();
