@@ -938,7 +938,13 @@ class ConcernController extends Controller
         // edited further. Reopening one would let an outcome the reporter has
         // already been told about be rewritten after the fact.
         if (in_array($concern->status, Concern::TERMINAL_STATUSES, true)) {
-            $what = $concern->status === 'resolved' ? 'resolved' : 'closed';
+            // Named exactly, because "closed" covering a withdrawal would
+            // read as a decision somebody in this office made.
+            $what = match ($concern->status) {
+                'resolved' => 'resolved',
+                Concern::STATUS_WITHDRAWN => 'withdrawn by the student who filed it',
+                default => 'closed',
+            };
 
             return redirect()->route('concerns.show', $concern)
                 ->with('error', "This concern is already {$what} and can no longer be edited.");
@@ -1586,49 +1592,69 @@ class ConcernController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Concern $concern)
+    /**
+     * The reporter taking their own concern back.
+     *
+     * This replaces deleting one. A deleted concern was soft-deleted, so
+     * the row survived -- but it vanished from every list, including the
+     * student's own, with nothing in the interface able to bring it back.
+     * From where anybody stood it was gone, and that is the wrong answer
+     * for a report somebody filed: the question "did I ever raise this?"
+     * had no way of being answered, and neither did "what happened to the
+     * one I filed in March?".
+     *
+     * Withdrawing keeps the concern, its evidence and its audit trail
+     * exactly where they are, and says in the status what became of it.
+     *
+     * Only the reporter, and only before staff have started. An Admin
+     * cannot remove a concern at all any more -- closing one is a status
+     * change with a written reason, which is the same decision made in a
+     * way the student can read.
+     */
+    public function withdraw(Request $request, Concern $concern, ConcernNotificationService $notifier)
     {
         /** @var User $user */
         $user = Auth::user();
 
-        if (! $user->role) {
-            abort(403, 'Your account has no role assigned.');
+        if ($user->id !== $concern->user_id) {
+            abort(403, 'Only the student who filed this concern can withdraw it.');
         }
 
-        $isOwner = $user->id === $concern->user_id;
-        $isAdmin = in_array($user->role->name, ['System Admin', 'Staff Admin'], true);
-
-        if (! $isOwner && ! $isAdmin) {
-            abort(403, 'Unauthorized');
-        }
-
-        // An Admin may only delete concerns they are permitted to SEE. This
-        // keeps the conflict-of-interest wall and counselor confidentiality
-        // intact on deletes too -- an Admin can never remove a complaint that
-        // was filed about them or a confidential case outside their scope.
-        if (! $isOwner && ! $this->canViewConcern($concern, $user)) {
-            abort(403, 'Unauthorized');
-        }
-
-        // A student may only delete their own concern while it is still
-        // 'submitted'. Once staff have begun processing it, deletion is blocked
-        // to preserve the record and its audit trail (admins may still delete).
-        if ($isOwner && ! $isAdmin && $concern->status !== 'submitted') {
+        if (! $concern->canBeWithdrawnBy($user)) {
             return redirect()->route('concerns.show', $concern)
-                ->with('error', 'This concern is already being processed and can no longer be deleted.');
+                ->with('error', 'Someone has already started on this concern, so it can no longer be withdrawn.');
         }
 
-        AuditLog::create([
-            'user_id' => Auth::id(),
-            'concern_id' => $concern->id,
-            'action' => 'concern_deleted',
-            'description' => 'Concern was deleted',
-            'ip_address' => request()->ip(),
+        $validated = $request->validate([
+            // Optional. A student who wants out should not have to justify
+            // it -- but where they offer a reason, the office that was
+            // about to pick the case up is better off knowing it.
+            'reason' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $concern->delete();
+        $reason = trim((string) ($validated['reason'] ?? ''));
 
-        return redirect()->route('concerns.index')->with('success', 'Concern deleted successfully');
+        $concern->update([
+            'status' => Concern::STATUS_WITHDRAWN,
+            'closed_at' => now(),
+        ]);
+
+        AuditLog::create([
+            'user_id' => $user->id,
+            'concern_id' => $concern->id,
+            'action' => 'concern_withdrawn',
+            'description' => $reason === ''
+                ? 'Withdrawn by the student'
+                : 'Withdrawn by the student: '.$reason,
+            'ip_address' => $request->ip(),
+        ]);
+
+        // Whoever it had already landed on should stop. Without this they
+        // find out by opening a case that is no longer going anywhere.
+        $notifier->concernWithdrawn($concern);
+
+        return redirect()->route('concerns.show', $concern)
+            ->with('success', 'Your concern has been withdrawn. It stays on your record, marked as withdrawn.');
     }
 
     /**

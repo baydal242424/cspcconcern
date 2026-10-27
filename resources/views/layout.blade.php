@@ -214,6 +214,10 @@
            case but not a successful one, and colouring it like a resolution
            would misread at a glance. */
         .status-closed_no_action{background:#eef1f6; color:#5b6577; border-color:#dfe4ec}
+        /* Withdrawn: grey like a closed case, because it is finished, but
+           not the same grey -- it was the student's decision, not a
+           finding, and the two should not read as one outcome. */
+        .status-withdrawn{background:#f5f3ef; color:#6b6052; border-color:#e6e0d6}
         .status-referred{background:#ece9ff; color:#5b3bd6; border-color:#d6cdfb}
         .status-approved{background:var(--ok-bg); color:var(--ok-ink); border-color:#bfe8cd}
         .status-pending{background:var(--warn-bg); color:var(--warn-ink); border-color:#f3dca0}

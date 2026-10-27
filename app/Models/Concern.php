@@ -444,7 +444,19 @@ class Concern extends Model
         'Others',
     ];
 
-    public const TERMINAL_STATUSES = ['resolved', 'closed_no_action'];
+    /**
+     * The student taking their own concern back.
+     *
+     * Its own status rather than reuse of 'closed_no_action', which is a
+     * STAFF decision carrying a written reason the reporter is shown, and
+     * which the handbook counts as a case reviewed and dismissed. A
+     * student changing their mind is neither of those, and folding the two
+     * together would put withdrawals into the figures for complaints staff
+     * threw out.
+     */
+    public const STATUS_WITHDRAWN = 'withdrawn';
+
+    public const TERMINAL_STATUSES = ['resolved', 'closed_no_action', self::STATUS_WITHDRAWN];
 
     /**
      * How each status is written for a human. The views used to derive this
@@ -459,7 +471,22 @@ class Concern extends Model
         'referred' => 'Referred',
         'resolved' => 'Resolved',
         'closed_no_action' => 'Closed',
+        self::STATUS_WITHDRAWN => 'Withdrawn',
     ];
+
+    /**
+     * Whether this user may take this concern back.
+     *
+     * The same line the old delete drew, and for the same reason: once
+     * staff have started on it, the record of what they did is not the
+     * reporter's to remove. Before that, nobody has acted on it and a
+     * student who filed in haste should not be stuck with it on their
+     * record for ever.
+     */
+    public function canBeWithdrawnBy(User $user): bool
+    {
+        return $user->id === $this->user_id && $this->status === 'submitted';
+    }
 
     /**
      * Human label for a raw status value, falling back to the old derivation
@@ -841,6 +868,12 @@ class Concern extends Model
 
         if ($log->action === 'documents_added') {
             return ['key' => 'documents-'.$log->id, 'label' => (string) $log->description];
+        }
+
+        // Their own decision, and the last thing that happened to the
+        // concern. Shown as recorded, reason and all -- they wrote it.
+        if ($log->action === 'concern_withdrawn') {
+            return ['key' => 'withdrawn', 'label' => (string) $log->description];
         }
 
         // Their own identity being disclosed is the one staff action a

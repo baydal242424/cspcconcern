@@ -24,14 +24,14 @@
                  than adding to it, so without this line a page showing only
                  finished cases looks like a page that has lost the rest. --}}
             <p style="color:#64748b; font-size:0.85rem; margin-top:0.25rem;">
-                {{ $showResolved ? 'Finished — resolved and closed' : 'Active — still being handled' }}
+                {{ $showResolved ? 'Finished — resolved, closed and withdrawn' : 'Active — still being handled' }}
             </p>
         </div>
         <div style="display: flex; gap: 0.6rem; align-items: center;">
             @if ($showResolved)
                 <a href="{{ route('concerns.index') }}" class="btn btn-muted">Show active</a>
             @else
-                <a href="{{ route('concerns.index', ['show_resolved' => 1]) }}" class="btn btn-muted">Show resolved</a>
+                <a href="{{ route('concerns.index', ['show_resolved' => 1]) }}" class="btn btn-muted">Show finished</a>
             @endif
             {{-- Only once there is a list to sit above. With nothing filed,
                  the empty state below has its own button, and two identical
@@ -217,11 +217,14 @@
                         <td>{{ $concern->created_at->local()->format('M d, Y · g:i A') }}</td>
                         <td style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
                             <a href="{{ route('concerns.show', $concern) }}" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">View</a>
-                            @if (Auth::user()->id === $concern->user_id && $concern->status === 'submitted')
-                                <form action="{{ route('concerns.destroy', $concern) }}" method="POST" style="display:inline-block; margin:0;">
+                            {{-- Withdraw, not delete. The concern stays on the
+                                 record either way; this says so rather than
+                                 implying the report can be made to vanish. --}}
+                            @if ($concern->canBeWithdrawnBy(Auth::user()))
+                                <form action="{{ route('concerns.withdraw', $concern) }}" method="POST" style="display:inline-block; margin:0;">
                                     @csrf
-                                    @method('DELETE')
-                                    <button type="submit" class="btn btn-ghost-danger" style="font-size: 0.85rem;" onclick="return confirm('Are you sure you want to delete this concern?');">Delete</button>
+                                    <button type="submit" class="btn btn-ghost-danger" style="font-size: 0.85rem;"
+                                        onclick="return confirm('Withdraw this concern? It stays on your record, marked as withdrawn, and nobody will act on it.');">Withdraw</button>
                                 </form>
                             @endif
                         </td>
