@@ -5,7 +5,10 @@
 @section('content')
 <div class="card">
     <h1>Submit a Student Concern</h1>
-    <p style="color: #666; margin-top: 0.5rem; margin-bottom: 2rem;">Help us address your concern. Your input is valuable and will be handled confidentially.</p>
+    {{-- "Your input is valuable" told the student nothing they could use,
+         and the confidentiality promise is made again further down, next to
+         the categories it actually applies to. --}}
+    <p style="color: #666; margin-top: 0.5rem; margin-bottom: 2rem;">Handled confidentially.</p>
 
     <form action="{{ route('concerns.store') }}" method="POST" enctype="multipart/form-data">
         @csrf
@@ -75,8 +78,7 @@
                 <option value="">-- Select --</option>
             </select>
             <div style="color:var(--muted); font-size:0.82rem; margin-top:0.25rem;">
-                The office is the same either way. This tells them what kind of case
-                it is before they open it.
+                The office is the same either way.
             </div>
             @error('subcategory')
                 <div style="color: #dc3545; font-size: 0.85rem; margin-top: 0.25rem;">{{ $message }}</div>
@@ -94,8 +96,7 @@
                    value="{{ old('other_category') }}"
                    placeholder="A few words, e.g. lost locker key, lost ID at the gym">
             <div style="color:var(--muted); font-size:0.82rem; margin-top:0.25rem;">
-                A short label so the right person can pick this up. Describe the full
-                situation in the box below.
+                A short label. Describe it fully below.
             </div>
             @error('other_category')
                 <div style="color: #dc3545; font-size: 0.85rem; margin-top: 0.25rem;">{{ $message }}</div>
@@ -112,20 +113,19 @@
             @endif
             <p id="department-helper" style="font-size: 0.9rem; color: #60708a; font-style: italic; margin-top: 0.5rem; display:none;"></p>
             <div id="confidentiality-box" style="display:none; background:#fff3cd; border:1px solid #ffe69c; color:#856404; padding:0.9rem; border-radius:6px; margin-top:1rem; font-size:0.9rem;">
-                Your concern will be handled confidentially.
+                Handled confidentially.
             </div>
         </div>
 
-        <div class="form-group">
-            <p style="font-size: 0.85rem; color: #60708a; font-style: italic;">
-                The severity of your concern will be assessed by the assigned staff after submission.
-            </p>
-        </div>
+        {{-- "The severity of your concern will be assessed by the assigned
+             staff after submission" used to sit here. There is nothing the
+             student can do with it: they are not asked for a severity, so
+             the sentence answered a question the form never put to them. --}}
 
         <div class="form-group">
             <label for="description">Detailed Description *</label>
             <p style="font-size:0.82rem; color:#64748b; margin:0.15rem 0 0.5rem;">
-                Please describe <strong>what happened</strong>, <strong>when</strong> and <strong>where</strong> it happened, and <strong>who was involved</strong>. The more specific you are, the better the assigned staff can help.
+                What happened, when, where, and who was involved.
             </p>
             <details style="margin:0 0 0.7rem; border:1px solid #e2e8f0; border-radius:10px; background:#f8fafc;">
                 <summary style="cursor:pointer; padding:0.6rem 0.9rem; font-size:0.85rem; font-weight:600; color:#2f5bea; list-style:none;">
@@ -141,7 +141,7 @@
                         <li><strong>How did it affect you?</strong> Optional, but it helps staff understand the urgency.</li>
                         <li><strong>What would help?</strong> The outcome you're hoping for.</li>
                     </ul>
-                    <p style="margin-top:0.5rem; color:#64748b;">Take your time. If a concern is sensitive, share only what you feel safe sharing. Your report is submitted under your name and is visible only to the staff member handling it.</p>
+                    <p style="margin-top:0.5rem; color:#64748b;">Share only what you feel safe sharing. Only the staff member handling this can read it.</p>
                 </div>
             </details>
             {{-- position:relative so the name dropdown below anchors here.
@@ -232,7 +232,7 @@
                      not published that section's adviser. Most sections are in
                      this state today. --}}
                 <p style="font-size:0.82rem; color:#666; margin-top:0.7rem;">
-                    No class adviser is recorded for {{ auth()->user()->course }} section {{ auth()->user()->section }} yet, so this form cannot offer them by name. If your concern is about your adviser, tick <strong>&ldquo;I do not want this to go to my class adviser&rdquo;</strong> below and it will go to your Program Chair instead.
+                    No adviser is recorded for {{ auth()->user()->course }} {{ auth()->user()->section }}, so they cannot be named here. If this is about your adviser, tick the box below and it goes to your Program Chair.
                 </p>
             @endif
 
@@ -306,7 +306,7 @@
                         @endforeach
                     @endforeach
                 </div>
-                <p style="font-size: 0.82rem; color: #666; margin-top: 0.4rem;">To avoid a conflict of interest, this concern will <strong>not</strong> be assigned to anyone named here. It will be routed to a higher authority instead.</p>
+                <p style="font-size: 0.82rem; color: #666; margin-top: 0.4rem;">Nobody named here will be assigned to it. It goes over their head instead.</p>
             </div>
 
             @error('about_staff_id')
@@ -340,7 +340,7 @@
                 <span style="font-weight: normal; margin-left: 0.5rem;">I do not want this to go to my class adviser</span>
             </label>
             <p style="font-size: 0.82rem; color: #666; margin-top: 0.4rem; padding-left: 1.6rem;">
-                It goes to the <strong>Program Chair</strong> of your program instead &mdash; and to the <strong>Dean</strong> if your concern is about a Program Chair. You do not have to say why.
+                It goes to your <strong>Program Chair</strong> instead. You do not have to say why.
             </p>
 
             @if ($adviser)
@@ -427,7 +427,7 @@
             <ul class="file-list" id="file-list" hidden></ul>
             <p class="file-note" id="file-note" hidden></p>
 
-            <p style="font-size: 0.82rem; color: #666; margin-top: 0.4rem;">You may attach up to {{ config('concerns.max_attachments') }} files &mdash; pictures, video, sound recordings, documents or a ZIP &mdash; up to {{ config('concerns.max_attachment_mb') }}&nbsp;MB each. Evidence is optional, and you can submit without it. Your files are stored privately and can only be viewed by the staff authorized to handle your concern.</p>
+            <p style="font-size: 0.82rem; color: #666; margin-top: 0.4rem;">Optional. Up to {{ config('concerns.max_attachments') }} files, {{ config('concerns.max_attachment_mb') }}&nbsp;MB each. Only the staff handling this can open them.</p>
             @error('attachments')
                 <div style="color: #dc3545; font-size: 0.85rem; margin-top: 0.25rem;">{{ $message }}</div>
             @enderror
