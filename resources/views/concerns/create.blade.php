@@ -754,6 +754,18 @@
                 const descEl = document.getElementById('description');
                 const charCountEl = document.getElementById('char-count');
 
+                // The categories that reach the student's class adviser, and
+                // therefore the only ones where "do not send this to my
+                // adviser" means anything.
+                //
+                // Derived from CATEGORY_ROUTING rather than written out here.
+                // The form used to keep its own copy of the routing table and
+                // it drifted twice; this cannot, because there is only one.
+                const ADVISER_CATEGORIES = @json(array_keys(array_filter(
+                    \App\Http\Controllers\ConcernController::CATEGORY_ROUTING,
+                    fn ($role) => $role === 'Adviser'
+                )));
+
                 // Who can be named, per category.
                 //
                 // An Academic concern climbs one ladder: the chair of the
@@ -896,7 +908,17 @@
                         // form was an option about a handler they had not
                         // been told about -- and for most categories it then
                         // disappeared, which reads as the form losing it.
-                        const adviserCategory = Boolean(cat) && target === 'your class adviser';
+                        //
+                        // Read from the server's own routing table rather
+                        // than from a sentence. This used to compare against
+                        // the words shown to the student ("your class
+                        // adviser"), so removing that text took the variable
+                        // with it and left this throwing a ReferenceError --
+                        // which aborted the rest of updateHelpers() and took
+                        // the sub-category dropdown and the Others field down
+                        // with it. A runtime error, so it parsed cleanly and
+                        // said nothing anywhere.
+                        const adviserCategory = Boolean(cat) && ADVISER_CATEGORIES.indexOf(cat) !== -1;
                         skipGroup.style.display = adviserCategory ? 'block' : 'none';
                         if (!adviserCategory) {
                             document.getElementById('skip_adviser').checked = false;

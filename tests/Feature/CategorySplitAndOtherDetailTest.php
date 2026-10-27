@@ -247,9 +247,52 @@ class CategorySplitAndOtherDetailTest extends TestCase
      * things now, item by item, so the dash was the same list twice and made
      * every row long enough to wrap on a phone.
      *
-     * Nothing is left unexplained: the line under the select describes the
-     * one category chosen, and the second dropdown breaks it down.
+     * What each one covers is in the second dropdown, item by item.
      */
+    public function test_the_category_script_uses_nothing_it_does_not_declare(): void
+    {
+        $html = $this->actingAs($this->student())->get('/concerns/create')
+            ->assertOk()->getContent();
+
+        $at = strpos($html, 'function updateHelpers');
+        $this->assertNotFalse($at, 'the category script is not on the page');
+
+        $open = strrpos(substr($html, 0, $at), '<script');
+        $script = substr($html, $open, strpos($html, '</script>', $at) - $open);
+
+        // Identifiers that have been deleted from this script. A leftover
+        // use of one is a ReferenceError, which aborts updateHelpers()
+        // part way -- and everything below the throw silently stops
+        // working. That is how the sub-category dropdown, the Others
+        // field and the adviser checkbox all went at once when the
+        // per-category helper text was removed and `target` went with
+        // it. It parses cleanly, so node --check and every syntax check
+        // pass; nothing says a word.
+        foreach (['routingByCategory', 'scopeByCategory', 'helperEl', 'confidentialEl'] as $gone) {
+            $this->assertStringNotContainsString($gone, $script,
+                $gone.' was removed but is still referenced, which throws at runtime');
+        }
+
+        // The replacement, and it has to agree with the server.
+        $this->assertStringContainsString('ADVISER_CATEGORIES', $script);
+
+        $routesToAdviser = array_keys(array_filter(
+            \App\Http\Controllers\ConcernController::CATEGORY_ROUTING,
+            fn ($role) => $role === 'Adviser'
+        ));
+
+        $this->assertNotEmpty($routesToAdviser);
+
+        preg_match('/const ADVISER_CATEGORIES = (\[[^\]]*\])/', $script, $m);
+
+        $this->assertNotEmpty($m, 'ADVISER_CATEGORIES is not a literal list');
+        $this->assertSame($routesToAdviser, json_decode($m[1], true),
+            'the form disagrees with CATEGORY_ROUTING about who reaches the adviser');
+
+        fwrite(STDERR, '  [category] the script declares what it uses; adviser categories: '
+            .implode(', ', $routesToAdviser)."\n");
+    }
+
     public function test_the_options_are_plain_labels(): void
     {
         $html = $this->actingAs($this->student())->get('/concerns/create')
