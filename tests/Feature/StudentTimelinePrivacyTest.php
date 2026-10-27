@@ -48,7 +48,7 @@ class StudentTimelinePrivacyTest extends TestCase
 
         $concern = Concern::create([
             'user_id' => $student->id,
-            'category' => 'Academic',
+            'category' => 'Personal',
             'department' => 'College of Computer Studies',
             'description' => 'Something happened in class.',
             'urgency' => 'Low',

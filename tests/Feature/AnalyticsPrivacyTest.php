@@ -71,7 +71,7 @@ class AnalyticsPrivacyTest extends TestCase
     public function test_owner_sees_own_name_on_anonymous(): void
     {
         $student = $this->u('student@my.cspc.edu.ph');
-        $concern = Concern::create(['user_id'=>$student->id,'category'=>'Academic',
+        $concern = Concern::create(['user_id'=>$student->id,'category'=>'Personal',
             'department'=>'College of Computer Studies','description'=>'x','urgency'=>null,
             'status'=>'submitted','is_anonymous'=>true]);
         $resp = $this->actingAs($student)->get("/concerns/{$concern->id}");
@@ -85,7 +85,7 @@ class AnalyticsPrivacyTest extends TestCase
     public function test_referral_flash_message(): void
     {
         $staff = $this->u('staff@cspc.edu.ph');
-        $c = Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
+        $c = Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Personal',
             'department'=>'College of Computer Studies','description'=>'x','urgency'=>null,
             'status'=>'submitted','is_anonymous'=>false,'assigned_to'=>$staff->id]);
         $resp = $this->actingAs($staff)->patch("/concerns/{$c->id}", [
@@ -106,7 +106,7 @@ class AnalyticsPrivacyTest extends TestCase
     public function test_update_flash_message(): void
     {
         $staff = $this->u('staff@cspc.edu.ph');
-        $c = Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
+        $c = Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Personal',
             'department'=>'College of Computer Studies','description'=>'x','urgency'=>null,
             'status'=>'submitted','is_anonymous'=>false,'assigned_to'=>$staff->id]);
         $resp = $this->actingAs($staff)->patch("/concerns/{$c->id}", [

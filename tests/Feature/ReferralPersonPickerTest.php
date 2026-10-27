@@ -38,7 +38,7 @@ class ReferralPersonPickerTest extends TestCase
     {
         return Concern::create(array_merge([
             'user_id' => $this->u('student@my.cspc.edu.ph')->id,
-            'category' => 'Academic',
+            'category' => 'Personal',
             'department' => 'College of Computer Studies',
             'description' => 'Something happened in class.',
             'urgency' => null,

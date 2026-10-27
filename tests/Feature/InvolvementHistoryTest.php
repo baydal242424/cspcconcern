@@ -15,7 +15,7 @@ class InvolvementHistoryTest extends TestCase
     public function test_staff_keeps_referred_concern_as_history(): void
     {
         $staff=$this->u('staff@cspc.edu.ph'); $counselor=$this->u('counselor@cspc.edu.ph');
-        $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
+        $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Personal',
           'department'=>'College of Computer Studies','description'=>'x','urgency'=>'Low',
           'status'=>'submitted','is_anonymous'=>false,'assigned_to'=>$staff->id]);
 
@@ -33,7 +33,7 @@ class InvolvementHistoryTest extends TestCase
     public function test_counselor_resolves_then_keeps_history(): void
     {
         $staff=$this->u('staff@cspc.edu.ph'); $counselor=$this->u('counselor@cspc.edu.ph');
-        $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
+        $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Personal',
           'department'=>'College of Computer Studies','description'=>'x','urgency'=>'Low',
           'status'=>'submitted','is_anonymous'=>false,'assigned_to'=>$staff->id]);
         $this->actingAs($staff)->patch("/concerns/{$c->id}",[

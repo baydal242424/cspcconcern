@@ -453,16 +453,50 @@ class ReferralsStayInTheCollegeTest extends TestCase
      * Services and the VPAA have no college, and a case that belongs with them
      * must still be able to get there.
      */
+    /**
+     * An office with no college of its own is not scoped away.
+     *
+     * The Guidance Office serves every college, so no college filter
+     * should ever hide it. Checked on a PERSONAL concern rather than the
+     * academic one the rest of this file uses: destinations are now
+     * narrowed by category as well as by college, and asserting Guidance
+     * on a disputed grade would be asserting that a grade can be sent to
+     * a counsellor. The college question is the same either way.
+     */
     public function test_the_central_offices_are_still_offered(): void
     {
-        [$concern, $chair] = $this->aComputerStudiesCase();
+        // Builds the colleges and their staff; the academic concern it
+        // files is not the one under test here.
+        $this->aComputerStudiesCase();
 
-        $page = $this->actingAs($chair)->get("/concerns/{$concern->id}")->assertOk();
-        $offered = collect($page->viewData('referralCandidates'))->flatten();
+        // A second General Services account. The seeded one receives the
+        // concern, and the office holding a case is not offered as a
+        // destination for it -- so without somebody else in that office
+        // there is nothing for this test to find either way.
+        $this->person('GSU Second', 'gsu.second@cspc.edu.ph', 'General Services', 'General Services Unit');
+
+        $student = User::where('email', 'student@my.cspc.edu.ph')->firstOrFail();
+
+        $this->actingAs($student)->post('/concerns', [
+            'category' => 'Facilities',
+            'description' => 'The aircon in our room has not worked for a fortnight now.',
+        ])->assertRedirect();
+
+        $concern = Concern::latest('id')->firstOrFail();
+
+        // Read by the Head of School, who can act on anything anywhere
+        // -- so what is missing from the list is missing because of a
+        // scoping rule, not because of who is looking.
+        $head = User::where('email', 'head@cspc.edu.ph')->firstOrFail();
+
+        $offered = collect(
+            $this->actingAs($head)->get("/concerns/{$concern->id}")
+                ->assertOk()->viewData('referralCandidates')
+        )->flatten();
 
         $this->assertTrue(
-            $offered->contains(fn (User $u) => optional($u->role)->name === 'Guidance Counselor'),
-            'the Guidance Office serves every college and must stay offered'
+            $offered->contains(fn (User $u) => optional($u->role)->name === 'General Services'),
+            'General Services serves every college and must stay offered'
         );
 
         fwrite(STDERR, "  [college] the central offices are still reachable from any college\n");

@@ -22,7 +22,7 @@ class ReferralFlowTest extends TestCase
 
         // staff has an academic concern assigned
         $c = Concern::create([
-            'user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
+            'user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Personal',
             'department'=>'College of Computer Studies','description'=>'x','urgency'=>'Low',
             'status'=>'submitted','is_anonymous'=>false,'assigned_to'=>$staff->id,
         ]);
@@ -53,7 +53,7 @@ class ReferralFlowTest extends TestCase
     {
         $staff = $this->u('staff@cspc.edu.ph');
         $c = Concern::create([
-            'user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
+            'user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Personal',
             'department'=>'College of Computer Studies','description'=>'x','urgency'=>'Low',
             'status'=>'referred','referred_to'=>'Guidance Counselor','is_anonymous'=>false,
             'assigned_to'=>$this->u('counselor@cspc.edu.ph')->id,

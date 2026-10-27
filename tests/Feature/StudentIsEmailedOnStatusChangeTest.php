@@ -57,7 +57,7 @@ class StudentIsEmailedOnStatusChangeTest extends TestCase
     {
         return Concern::create(array_merge([
             'user_id' => $this->student()->id,
-            'category' => 'Academic',
+            'category' => 'Personal',
             'department' => 'College of Computer Studies',
             'course' => 'BS Information Technology',
             'section' => '3A',

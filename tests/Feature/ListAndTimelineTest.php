@@ -16,14 +16,14 @@ class ListAndTimelineTest extends TestCase
     {
         $staff=$this->u('staff@cspc.edu.ph');
         // one open (referred) and one resolved, both handled by staff
-        $open=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
+        $open=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Personal',
           'department'=>'College of Computer Studies','description'=>'OPEN','urgency'=>'Low',
           'status'=>'submitted','is_anonymous'=>false,'assigned_to'=>$staff->id]);
         $this->actingAs($staff)->patch("/concerns/{$open->id}",[
             'investigation_notes' => 'Looked into this and spoke with the people involved.',
             'resolution_notes' => 'Recorded what is being done about it.','status'=>'referred','referred_to'=>'Guidance Counselor','urgency'=>'Low']);
 
-        $resolved=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
+        $resolved=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Personal',
           'department'=>'College of Computer Studies','description'=>'CLOSED','urgency'=>'Low',
           'status'=>'submitted','is_anonymous'=>false,'assigned_to'=>$staff->id]);
         $this->actingAs($staff)->patch("/concerns/{$resolved->id}",[
@@ -49,7 +49,7 @@ class ListAndTimelineTest extends TestCase
     public function test_timeline_shows_referral_and_resolution(): void
     {
         $staff=$this->u('staff@cspc.edu.ph'); $counselor=$this->u('counselor@cspc.edu.ph');
-        $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
+        $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Personal',
           'department'=>'College of Computer Studies','description'=>'x','urgency'=>'Low',
           'status'=>'submitted','is_anonymous'=>false,'assigned_to'=>$staff->id]);
         $this->actingAs($staff)->patch("/concerns/{$c->id}",[

@@ -150,6 +150,89 @@ class ConcernController extends Controller
      * match REFERRAL_ROLES exactly -- the view iterates this, so a destination
      * added above without a label here would simply not be offered.
      */
+    /**
+     * Which offices a concern of each category can go to.
+     *
+     * Every office was offered on every concern, so a disputed grade could
+     * be handed to the Guidance Counselor and a broken aircon to the VPAA.
+     * A list where most entries are wrong is a list nobody reads: the
+     * handler scrolls for the one that fits, and the wrong pick costs a
+     * student a fortnight while the case travels to an office that was
+     * never going to act on it.
+     *
+     * Dean and VPAA are added to every category by escalate(), so a case
+     * can always go up even where it has nowhere sideways to go. 'Others'
+     * is deliberately everything -- it is the category for the concerns
+     * nobody anticipated, so narrowing it would be guessing.
+     *
+     * This encodes who does what at CSPC, which is the sort of thing that
+     * changes. It is one list in one place for that reason.
+     *
+     * @var array<string, array<int, string>>
+     */
+    public const CATEGORY_REFERRAL_ROLES = [
+        // Grades, enrolment, schedules, how somebody teaches. Academic
+        // work, handled in the academic line: adviser, the instructor
+        // concerned, the chair of the programme.
+        'Academic' => ['Adviser', 'Instructor', 'Program Chair', 'Faculty/Staff',
+            'Vice President for Academic Affairs'],
+        // The counselling cases. General Services and System Admin have no
+        // part in any of them.
+        'Mental Health' => ['Guidance Counselor', 'Adviser'],
+        'Personal' => ['Guidance Counselor', 'Adviser'],
+        // Bullying and harassment can need the GAD office or Legal, and
+        // bullying between classmates often starts with the adviser.
+        'Bullying' => ['Guidance Counselor', 'Adviser', 'Program Chair', 'Gender and Development', 'Legal Affairs',
+            'Vice President for Academic Affairs'],
+        'Harassment' => ['Guidance Counselor', 'Gender and Development', 'Legal Affairs',
+            'Vice President for Academic Affairs'],
+        // This category means the website is broken.
+        'Administrative' => ['System Admin', 'Faculty/Staff'],
+        // Maintenance. A dead lab PC is ICT's, but students report it to
+        // General Services, who own the queue.
+        'Facilities' => ['General Services', 'Faculty/Staff'],
+        'Equipment' => ['General Services', 'Faculty/Staff', 'System Admin'],
+        // An injury that happened: somebody to sit with the student, and
+        // the office that owns whatever caused it.
+        'Physical' => ['Guidance Counselor', 'General Services', 'Legal Affairs'],
+        // A hazard that has not hurt anybody yet: fix it before it does.
+        'Safety' => ['General Services', 'Guidance Counselor', 'Faculty/Staff'],
+    ];
+
+    /**
+     * Always available, whatever the category.
+     *
+     * Escalation is not a category question: a Dean runs the college and
+     * can take anything, and without that a narrowed list could leave a
+     * handler holding a case with nowhere to send it, which is worse than
+     * a list that is too long.
+     *
+     * The VPAA is NOT here. They sit above the ACADEMIC line, which is
+     * not the same as above everything -- offered on every category they
+     * turned up as a destination for a broken aircon. Listed by hand on
+     * the categories where that office is really the next step up.
+     */
+    private const ALWAYS_REFERRABLE = ['Dean'];
+
+    /**
+     * The offices this concern may be referred to, by category.
+     *
+     * @return array<int, string>
+     */
+    public static function referralRolesFor(?string $category): array
+    {
+        // 'Others', and any category not mapped, gets the full list: it is
+        // the bucket for what nobody anticipated.
+        if ($category === null || ! isset(self::CATEGORY_REFERRAL_ROLES[$category])) {
+            return self::REFERRAL_ROLES;
+        }
+
+        return array_values(array_intersect(
+            self::REFERRAL_ROLES,
+            array_merge(self::CATEGORY_REFERRAL_ROLES[$category], self::ALWAYS_REFERRABLE)
+        ));
+    }
+
     public const REFERRAL_ROLE_LABELS = [
         'Guidance Counselor'     => 'Guidance Counselor',
         'Program Chair'          => 'Program Chair (one program)',
@@ -823,6 +906,11 @@ class ConcernController extends Controller
         // so staff are never shown a picker with nothing pickable in it.
         $referralCandidates = $user->isEmployee()
             ? $this->referralCandidates($concern, $user)
+                // Narrowed to the offices this category can go to, like the
+                // dropdown below. The office list is what the server
+                // validates, so this is not the gate -- it just stops the
+                // page carrying a few dozen names nobody can pick.
+                ->filter(fn ($people, $role) => in_array($role, self::referralRolesFor($concern->category), true))
             : collect();
 
         // Only the offices somebody eligible is standing in -- and never the
@@ -839,9 +927,15 @@ class ConcernController extends Controller
         // either of their own desks.
         $ownRoles = $user->allRoleNames();
 
+        // And only the offices that have any part in a concern of this
+        // kind. Every office used to be offered on every concern, so a
+        // disputed grade could be handed to the Guidance Counselor.
+        $fitsCategory = self::referralRolesFor($concern->category);
+
         $referralDestinations = collect(self::REFERRAL_ROLE_LABELS)
             ->filter(fn ($label, $role) => $referralCandidates->has($role)
                 && $referralCandidates->get($role)->isNotEmpty()
+                && in_array($role, $fitsCategory, true)
                 && ! in_array($role, $ownRoles, true));
 
         // Everything the office has already sent the student. Shown to both
@@ -958,7 +1052,11 @@ class ConcernController extends Controller
             // be documented, and the reporter is shown this text.
             'closure_reason' => 'nullable|string|min:20|max:1000',
             'urgency' => 'nullable|in:Low,Medium,High,Critical',
-            'referred_to' => 'nullable|in:'.implode(',', self::REFERRAL_ROLES),
+            // Narrowed by category, the same list the dropdown is built
+            // from. Validating against the full set would make the
+            // narrowing cosmetic -- a crafted post could still send a
+            // disputed grade to the Guidance Counselor.
+            'referred_to' => ['nullable', Rule::in(self::referralRolesFor($concern->category))],
             // Optional: refer to a NAMED person in that office rather than
             // letting findHandler() pick. Only ever set from the people
             // dropdown, and re-checked against the candidate list below --

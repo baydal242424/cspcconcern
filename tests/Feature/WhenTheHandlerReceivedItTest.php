@@ -40,7 +40,7 @@ class WhenTheHandlerReceivedItTest extends TestCase
     {
         return Concern::create([
             'user_id' => $this->u('student@my.cspc.edu.ph')->id,
-            'category' => 'Academic',
+            'category' => 'Personal',
             'department' => 'College of Computer Studies',
             'description' => 'Something happened in class.',
             'urgency' => 'Low',

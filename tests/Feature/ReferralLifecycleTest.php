@@ -18,7 +18,7 @@ class ReferralLifecycleTest extends TestCase
     private function academicAssignedToStaff(): Concern
     {
         return Concern::create([
-            'user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
+            'user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Personal',
             'department'=>'College of Computer Studies','description'=>'x','urgency'=>null,
             'status'=>'submitted','is_anonymous'=>false,'assigned_to'=>$this->u('staff@cspc.edu.ph')->id,
         ]);

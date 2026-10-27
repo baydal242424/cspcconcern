@@ -148,24 +148,38 @@ class VisibilityTest extends TestCase
     public function test_a_referral_grants_the_receiver_visibility(): void
     {
         $staff = $this->u('staff@cspc.edu.ph');
-        $admin = $this->u('admin@cspc.edu.ph');
+
+        // A college office. This used to refer an ACADEMIC case to the
+        // System Admin, which destinations narrowed by category no longer
+        // accept -- that office exists for the website being broken.
+        //
+        // The receiver also has to be somebody with no standing sight of
+        // the case, or the first assertion below is true for the wrong
+        // reason: a Dean sees their whole college, the VPAA sees every
+        // academic case, and a counsellor sees every counselling one.
+        $office = User::factory()->create([
+            'name' => 'A College Office',
+            'role_id' => \App\Models\Role::where('name', 'Faculty/Staff')->value('id'),
+            'department' => 'College of Computer Studies',
+            'status' => 'approved',
+        ]);
+
         $c = $this->makeConcern(['category'=>'Academic','assigned_to'=>$staff->id]);
 
-        // before referral, they cannot see this Academic case
-        $this->assertFalse(Concern::whereKey($c->id)->visibleTo($admin)->exists());
+        // Before the referral, that office cannot see it.
+        $this->assertFalse(Concern::whereKey($c->id)->visibleTo($office)->exists());
 
-        // staff refers it to Admin via the update endpoint
         $this->actingAs($staff)->patch("/concerns/{$c->id}", [
             'investigation_notes' => 'Looked into this and spoke with the people involved.',
             'resolution_notes' => 'Recorded what is being done about it.',
             'status' => 'referred',
-            'referred_to' => 'System Admin',
+            'referred_to' => 'Faculty/Staff',
         ]);
         $c->refresh();
         fwrite(STDERR, "  [referral] status={$c->status} referred_to=".var_export($c->referred_to,true)."\n");
 
-        $this->assertEquals('System Admin', $c->referred_to);
-        $this->assertTrue(Concern::whereKey($c->id)->visibleTo($admin)->exists(),
+        $this->assertEquals('Faculty/Staff', $c->referred_to);
+        $this->assertTrue(Concern::whereKey($c->id)->visibleTo($office)->exists(),
             'the office a case was referred to should be able to read it');
     }
 

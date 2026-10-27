@@ -185,15 +185,30 @@ class ReferringToTheDeanTest extends TestCase
     {
         [$concern, $chair] = $this->theCase();
 
+        // Two of them. The referral lands on one, who then holds the
+        // case and keeps it afterwards as their own history -- so the
+        // colleague is the one who shows whether the OFFICE still has
+        // sight of it, which is what referred_to grants and what this
+        // test is about.
+        $this->person('An Office', 'an.office@cspc.edu.ph', 'Faculty/Staff');
+        $counsellor = $this->person('Their Colleague', 'their.colleague@cspc.edu.ph', 'Faculty/Staff');
+
         $this->actingAs($chair)->put("/concerns/{$concern->id}", [
             'investigation_notes' => 'Looked into this and spoke with the people involved.',
             'resolution_notes' => 'Recorded what is being done about it.',
+            // A college office, not the Guidance Office. Destinations are
+            // narrowed by category now and this is an ACADEMIC case, which
+            // a counsellor has no part in.
+            //
+            // Which office hardly matters, but it cannot be one that sees
+            // the case anyway: a Dean sees their whole college and the
+            // VPAA sees every academic case, so with either of them the
+            // second half of this test would pass whether the window
+            // closed or not.
             'status' => 'referred',
-            'referred_to' => 'Guidance Counselor',
+            'referred_to' => 'Faculty/Staff',
         ])->assertRedirect();
 
-        $counsellor = User::where('email', 'guidance@cspc.edu.ph')->first()
-            ?? $this->person('A Counsellor', 'counsellor@cspc.edu.ph', 'Guidance Counselor');
 
         // While it is open, the office it was referred to can see it.
         $this->assertTrue(
@@ -208,7 +223,7 @@ class ReferringToTheDeanTest extends TestCase
 
         // Once finished, the standing window closes again even though the
         // column still names them.
-        $this->assertSame('Guidance Counselor', $concern->fresh()->referred_to);
+        $this->assertSame('Faculty/Staff', $concern->fresh()->referred_to);
         $this->assertFalse(
             Concern::whereKey($concern->id)->visibleTo($counsellor)->exists(),
             'A finished referral must not stay in another office\'s list'
