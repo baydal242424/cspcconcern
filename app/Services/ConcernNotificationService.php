@@ -127,7 +127,11 @@ class ConcernNotificationService
      * is the one notice whose whole value is in what it withholds.
      *
      * Sent once per person per concern: a case that goes in progress,
-     * is referred, and comes back does not tell them twice.
+     * is referred, and comes back does not tell them twice. The caller
+     * fires this on the move to "in progress" AND on the move to
+     * "resolved", because nothing makes a handler pass through the first
+     * on the way to the second -- and the once-per-person rule here is
+     * what makes sending from both places safe.
      */
     public function investigationBegun(Concern $concern): void
     {

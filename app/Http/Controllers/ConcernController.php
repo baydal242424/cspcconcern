@@ -1239,9 +1239,24 @@ class ConcernController extends Controller
         if ($statusChanged || $isReferral) {
             $this->notifications->statusChanged($concern, $validated['status']);
 
-            // Somebody named in a concern is told when work on it
-            // starts -- not who raised it, and not what it says.
-            if ($validated['status'] === 'in_progress') {
+            // Somebody named in a concern is told that it was looked into
+            // -- not who raised it, and not what it says.
+            //
+            // "resolved" as well as "in_progress", because nothing makes a
+            // handler pass through one on the way to the other. The form
+            // offers resolving straight from submitted, and resolving takes
+            // findings and proof, so a case could be investigated and
+            // settled with the status never once saying so -- and the
+            // person it named was never told at all. That is the worst
+            // version of what this exists to prevent.
+            //
+            // Not "closed_no_action". The line is whether anything was
+            // found: handing somebody an accusation that was reviewed and
+            // dismissed does them no good, when the conflict-of-interest
+            // wall means they cannot read it, answer it, or learn who made
+            // it. The service sends once per person, so a case that goes
+            // in progress and is later resolved still tells them once.
+            if (in_array($validated['status'], ['in_progress', 'resolved'], true)) {
                 $this->notifications->investigationBegun($concern);
             }
         }

@@ -99,6 +99,76 @@ class TellingTheNamedPersonTest extends TestCase
         fwrite(STDERR, "  [named] the person named is told when it starts\n");
     }
 
+    /**
+     * Settled in one move, and they are still told.
+     *
+     * Nothing makes a handler pass through "in progress" on the way to
+     * "resolved". The form offers resolving straight from submitted, and
+     * resolving takes findings and proof -- so a case can be investigated
+     * and closed out without the status ever showing it, and the notice
+     * that fired only on "in progress" never fired at all.
+     *
+     * That is the worst version of what this exists to prevent: the person
+     * was looked into, something was decided about them, and they were
+     * never told it happened.
+     */
+    public function test_resolving_without_passing_through_in_progress_still_tells_them(): void
+    {
+        $named = $this->named();
+        $concern = $this->aConcernNaming($named);
+
+        $this->actingAs($this->handler())->patch("/concerns/{$concern->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'The matter was dealt with directly.',
+            'status' => 'resolved',
+            'urgency' => 'High',
+            'resolution_attachments' => [UploadedFile::fake()->create('minutes.pdf', 30)],
+        ])->assertRedirect();
+
+        $this->assertSame('resolved', $concern->fresh()->status);
+
+        $notice = Notification::where('user_id', $named->id)
+            ->where('type', ConcernNotificationService::TYPE_NAMED_IN_CONCERN)
+            ->first();
+
+        $this->assertNotNull($notice,
+            'a concern was investigated and settled without the person it named ever being told');
+
+        fwrite(STDERR, "  [named] settled in one move, and they are still told\n");
+    }
+
+    /**
+     * Closed without action tells them nothing.
+     *
+     * The line is whether anything was found. A complaint reviewed and
+     * dismissed is one nobody acted on, and telling somebody "a complaint
+     * naming you was looked into" when the answer was that there was
+     * nothing in it does them no good -- it hands them an accusation, and
+     * the conflict-of-interest wall means they cannot read it, answer it
+     * or find out who made it.
+     */
+    public function test_closing_without_action_tells_them_nothing(): void
+    {
+        $named = $this->named();
+        $concern = $this->aConcernNaming($named);
+
+        $this->actingAs($this->handler())->patch("/concerns/{$concern->id}", [
+            'investigation_notes' => 'Reviewed the report and found nothing to act on.',
+            'resolution_notes' => 'No action taken.',
+            'status' => 'closed_no_action',
+            'closure_reason' => 'Reviewed in full and there is nothing here that needs acting on.',
+            'urgency' => 'High',
+        ])->assertRedirect();
+
+        $this->assertSame('closed_no_action', $concern->fresh()->status);
+
+        $this->assertSame(0, Notification::where('user_id', $named->id)
+            ->where('type', ConcernNotificationService::TYPE_NAMED_IN_CONCERN)
+            ->count(), 'a dismissed complaint was passed on to the person it named');
+
+        fwrite(STDERR, "  [named] a dismissed complaint is not passed on to them\n");
+    }
+
     /** And the notice gives nothing away. */
     public function test_the_notice_identifies_nobody(): void
     {
