@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Concern;
+use App\Models\ConcernDraft;
 use App\Models\AuditLog;
 use App\Models\User;
 use App\Models\Attachment;
@@ -559,8 +560,27 @@ class ConcernController extends Controller
         // one.
         $adviserUnknown = ! $adviser && filled(auth()->user()->section);
 
+        // A draft they started earlier. Put straight into the session's
+        // old input, so every field on the form repopulates through the
+        // same old() calls it already uses for a failed submission --
+        // rather than each one growing a second source to read from.
+        //
+        // Only when the form is otherwise fresh: old input means they
+        // have just had a submission bounced back, and overwriting what
+        // they were typing with an older draft would be the one thing
+        // worse than losing it.
+        $draft = ConcernDraft::where('user_id', Auth::id())->first();
+        $resumedDraft = null;
+
+        if ($draft && $draft->hasContent() && ! $request->old() && ! $followsUpOn) {
+            $request->session()->flashInput($draft->toFormInput());
+            $resumedDraft = $draft;
+        }
+
         return view('concerns.create', [
             'followsUpOn' => $followsUpOn,
+            'resumedDraft' => $resumedDraft,
+            'hasDraft' => (bool) ($draft && $draft->hasContent()),
             // Grouped by college so a long list stays navigable. Instructors
             // from every college are offered, not just the student's own --
             // general-education subjects are taught across colleges.
@@ -878,6 +898,11 @@ class ConcernController extends Controller
             'description' => "Urgency auto-assigned as {$concern->urgency}",
             'ip_address' => $request->ip(),
         ]);
+
+        // Filed, so the draft of it has done its job. Left behind, it
+        // would greet them with "you have a saved draft" on the next
+        // concern they came to write.
+        ConcernDraft::where('user_id', Auth::id())->delete();
 
         return redirect()->route('concerns.show', $concern)->with('success', 'Concern submitted successfully');
     }
@@ -1488,6 +1513,68 @@ class ConcernController extends Controller
         ]);
 
         return redirect()->route('concerns.show', $concern)->with('success', 'Thanks for your feedback!');
+    }
+
+    /**
+     * Keep a concern somebody is part way through writing.
+     *
+     * The form asks for an account of something that happened, with
+     * dates, names and what was said. That is not a thing anybody
+     * finishes between classes, and until now leaving the page lost all
+     * of it -- so a student either wrote the whole report in one sitting
+     * or filed a thin version of it.
+     *
+     * Validation here is deliberately almost nothing. A draft is saved
+     * BECAUSE it is unfinished: requiring a category, or twenty
+     * characters of description, would refuse to save exactly the state
+     * worth saving. Only the lengths are checked, and those only so a
+     * draft cannot be used to store something enormous.
+     *
+     * One per student, so this overwrites.
+     */
+    public function saveDraft(Request $request)
+    {
+        /** @var User $user */
+        $user = Auth::user();
+
+        $validated = $request->validate([
+            'category' => ['nullable', Rule::in(Concern::CATEGORIES)],
+            'subcategory' => ['nullable', 'string', 'max:120'],
+            'other_category' => ['nullable', 'string', 'max:120'],
+            'description' => ['nullable', 'string', 'max:2000'],
+            'is_anonymous' => ['nullable', 'boolean'],
+            'skip_adviser' => ['nullable', 'boolean'],
+            'about_staff_id' => ['nullable', 'array', 'max:50'],
+            'about_staff_id.*' => ['integer'],
+        ]);
+
+        ConcernDraft::updateOrCreate(
+            ['user_id' => $user->id],
+            [
+                'category' => $validated['category'] ?? null,
+                'subcategory' => $validated['subcategory'] ?? null,
+                'other_category' => $validated['other_category'] ?? null,
+                'description' => $validated['description'] ?? null,
+                'is_anonymous' => (bool) ($validated['is_anonymous'] ?? false),
+                'skip_adviser' => (bool) ($validated['skip_adviser'] ?? false),
+                'about_staff_id' => $validated['about_staff_id'] ?? [],
+            ]
+        );
+
+        // No audit entry. Nothing has been reported yet, and a log of what
+        // somebody considered writing is a record of an accusation that
+        // was never made.
+        return redirect()->route('concerns.create')
+            ->with('success', 'Saved. Your draft will be here when you come back.');
+    }
+
+    /** Throw the draft away. */
+    public function discardDraft()
+    {
+        ConcernDraft::where('user_id', Auth::id())->delete();
+
+        return redirect()->route('concerns.create')
+            ->with('success', 'Draft discarded.');
     }
 
     /**

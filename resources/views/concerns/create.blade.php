@@ -10,6 +10,27 @@
          the categories it actually applies to. --}}
     <p style="color: #666; margin-top: 0.5rem; margin-bottom: 2rem;">Handled confidentially.</p>
 
+    {{-- Picked up where they left off. Said plainly, because the form
+         filling itself in is otherwise unexplained -- and because the
+         draft may be weeks old and no longer what they want to send.
+
+         Outside the form below: discarding is its own POST, and a form
+         cannot be nested inside another. --}}
+    @if (! empty($resumedDraft))
+        <div style="background:var(--info-bg,#e2ecff); border:1px solid #bcd2ff; color:var(--info-ink,#1d4ed8); padding:0.9rem 1.1rem; border-radius:10px; margin-bottom:1.5rem; display:flex; gap:1rem; align-items:center; flex-wrap:wrap;">
+            <span style="flex:1; min-width:14rem; font-size:0.9rem;">
+                Carried on from the draft you saved
+                {{ $resumedDraft->updated_at->diffForHumans() }}.
+            </span>
+            <form action="{{ route('concerns.draft.discard') }}" method="POST" style="margin:0;">
+                @csrf
+                @method('DELETE')
+                <button type="submit" class="btn btn-muted" style="font-size:0.85rem;"
+                    onclick="return confirm('Throw this draft away and start again?');">Start again</button>
+            </form>
+        </div>
+    @endif
+
     <form action="{{ route('concerns.store') }}" method="POST" enctype="multipart/form-data">
         @csrf
 
@@ -591,8 +612,19 @@
             })();
         </script>
 
-        <div style="display: flex; gap: 1rem;">
+        <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
             <button type="submit" class="btn btn-primary">Send ✈</button>
+            {{-- Inside the same form, so everything typed so far goes with
+                 it, and posted elsewhere via formaction.
+
+                 formnovalidate matters: the form requires a category and
+                 twenty characters of description, and a draft is saved
+                 precisely when those are not there yet. Without it the
+                 browser refuses to submit and the button does nothing,
+                 with no message saying why. --}}
+            <button type="submit" class="btn btn-muted"
+                    formaction="{{ route('concerns.draft.save') }}"
+                    formnovalidate>Save as draft</button>
             <a href="{{ route('concerns.index') }}" class="btn btn-muted">Cancel</a>
         </div>
 

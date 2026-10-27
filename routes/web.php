@@ -75,6 +75,13 @@ Route::middleware(['auth', 'track.last_seen', 'profile.complete', 'policy.accept
     Route::get('concerns-mentionable', [ConcernController::class, 'mentionable'])
         ->name('concerns.mentionable');
 
+    // A concern somebody is part way through writing. Declared before the
+    // resource, or "draft" is read as a concern id by concerns/{concern}.
+    Route::post('concerns/draft', [ConcernController::class, 'saveDraft'])
+        ->name('concerns.draft.save');
+    Route::delete('concerns/draft', [ConcernController::class, 'discardDraft'])
+        ->name('concerns.draft.discard');
+
     // No destroy. A concern is never deleted through the interface -- the
     // reporter withdraws it and staff close it, and either way the record,
     // its evidence and its audit trail stay. Permanent removal is a
