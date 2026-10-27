@@ -88,6 +88,17 @@ Route::middleware(['auth', 'track.last_seen', 'profile.complete', 'policy.accept
     Route::post('concerns/{concern}/feedback', [ConcernController::class, 'storeFeedback'])
         ->name('concerns.feedback');
 
+    // The handler writing to the student -- asking for a document, or for
+    // them to come in. One way and logged: the reply to "send me the
+    // receipt" is the receipt, which is the route below.
+    Route::post('concerns/{concern}/notify-reporter', [ConcernController::class, 'notifyReporter'])
+        ->name('concerns.notify');
+
+    // The student sending files after filing. Without it, asking for a
+    // document would be asking for something they have nowhere to put.
+    Route::post('concerns/{concern}/documents', [ConcernController::class, 'addDocuments'])
+        ->name('concerns.documents');
+
     // Navbar notification bell. Both are POST because they change state --
     // a GET would let a link prefetcher silently clear someone's badge.
     // Ownership is checked inside the controller.

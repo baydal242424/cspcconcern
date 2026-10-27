@@ -214,6 +214,63 @@ class Concern extends Model
     }
 
     /**
+     * What a handler can tell the student who filed a concern.
+     *
+     * Until now the only thing a case could say to a student was its
+     * status, which answers "is anything happening" and nothing else. A
+     * handler who needed the receipt, or needed the student in the office
+     * on Tuesday, had to find them outside the system -- so the request
+     * left no record, and for an anonymous report there was no way to ask
+     * at all.
+     *
+     * Three kinds rather than one free-text box, because the kind is what
+     * the student sees first and what tells them whether they have to do
+     * something. "A message about your concern" buries "bring your
+     * registration form" under a heading that reads as news.
+     *
+     * The wording is the student's, not the handler's: the handler picks
+     * what they need and writes why.
+     *
+     * @var array<string, array{title: string, prompt: string, cta: string}>
+     */
+    public const NOTICE_KINDS = [
+        'documents' => [
+            'title' => 'More documents are needed for your concern',
+            'prompt' => 'What do you need from them, and by when?',
+            'cta' => 'Ask for documents',
+        ],
+        'meeting' => [
+            'title' => 'You are asked to meet the person handling your concern',
+            'prompt' => 'Where should they go, and when? Say who to ask for.',
+            'cta' => 'Ask them to come in',
+        ],
+        'update' => [
+            'title' => 'A message about your concern',
+            'prompt' => 'What do you want them to know?',
+            'cta' => 'Send a message',
+        ],
+    ];
+
+    /** The heading a student sees for one notice. */
+    public static function noticeTitle(string $kind): string
+    {
+        return self::NOTICE_KINDS[$kind]['title'] ?? self::NOTICE_KINDS['update']['title'];
+    }
+
+    /**
+     * Whether a handler can still write to the student.
+     *
+     * The same line the rest of the case draws: once a concern is resolved
+     * or closed, its record is finished and nothing more is added to it.
+     * Asking a student for documents on a case nobody is working on would
+     * be asking for something that can no longer be used.
+     */
+    public function acceptsNotices(): bool
+    {
+        return ! in_array($this->status, self::TERMINAL_STATUSES, true);
+    }
+
+    /**
      * What each category breaks down into.
      *
      * A category says which office reads the concern; a sub-category says
@@ -596,6 +653,28 @@ class Concern extends Model
     }
 
     /**
+     * What the student sent after filing, usually because they were asked.
+     *
+     * A group of its own rather than more evidence: a handler who asked
+     * for a receipt on Tuesday needs to see whether it came, and a file
+     * dropped into the list of things filed last month does not answer
+     * that question.
+     */
+    public function followUpDocuments()
+    {
+        return $this->hasMany(Attachment::class)->where('kind', Attachment::KIND_FOLLOW_UP);
+    }
+
+    /** Every notice a handler has sent the reporter, newest first. */
+    public function noticesToReporter()
+    {
+        return $this->auditLogs
+            ->where('action', 'reporter_notified')
+            ->sortByDesc('id')
+            ->values();
+    }
+
+    /**
      * The settled concern this one was reported as a repeat of.
      *
      * Harassment is the case this exists for. A student reports
@@ -748,6 +827,20 @@ class Concern extends Model
 
         if ($log->action === 'feedback_submitted') {
             return ['key' => 'feedback', 'label' => 'You rated how this was handled'];
+        }
+
+        // Being asked for something is the entry a student is most likely
+        // to come back looking for, so it is shown as written and never
+        // collapsed into the line above it. The key is per-entry for that
+        // reason: two requests in a row are two things they have to do,
+        // and the run-collapsing that turns a string of hand-offs into
+        // one line would turn them into one task.
+        if ($log->action === 'reporter_notified') {
+            return ['key' => 'notice-'.$log->id, 'label' => (string) $log->description];
+        }
+
+        if ($log->action === 'documents_added') {
+            return ['key' => 'documents-'.$log->id, 'label' => (string) $log->description];
         }
 
         // Their own identity being disclosed is the one staff action a

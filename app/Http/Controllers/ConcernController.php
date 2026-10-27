@@ -844,7 +844,29 @@ class ConcernController extends Controller
                 && $referralCandidates->get($role)->isNotEmpty()
                 && ! in_array($role, $ownRoles, true));
 
-        return view('concerns.show', compact('concern', 'referralCandidates', 'referralDestinations'));
+        // Everything the office has already sent the student. Shown to both
+        // sides: the student rereads what was asked of them, and a handler
+        // sees what has been asked before asking for it again.
+        $notices = $concern->noticesToReporter();
+
+        // Writing to the student is gated on being able to ACT on the
+        // concern, not merely read it -- the same answer update() uses, so
+        // somebody taken off a case cannot still send messages about it.
+        $canNotifyReporter = $user->id !== $concern->user_id
+            && $concern->acceptsNotices()
+            && $this->canActOn($concern, $user);
+
+        // And answering is the reporter's, while the concern is live.
+        $canAddDocuments = $user->id === $concern->user_id && $concern->acceptsNotices();
+
+        return view('concerns.show', compact(
+            'concern',
+            'referralCandidates',
+            'referralDestinations',
+            'notices',
+            'canNotifyReporter',
+            'canAddDocuments'
+        ));
     }
 
     /**
@@ -1347,6 +1369,166 @@ class ConcernController extends Controller
         ]);
 
         return redirect()->route('concerns.show', $concern)->with('success', 'Thanks for your feedback!');
+    }
+
+    /**
+     * Whether this user may act on this concern, not merely read it.
+     *
+     * Lifted out of update() so that writing to the student is gated on
+     * exactly the same answer. Two copies of this would drift, and the
+     * copy that drifted would be the one letting somebody send a message
+     * on a case they had been taken off.
+     */
+    private function canActOn(Concern $concern, User $user): bool
+    {
+        if (! $this->canViewConcern($concern, $user)) {
+            return false;
+        }
+
+        $role = optional($user->role)->name;
+
+        return (int) $concern->assigned_to === (int) $user->id
+            || in_array($role, ['System Admin', 'Staff Admin', 'Dean'], true)
+            || ($concern->referred_to !== null && $concern->referred_to === $role);
+    }
+
+    /**
+     * Write to the student who filed this concern.
+     *
+     * The gap this fills: a case could tell a student its status and
+     * nothing else. A handler who needed the receipt, or needed them in
+     * the office on Tuesday, had to reach them outside the system -- so
+     * the request left no record on the case, and for an anonymous report
+     * there was no way to reach them at all.
+     *
+     * It is deliberately one-way and logged. The reply to "send me the
+     * document" is the document, which goes to addDocuments() below; the
+     * reply to anything else is a conversation, and a case file is not a
+     * chat. What is recorded is that the office asked, when, and for what,
+     * which is the part that matters if the student later says nobody ever
+     * told them.
+     */
+    public function notifyReporter(Request $request, Concern $concern, ConcernNotificationService $notifier)
+    {
+        /** @var User $user */
+        $user = Auth::user();
+
+        if (! $this->canActOn($concern, $user)) {
+            abort(403, 'You cannot write to the reporter of this concern.');
+        }
+
+        // The reporter cannot send one of these to themselves. Without this
+        // an Admin who had filed a concern could write to their own case.
+        if ($user->id === $concern->user_id) {
+            abort(403, 'This is your own concern.');
+        }
+
+        if (! $concern->acceptsNotices()) {
+            return redirect()->route('concerns.show', $concern)
+                ->with('error', 'This concern is finished, so nothing more can be sent to the reporter.');
+        }
+
+        $validated = $request->validate([
+            'kind' => ['required', Rule::in(array_keys(Concern::NOTICE_KINDS))],
+            // Long enough to say what is wanted. "Send documents" with no
+            // list of which ones is the message that gets sent twice.
+            'message' => ['required', 'string', 'min:15', 'max:1000'],
+        ], [
+            'message.required' => 'Write what you need from the student. They will see this.',
+            'message.min' => 'Say which documents, or where and when to come. The student will see this.',
+        ]);
+
+        $notifier->noticeFromHandler($concern, $validated['kind'], $validated['message'], $user);
+
+        // The audit entry carries the handler's words, so the request and
+        // the case history are the same record. The student's timeline
+        // shows it too -- see Concern::reporterMilestone().
+        AuditLog::create([
+            'user_id' => $user->id,
+            'concern_id' => $concern->id,
+            'action' => 'reporter_notified',
+            'description' => Concern::noticeTitle($validated['kind']).': '.$validated['message'],
+            'ip_address' => $request->ip(),
+        ]);
+
+        return redirect()->route('concerns.show', $concern)
+            ->with('success', 'The student has been notified.');
+    }
+
+    /**
+     * The reporter sending the documents they were asked for.
+     *
+     * Without this, asking for a document is a dead end: files could only
+     * be attached at the moment of filing, so a student who was asked for
+     * the receipt had nowhere to put it.
+     *
+     * Open while the concern is, rather than only after a request. A
+     * student who finds the screenshot a week later should not have to
+     * wait to be asked for it, and gating the upload on an outstanding
+     * request would mean the evidence arrived as a new concern instead --
+     * which is worse for everybody reading the case.
+     */
+    public function addDocuments(Request $request, Concern $concern, ConcernNotificationService $notifier)
+    {
+        /** @var User $user */
+        $user = Auth::user();
+
+        if ($user->id !== $concern->user_id) {
+            abort(403, 'Only the student who filed this concern can add documents to it.');
+        }
+
+        if (! $concern->acceptsNotices()) {
+            return redirect()->route('concerns.show', $concern)
+                ->with('error', 'This concern is finished. To raise something new, report it again.');
+        }
+
+        // The same rules the filing form uses, read from the same config,
+        // so the limit a student is held to does not depend on which page
+        // they are standing on.
+        $request->validate([
+            'documents' => ['required', 'array', 'max:'.config('concerns.max_attachments')],
+            'documents.*' => ['file', 'mimes:'.implode(',', config('concerns.attachment_extensions')),
+                'max:'.(config('concerns.max_attachment_mb') * 1024)],
+        ], [
+            'documents.required' => 'Choose at least one file to send.',
+            'documents.max' => 'You can send at most '.config('concerns.max_attachments').' files at a time.',
+            'documents.*.mimes' => 'Pictures, video, sound, documents and ZIP files can be attached. Programs and scripts cannot.',
+            'documents.*.max' => 'Each file must be '.config('concerns.max_attachment_mb').' MB or smaller.',
+        ]);
+
+        $files = $request->file('documents', []);
+
+        // Stored exactly like evidence filed with the concern -- private
+        // disk, random name, original kept only as a label -- and marked
+        // as a later addition so the page can say when it arrived.
+        foreach ($files as $file) {
+            Attachment::create([
+                'concern_id' => $concern->id,
+                'kind' => Attachment::KIND_FOLLOW_UP,
+                'uploaded_by' => $user->id,
+                'original_name' => $file->getClientOriginalName(),
+                'stored_path' => $file->store('attachments', 'local'),
+                'mime_type' => $file->getClientMimeType(),
+                'size_bytes' => $file->getSize(),
+            ]);
+        }
+
+        $count = count($files);
+
+        AuditLog::create([
+            'user_id' => $user->id,
+            'concern_id' => $concern->id,
+            'action' => 'documents_added',
+            'description' => $count === 1
+                ? 'Reporter added 1 document'
+                : "Reporter added {$count} documents",
+            'ip_address' => $request->ip(),
+        ]);
+
+        $notifier->documentsAdded($concern, $count);
+
+        return redirect()->route('concerns.show', $concern)
+            ->with('success', $count === 1 ? 'Your file has been sent.' : 'Your files have been sent.');
     }
 
     /**

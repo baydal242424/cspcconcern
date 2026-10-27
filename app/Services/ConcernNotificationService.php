@@ -6,6 +6,7 @@ use App\Models\Concern;
 use App\Models\Notification;
 use App\Models\User;
 use App\Notifications\ConcernAssigned;
+use App\Notifications\ConcernNoticeFromHandler;
 use App\Notifications\ConcernStatusUpdated;
 use Illuminate\Support\Facades\Log;
 
@@ -152,6 +153,80 @@ class ConcernNotificationService
                 'email_sent' => false,
             ]);
         }
+    }
+
+    /** A handler asking the reporter for something, or telling them something. */
+    public const TYPE_NOTICE_FROM_HANDLER = 'notice_from_handler';
+
+    /** The reporter answering with the files they were asked for. */
+    public const TYPE_DOCUMENTS_ADDED = 'documents_added';
+
+    /**
+     * Tell the REPORTER that the office handling their concern needs them.
+     *
+     * The in-app row carries the handler's words in full. That is safe in a
+     * way the email is not: it is behind the sign-in, on the student's own
+     * concern, and rule 1 is about mailboxes. Putting it here as well as on
+     * the page means a student who is asked for a document on Friday reads
+     * the request without first working out which of their concerns it is
+     * about.
+     *
+     * It names the sender. A student is already told by name who holds
+     * their case, and "come and see me" from nobody in particular is not
+     * something anybody can act on.
+     *
+     * Anonymity is untouched in both directions: this is addressed to the
+     * reporter's account, so a handler who does not know who filed the
+     * concern still does not know after sending it.
+     */
+    public function noticeFromHandler(Concern $concern, string $kind, string $message, User $sender): Notification
+    {
+        $needsReply = $kind !== 'update';
+
+        $row = Notification::create([
+            'user_id' => $concern->user_id,
+            'type' => self::TYPE_NOTICE_FROM_HANDLER,
+            'concern_id' => $concern->id,
+            'title' => Concern::noticeTitle($kind),
+            'message' => $message."\n\n— ".$sender->name
+                .($sender->role ? ', '.$sender->role->name : ''),
+        ]);
+
+        $this->deliver($concern->user, new ConcernNoticeFromHandler($concern, $needsReply), $row);
+
+        return $row;
+    }
+
+    /**
+     * Tell the HANDLER that the documents they asked for have arrived.
+     *
+     * Without this the request is a dead end from their side: they ask on
+     * Tuesday and then have to keep reopening the case to find out whether
+     * anything came. Addressed to whoever holds the concern now, which may
+     * not be whoever asked -- the case can be referred in between, and the
+     * files belong to the desk, not to the person who requested them.
+     */
+    public function documentsAdded(Concern $concern, int $count): void
+    {
+        if (! $concern->assigned_to) {
+            return;
+        }
+
+        Notification::create([
+            'user_id' => $concern->assigned_to,
+            'type' => self::TYPE_DOCUMENTS_ADDED,
+            'concern_id' => $concern->id,
+            'title' => 'New documents on a concern you are handling',
+            'message' => $count === 1
+                ? "The reporter has added a file to concern #{$concern->id}."
+                : "The reporter has added {$count} files to concern #{$concern->id}.",
+            // In-app only. An email saying a student sent evidence, to an
+            // address that may be read on a shared machine, says there is
+            // an open case and who is handling it; the handler sees this
+            // the moment they next open the app, which is where the files
+            // are anyway.
+            'email_sent' => false,
+        ]);
     }
 
     /**

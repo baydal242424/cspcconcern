@@ -18,6 +18,16 @@ class Attachment extends Model
     /** A handler's proof of what was done about it. */
     public const KIND_RESOLUTION = 'resolution';
 
+    /**
+     * Evidence the student sent after filing, because they were asked for it.
+     *
+     * Kept apart from KIND_EVIDENCE so the page can say when each file
+     * arrived. A handler who asked for a receipt on Tuesday needs to see
+     * whether it came, and a file sitting in the original evidence list
+     * does not answer that.
+     */
+    public const KIND_FOLLOW_UP = 'follow_up';
+
     protected $fillable = [
         'concern_id',
         'kind',

@@ -289,7 +289,8 @@
          Links go through a controller that re-checks authorization, so only
          users allowed to see this concern can download. --}}
     @foreach ([
-        ['Evidence Attachments', $concern->evidence, 'What the student attached.'],
+        ['Evidence Attachments', $concern->evidence, 'What the student attached when they filed this.'],
+        ['Sent Afterwards', $concern->followUpDocuments, 'Added by the student after filing, usually because they were asked for it.'],
         ['Proof of Resolution', $concern->resolutionProof, 'Attached by the staff who settled this.'],
     ] as [$heading, $files, $blurb])
     @if ($files->count() > 0)
@@ -894,6 +895,145 @@
                 </div>
 
                 <button type="submit" class="btn btn-success">Update Concern</button>
+            </form>
+        </div>
+    @endif
+
+    {{-- Everything the office has sent the student about this concern.
+         Shown to BOTH sides, and that is the point: a student can come
+         back and reread what they were asked for, and a handler can see
+         what has already been asked before asking again.
+
+         Staff see who sent each one. A student does not need the list of
+         senders -- they are told by name who holds their case, and each
+         notice signs itself. --}}
+    @if ($notices->isNotEmpty())
+        <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
+        <div>
+            <h2 class="section-title" style="margin-bottom:.6rem;">
+                {{ $viewerIsStaff ? 'Sent to the student' : 'Messages about your concern' }}
+                ({{ $notices->count() }})
+            </h2>
+            <div style="display:flex; flex-direction:column; gap:.7rem;">
+                @foreach ($notices as $notice)
+                    <div style="border:1px solid var(--line,#e7ebf1); border-left:3px solid var(--brand,#2f5bea); border-radius:10px; padding:.8rem 1rem; background:#fff;">
+                        <p style="margin:0; font-size:.92rem; color:var(--ink,#1f2733); white-space:pre-line; overflow-wrap:anywhere;">{{ $notice->description }}</p>
+                        <p style="margin:.45rem 0 0; font-size:.78rem; color:var(--muted,#64748b);">
+                            {{ $notice->created_at->format('M j, Y g:i A') }}
+                            @if ($viewerIsStaff && $notice->user)
+                                · sent by {{ $notice->user->name }}
+                            @endif
+                        </p>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
+
+    {{-- The handler writing to the student.
+         Until this existed a case could tell a student its status and
+         nothing else, so a handler who needed a receipt had to reach them
+         outside the system -- leaving no record, and reaching nobody at
+         all when the report was anonymous. --}}
+    @if ($canNotifyReporter)
+        <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
+        <div>
+            <h2 class="section-title" style="margin-bottom:.4rem;">Ask the student for something</h2>
+            <p style="color:var(--muted); font-size:.85rem; margin:0 0 1rem;">
+                They are notified in the app and by email. The email says only that a message is waiting
+                {{-- The reason is worth stating on the form: a handler who
+                     does not know it is omitted assumes it was sent. --}}
+                &mdash; what you write here stays behind the sign-in.
+                @if ($concern->is_anonymous)
+                    <br><strong>This concern is anonymous.</strong> You can write to them without learning who they are.
+                @endif
+            </p>
+
+            <form action="{{ route('concerns.notify', $concern) }}" method="POST">
+                @csrf
+
+                <div class="form-group">
+                    <label for="notice-kind">What is this?</label>
+                    <select name="kind" id="notice-kind" required>
+                        @foreach (\App\Models\Concern::NOTICE_KINDS as $value => $kind)
+                            <option value="{{ $value }}" @selected(old('kind') === $value)
+                                data-prompt="{{ $kind['prompt'] }}">{{ $kind['cta'] }}</option>
+                        @endforeach
+                    </select>
+                    @error('kind')
+                        <div style="color:#dc3545; font-size:.85rem; margin-top:.25rem;">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <div class="form-group">
+                    <label for="notice-message">Your message</label>
+                    <textarea name="message" id="notice-message" rows="4" minlength="15" maxlength="1000"
+                        placeholder="{{ \App\Models\Concern::NOTICE_KINDS['documents']['prompt'] }}"
+                        style="overflow-wrap:anywhere;" required>{{ old('message') }}</textarea>
+                    @error('message')
+                        <div style="color:#dc3545; font-size:.85rem; margin-top:.25rem;">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <button type="submit" class="btn btn-primary">Notify the student</button>
+            </form>
+
+            {{-- Inside the section on purpose. Anything outside one is
+                 emitted before the layout, so it would run against a page
+                 the browser has not parsed yet and silently do nothing. --}}
+            <script>
+                // The prompt follows the kind. "What do you need from them?"
+                // and "Where should they go, and when?" ask for different
+                // things, and one placeholder covering both asks for neither.
+                (function () {
+                    var kind = document.getElementById('notice-kind');
+                    var message = document.getElementById('notice-message');
+
+                    if (!kind || !message) return;
+
+                    function followKind() {
+                        var chosen = kind.options[kind.selectedIndex];
+
+                        if (chosen) {
+                            message.placeholder = chosen.getAttribute('data-prompt') || '';
+                        }
+                    }
+
+                    kind.addEventListener('change', followKind);
+                    followKind();
+                })();
+            </script>
+        </div>
+    @endif
+
+    {{-- The student answering with the files.
+         Asking for a document was a dead end without this: evidence could
+         only be attached at the moment of filing. --}}
+    @if ($canAddDocuments)
+        <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
+        <div>
+            <h2 class="section-title" style="margin-bottom:.4rem;">Send documents</h2>
+            <p style="color:var(--muted); font-size:.85rem; margin:0 0 1rem;">
+                Add anything that helps the person handling this &mdash; whether or not you were asked for it.
+                Up to {{ config('concerns.max_attachments') }} files at a time,
+                {{ config('concerns.max_attachment_mb') }} MB each.
+            </p>
+
+            <form action="{{ route('concerns.documents', $concern) }}" method="POST" enctype="multipart/form-data">
+                @csrf
+
+                <div class="form-group">
+                    <label for="documents">Choose your files</label>
+                    <input type="file" name="documents[]" id="documents" multiple required>
+                    @error('documents')
+                        <div style="color:#dc3545; font-size:.85rem; margin-top:.25rem;">{{ $message }}</div>
+                    @enderror
+                    @error('documents.*')
+                        <div style="color:#dc3545; font-size:.85rem; margin-top:.25rem;">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <button type="submit" class="btn btn-primary">Send to the handler</button>
             </form>
         </div>
     @endif
