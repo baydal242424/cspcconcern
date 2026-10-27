@@ -1068,8 +1068,7 @@
                     // The @ has to start a word. Without that, the address
                     // in "e@mail.com" opened the list mid-sentence and held
                     // it open on "mail.com".
-                    var match = before.match(/(?:^|\s)@([^@
-]{0,40})$/);
+                    var match = before.match(/(?:^|\s)@([^@\n]{0,40})$/);
 
                     if (!match) return null;
 

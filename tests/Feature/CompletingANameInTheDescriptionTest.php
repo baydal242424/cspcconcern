@@ -62,12 +62,61 @@ class CompletingANameInTheDescriptionTest extends TestCase
         // Opened by an @, not by every word typed: matching each word made
         // the list appear over and over while somebody wrote a sentence.
         $this->assertStringContainsString('function currentMention()', $html);
-        $this->assertStringContainsString('before.match(/(?:^|\s)@(', $html);
+        // The WHOLE literal, not its opening. A partial match passed while
+        // the regex was split across two lines by a stray newline -- the
+        // break fell just after the part being asserted.
+        $this->assertStringContainsString('before.match(/(?:^|\s)@([^@\n]{0,40})$/)', $html);
 
         // And the form says it is there, or nobody finds it.
         $this->assertStringContainsString('to name a staff member', $html);
 
         fwrite(STDERR, "  [mention] the @ completer is on the form\n");
+    }
+
+    /**
+     * Every regex in the mention script closes on the line it opens.
+     *
+     * A JavaScript regex literal cannot span lines. One did: a patch wrote
+     * a real newline where "\n" was meant, so the source held
+     *
+     *     before.match(/(?:^|\s)@([^@
+     *     ]{0,40})$/);
+     *
+     * which is a SyntaxError. The browser discarded the ENTIRE script
+     * block -- not just that function -- so nothing in it ran, and the
+     * only symptom was that typing "@" did nothing at all. No request, no
+     * console output anybody thought to look at.
+     *
+     * Checked here as structure rather than as one more exact string,
+     * because the next stray newline will land somewhere else.
+     */
+    public function test_no_regex_in_the_mention_script_spans_a_line(): void
+    {
+        $html = $this->page();
+
+        $at = strpos($html, "getElementById('mention-box')");
+        $this->assertNotFalse($at, 'the mention script is not on the page');
+
+        $open = strrpos(substr($html, 0, $at), '<script');
+        $close = strpos($html, '</script>', $at);
+        $script = substr($html, $open, $close - $open);
+
+        foreach (explode("\n", $script) as $i => $line) {
+            // Where a regex literal starts: .match(/ .replace(/ .split(/ .test(/
+            if (! preg_match('/\.(?:match|replace|split|test|search)\(\//', $line)) {
+                continue;
+            }
+
+            $body = substr($line, strpos($line, '(/') + 2);
+
+            $this->assertStringContainsString(
+                '/',
+                $body,
+                'line '.($i + 1).' opens a regex and never closes it: '.trim($line)
+            );
+        }
+
+        fwrite(STDERR, "  [mention] every regex closes on its own line\n");
     }
 
     /**
