@@ -118,15 +118,12 @@
             @enderror
         </div>
 
-        {{-- The department is no longer asked for: it is the reporter's own
-             college, already on their account from registration. --}}
-        <div class="form-group">
-            @if (Auth::user()->department)
-                <p style="font-size:0.85rem; color:#60708a; margin:0;">
-                    Filed under <strong>{{ Auth::user()->department }}</strong>.
-                </p>
-            @endif
-        </div>
+        {{-- The department is never asked for and no longer shown either.
+             It is the reporter's own college, already on their account
+             from registration, and the server reads it from there -- see
+             store(), where it is set from the account and never from
+             input. Printing it back at them said nothing they did not
+             know, on a form that had too much to read. --}}
 
         {{-- "The severity of your concern will be assessed by the assigned
              staff after submission" used to sit here. There is nothing the
