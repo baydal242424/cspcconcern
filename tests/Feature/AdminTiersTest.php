@@ -64,6 +64,7 @@ class AdminTiersTest extends TestCase
         $this->actingAs(User::where('email', 'student@my.cspc.edu.ph')->firstOrFail())
             ->post('/concerns', [
                 'category' => 'Administrative',
+                'subcategory' => 'Cannot sign in',
                 'description' => 'The page for my concerns will not load, it just shows an error.',
             ]);
 
@@ -236,6 +237,7 @@ class AdminTiersTest extends TestCase
         $this->actingAs(User::where('email', 'student@my.cspc.edu.ph')->firstOrFail())
             ->post('/concerns', [
                 'category' => 'Administrative',
+                'subcategory' => 'Cannot sign in',
                 'description' => 'The records office lost my form and was rude about it.',
                 'about_staff_id' => $office->id,
             ]);

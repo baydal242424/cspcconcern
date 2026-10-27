@@ -93,7 +93,7 @@
              Others is the one category with no list, and it has its own
              question below instead. --}}
         <div class="form-group" id="subcategory-group" style="display:none;">
-            <label for="subcategory">What is it about? <span style="font-weight:normal;color:#666;">(optional)</span></label>
+            <label for="subcategory">What is it about? *</label>
             <select name="subcategory" id="subcategory"
                     data-old="{{ old('subcategory') }}">
                 <option value="">-- Select --</option>
@@ -971,6 +971,14 @@
 
                         const hasOptions = options.length > 0;
                         subGroup.style.display = hasOptions ? 'block' : 'none';
+
+                        // Required only while it is on screen. "Others" is
+                        // the one category that breaks down into nothing, so
+                        // its dropdown is hidden -- and a hidden required
+                        // field refuses the form with a message the browser
+                        // cannot point at, leaving Submit dead and nothing
+                        // on the page explaining why.
+                        subEl.required = hasOptions;
                     }
 
                 }

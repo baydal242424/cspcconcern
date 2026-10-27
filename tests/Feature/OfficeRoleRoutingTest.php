@@ -85,6 +85,7 @@ class OfficeRoleRoutingTest extends TestCase
 
         $this->actingAs($student)->post('/concerns', [
             'category' => $category,
+            'subcategory' => $this->aSubcategoryFor($category),
             'description' => 'A complaint about how this office handled my request.',
             'about_staff_id' => $officer->id,
         ])->assertSessionHasNoErrors();
@@ -103,6 +104,7 @@ class OfficeRoleRoutingTest extends TestCase
 
         $this->actingAs($student)->post('/concerns', [
             'category' => $category,
+            'subcategory' => $this->aSubcategoryFor($category),
             'description' => 'A complaint about how this office handled my request.',
             'about_staff_id' => $officer->id,
         ]);
@@ -127,6 +129,7 @@ class OfficeRoleRoutingTest extends TestCase
 
         $this->actingAs($student)->post('/concerns', [
             'category' => 'Facilities',
+            'subcategory' => 'Water',
             'description' => 'A complaint about how the maintenance office handled my request.',
             'about_staff_id' => $officer->id,
         ]);

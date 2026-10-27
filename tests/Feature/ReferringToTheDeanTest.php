@@ -80,6 +80,7 @@ class ReferringToTheDeanTest extends TestCase
 
         $this->actingAs($student->refresh())->post('/concerns', [
             'category' => 'Academic',
+            'subcategory' => 'Grades',
             'description' => 'A concern about a teacher, which I would rather my adviser did not read.',
             'about_staff_id' => [$instructor->id],
             'skip_adviser' => 1,

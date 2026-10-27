@@ -39,6 +39,7 @@ class SubCategoriesTest extends TestCase
     {
         return $this->actingAs($this->student())->post('/concerns', array_merge([
             'category' => 'Academic',
+            'subcategory' => 'Grades',
             'department' => 'College of Computer Studies',
             'description' => 'A description long enough to satisfy the rule.',
         ], $overrides));
@@ -118,25 +119,67 @@ class SubCategoriesTest extends TestCase
         fwrite(STDERR, "  [sub] Others takes no sub-category\n");
     }
 
-    /** Leaving it out is allowed, and nothing else changes. */
-    public function test_it_is_optional_and_changes_no_routing(): void
+    /**
+     * It has to be answered, wherever the category offers a list.
+     *
+     * Which is every category but "Others", the one that breaks down into
+     * nothing. Requiring it is only fair because every list now ends in
+     * its own catch-all -- "Other academic concern", "Other hazard" -- so
+     * a student whose situation is not on the list is never cornered into
+     * picking something untrue about their own report.
+     */
+    public function test_it_must_be_answered(): void
     {
-        $this->file()->assertSessionHasNoErrors();
+        $this->file(['subcategory' => ''])->assertSessionHasErrors('subcategory');
 
-        $without = Concern::latest('id')->first();
-        $this->assertNull($without->subcategory);
+        $this->assertNull(Concern::latest('id')->first(), 'it was filed without one');
 
+        fwrite(STDERR, "  [sub] it must be answered\n");
+    }
+
+    /** Including by way of the catch-all, which every list carries. */
+    public function test_every_list_ends_in_a_catch_all(): void
+    {
+        foreach (Concern::CATEGORIES as $category) {
+            $options = Concern::subcategoriesFor($category);
+
+            if ($options === []) {
+                continue;
+            }
+
+            $last = end($options);
+
+            $this->assertStringStartsWith('Other', $last,
+                $category.' has no catch-all, so requiring an answer corners anybody it does not cover');
+
+            // Named for its category, not a bare "Other": in a list of
+            // five it is read as part of the same question, and "Other"
+            // alone after four hazards reads as "other what?".
+            $this->assertNotSame('Other', $last, $category.' has a bare "Other"');
+        }
+
+        fwrite(STDERR, "  [sub] every list ends in a catch-all named for its category\n");
+    }
+
+    /** And answering it changes nothing about who handles the concern. */
+    public function test_it_changes_no_routing(): void
+    {
         $this->file(['subcategory' => 'Grades'])->assertSessionHasNoErrors();
+        $first = Concern::latest('id')->first();
 
-        $with = Concern::latest('id')->first();
+        $this->file(['subcategory' => 'Other academic concern', 'description' => 'A different description entirely, long enough.'])
+            ->assertSessionHasNoErrors();
+        $second = Concern::latest('id')->first();
+
+        $this->assertNotSame($first->id, $second->id);
 
         $this->assertSame(
-            optional(optional($without->assignedUser)->role)->name,
-            optional(optional($with->assignedUser)->role)->name,
+            optional(optional($first->assignedUser)->role)->name,
+            optional(optional($second->assignedUser)->role)->name,
             'the sub-category must not change who handles it'
         );
 
-        fwrite(STDERR, "  [sub] optional, and it changes no routing\n");
+        fwrite(STDERR, "  [sub] it changes no routing\n");
     }
 
     /** It shows on the concern, and the search finds it. */

@@ -131,6 +131,7 @@ class AggressiveQaTest extends TestCase
         $student=$this->u('student@my.cspc.edu.ph');
         $this->actingAs($student)->post("/concerns",[
             'category'=>'Academic','department'=>'Hogwarts',
+            'subcategory' => 'Grades',
             'description'=>'a concern carrying a forged department field',
         ]);
         $c=Concern::where('description','a concern carrying a forged department field')->firstOrFail();
@@ -182,6 +183,7 @@ class AggressiveQaTest extends TestCase
         $victim=$this->u('student2@my.cspc.edu.ph');
         $this->actingAs($this->u('student@my.cspc.edu.ph'))->post("/concerns",[
             'category'=>'Academic','department'=>'College of Computer Studies',
+            'subcategory' => 'Grades',
             'description'=>'forged submission pretending to be someone else',
             'user_id'=>$victim->id, // attempt to spoof owner
         ]);

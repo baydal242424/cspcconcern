@@ -49,6 +49,7 @@ class AdviserRoutingTest extends TestCase
     {
         $this->actingAs($student)->post('/concerns', [
             'category' => $category,
+            'subcategory' => $this->aSubcategoryFor($category),
             'description' => 'A concern filed to see which tier it reaches.',
             'is_anonymous' => 0,
         ]);

@@ -30,10 +30,18 @@ class CategorySplitAndOtherDetailTest extends TestCase
 
     private function submit(array $data): Concern
     {
-        $this->actingAs($this->student())->post('/concerns', array_merge([
+        $payload = array_merge([
             'description' => 'A description long enough to satisfy the minimum length rule.',
             'is_anonymous' => 0,
-        ], $data));
+        ], $data);
+
+        // After the merge: callers override the category, and a
+        // sub-category belongs to exactly one of them.
+        if (! array_key_exists('subcategory', $payload)) {
+            $payload['subcategory'] = $this->aSubcategoryFor($payload['category'] ?? null);
+        }
+
+        $this->actingAs($this->student())->post('/concerns', $payload);
 
         return Concern::latest('id')->firstOrFail();
     }
@@ -197,6 +205,7 @@ class CategorySplitAndOtherDetailTest extends TestCase
         // And a filed one keeps the stored value while displaying the label.
         $this->actingAs($this->student())->post('/concerns', [
             'category' => 'Administrative',
+            'subcategory' => 'Cannot sign in',
             'description' => 'I need a copy of my registration record for a scholarship.',
         ]);
 

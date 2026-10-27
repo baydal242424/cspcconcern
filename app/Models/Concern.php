@@ -292,36 +292,41 @@ class Concern extends Model
             'Class schedule',
             'Teaching & instructor conduct',
             'Requirements & deadlines',
+            'Other academic concern',
         ],
         'Mental Health' => [
             'Stress & anxiety',
             'Depression & low mood',
             'Grief & loss',
             'Self-harm risk',
+            'Other mental health concern',
         ],
         'Personal' => [
             'Family',
             'Financial',
             'Housing',
             'Relationship',
+            'Other personal concern',
         ],
         'Bullying' => [
             'Physical',
             'Verbal',
             'Online',
             'Exclusion',
+            'Other kind of bullying',
         ],
         'Harassment' => [
             'Sexual harassment',
             'Discrimination',
             'Threats & intimidation',
             'Stalking',
+            'Other kind of harassment',
         ],
         'Administrative' => [
             'Cannot sign in',
             'Page will not load',
             'Wrong information shown',
-            'Something else broken',
+            'Other problem with this website',
         ],
         'Facilities' => [
             'Water',
@@ -330,6 +335,7 @@ class Concern extends Model
             'Rooms & furniture',
             'Toilets',
             'Exits & walkways',
+            'Other building problem',
         ],
         'Equipment' => [
             'Computers',
@@ -337,6 +343,7 @@ class Concern extends Model
             'Internet & network',
             'Chairs & tables',
             'Projectors',
+            'Other equipment problem',
         ],
         'Physical' => [
             'Classroom',
@@ -344,6 +351,7 @@ class Concern extends Model
             'Sports & PE',
             'Walkway or stairs',
             'On the way to campus',
+            'Other place on campus',
         ],
         'Safety' => [
             'Damaged stairs or floor',
@@ -351,6 +359,7 @@ class Concern extends Model
             'Blocked exit',
             'Slippery area',
             'Fire risk',
+            'Other hazard',
         ],
     ];
 

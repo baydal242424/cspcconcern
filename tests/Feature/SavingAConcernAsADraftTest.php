@@ -160,6 +160,7 @@ class SavingAConcernAsADraftTest extends TestCase
 
         $this->actingAs($this->student())->post('/concerns', [
             'category' => 'Academic',
+            'subcategory' => 'Grades',
             'description' => 'The whole account of what happened, written out properly this time.',
         ])->assertRedirect();
 
@@ -213,6 +214,7 @@ class SavingAConcernAsADraftTest extends TestCase
         // Too short, so it bounces back with old input.
         $this->actingAs($this->student())->post('/concerns', [
             'category' => 'Academic',
+            'subcategory' => 'Grades',
             'description' => 'too short',
         ])->assertSessionHasErrors('description');
 

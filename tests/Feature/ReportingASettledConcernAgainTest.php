@@ -96,6 +96,7 @@ class ReportingASettledConcernAgainTest extends TestCase
 
         $this->actingAs($this->student())->post('/concerns', [
             'category' => 'Harassment',
+            'subcategory' => 'Sexual harassment',
             'department' => 'College of Computer Studies',
             'description' => 'He did it again last week, after it was settled.',
             'follows_up_on_id' => $first->id,
@@ -156,6 +157,7 @@ class ReportingASettledConcernAgainTest extends TestCase
         // ...and the link is dropped if the id is posted anyway.
         $this->actingAs($this->student())->post('/concerns', [
             'category' => 'Harassment',
+            'subcategory' => 'Sexual harassment',
             'department' => 'College of Computer Studies',
             'description' => 'Trying to attach myself to another student case.',
             'follows_up_on_id' => $theirs->id,

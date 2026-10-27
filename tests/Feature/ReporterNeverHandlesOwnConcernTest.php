@@ -135,6 +135,7 @@ class ReporterNeverHandlesOwnConcernTest extends TestCase
 
         $this->actingAs($gsu)->post('/concerns', [
             'category' => 'Facilities',
+            'subcategory' => 'Water',
             'description' => 'A maintenance problem reported by the maintenance office itself.',
             'is_anonymous' => 0,
         ]);

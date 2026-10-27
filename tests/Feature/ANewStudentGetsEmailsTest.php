@@ -95,6 +95,7 @@ class ANewStudentGetsEmailsTest extends TestCase
         // 4. File a concern, the way the form does.
         $this->actingAs($student->refresh())->post('/concerns', [
             'category' => 'Academic',
+            'subcategory' => 'Grades',
             'description' => 'My very first concern, filed minutes after signing in.',
         ])->assertRedirect();
 

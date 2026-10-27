@@ -35,6 +35,15 @@ class QaAuditTest extends TestCase
             $payload['other_category'] = 'Lost property';
         }
 
+        // And every other category has to say WHICH thing it is. Worked out
+        // after the merge, not before: callers here override the category,
+        // and a sub-category belongs to exactly one of them -- so a default
+        // fixed in the base array would be "Grades" on a mental health
+        // concern, which the server refuses.
+        if (! array_key_exists('subcategory', $payload)) {
+            $payload['subcategory'] = $this->aSubcategoryFor($payload['category'] ?? null);
+        }
+
         $before = Concern::max('id');
 
         $this->actingAs($this->u('student@my.cspc.edu.ph'))->post('/concerns', $payload);
@@ -64,6 +73,7 @@ class QaAuditTest extends TestCase
         foreach ($departments as $d) {
             $resp = $this->actingAs($this->u('student@my.cspc.edu.ph'))->post('/concerns', [
                 'category'=>'Administrative','department'=>$d,
+                'subcategory' => 'Cannot sign in',
                 'description'=>'department acceptance test with a valid description',
             ]);
             $this->assertNull($resp->getSession()->get('errors'), "Department '$d' was rejected.");

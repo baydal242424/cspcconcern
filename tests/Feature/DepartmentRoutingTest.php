@@ -42,6 +42,12 @@ class DepartmentRoutingTest extends TestCase
             'description' => 'a concern with a description long enough to pass validation',
         ], $overrides);
 
+        // After the merge: callers override the category, and a
+        // sub-category belongs to exactly one of them.
+        if (! array_key_exists('subcategory', $data)) {
+            $data['subcategory'] = $this->aSubcategoryFor($data['category'] ?? null);
+        }
+
         $this->actingAs($student)->post('/concerns', $data);
 
         return Concern::where('description', $data['description'])->firstOrFail();

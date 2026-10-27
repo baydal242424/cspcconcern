@@ -56,6 +56,7 @@ class NamingSeveralPeopleTest extends TestCase
 
         $this->actingAs($student)->post('/concerns', [
             'category' => 'Academic',
+            'subcategory' => 'Grades',
             'description' => 'Both of my instructors marked this the same wrong way.',
             'about_staff_id' => [$first->id, $second->id],
             'is_anonymous' => 0,
@@ -114,6 +115,7 @@ class NamingSeveralPeopleTest extends TestCase
 
         $this->actingAs($student->refresh())->post('/concerns', [
             'category' => 'Academic',
+            'subcategory' => 'Grades',
             'description' => 'This involves my instructor, my class adviser and the dean.',
             'about_staff_id' => [$instructor->id, $adviser->id, $dean->id],
             'is_anonymous' => 0,
@@ -143,6 +145,7 @@ class NamingSeveralPeopleTest extends TestCase
 
         $this->actingAs($student)->post('/concerns', [
             'category' => 'Academic',
+            'subcategory' => 'Grades',
             'description' => 'A concern naming exactly one instructor, posted as a scalar.',
             'about_staff_id' => $subject->id,
             'is_anonymous' => 0,

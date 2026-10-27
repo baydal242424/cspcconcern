@@ -56,6 +56,7 @@ class VpaaEscalationTest extends TestCase
 
         $this->actingAs($this->student())->post('/concerns', [
             'category' => 'Administrative',
+            'subcategory' => 'Cannot sign in',
             'description' => 'A complaint about how the system administrator handled my account.',
             'about_staff_id' => $admin->id,
         ]);
@@ -75,6 +76,7 @@ class VpaaEscalationTest extends TestCase
 
         $this->actingAs($this->student())->post('/concerns', [
             'category' => 'Administrative',
+            'subcategory' => 'Cannot sign in',
             'description' => 'A complaint about the administrator, filed before a VPAA exists.',
             'about_staff_id' => $admin->id,
         ]);
@@ -94,6 +96,7 @@ class VpaaEscalationTest extends TestCase
 
         $this->actingAs($this->student())->post('/concerns', [
             'category' => 'Administrative',
+            'subcategory' => 'Cannot sign in',
             'description' => 'The page for my concerns will not load, it just shows an error.',
         ]);
 

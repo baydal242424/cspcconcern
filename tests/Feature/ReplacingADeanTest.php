@@ -64,6 +64,7 @@ class ReplacingADeanTest extends TestCase
 
         $this->actingAs($student)->post('/concerns', [
             'category' => 'Academic',
+            'subcategory' => 'Grades',
             'description' => 'A concern about a program chair, to see which dean receives it.',
             'about_staff_id' => [$chair->id],
         ]);

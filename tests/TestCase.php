@@ -40,4 +40,18 @@ abstract class TestCase extends BaseTestCase
     {
         return parent::actingAs($user, $guard);
     }
+
+    /**
+     * A valid sub-category for a category, for tests that do not care which.
+     *
+     * Filing requires one wherever the category offers a list, which is
+     * every category but "Others". Most tests here are about routing,
+     * visibility or notification and only need the form to be accepted --
+     * so they ask for any valid answer rather than naming one, which also
+     * means they do not have to be edited when a list changes.
+     */
+    protected function aSubcategoryFor(?string $category): ?string
+    {
+        return \App\Models\Concern::subcategoriesFor($category)[0] ?? null;
+    }
 }

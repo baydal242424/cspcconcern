@@ -81,10 +81,18 @@ class AdviserBypassTest extends TestCase
 
     private function fileAs(User $student, array $payload = []): Concern
     {
-        $this->actingAs($student)->post('/concerns', array_merge([
+        $payload = array_merge([
             'category' => 'Academic',
             'description' => 'A concern filed to see which tier it reaches.',
-        ], $payload));
+        ], $payload);
+
+        // After the merge: callers override the category, and a
+        // sub-category belongs to exactly one of them.
+        if (! array_key_exists('subcategory', $payload)) {
+            $payload['subcategory'] = $this->aSubcategoryFor($payload['category'] ?? null);
+        }
+
+        $this->actingAs($student)->post('/concerns', $payload);
 
         return Concern::latest('id')->firstOrFail();
     }

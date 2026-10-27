@@ -42,6 +42,7 @@ class AttachmentSecurityTest extends TestCase {
     public function test_the_kinds_of_evidence_a_student_actually_has(string $name, string $mime): void {
         $this->actingAs($this->u('student@my.cspc.edu.ph'))->post('/concerns',[
             'category'=>'Academic','department'=>'College of Computer Studies',
+            'subcategory' => 'Grades',
             'description'=>'a description long enough to pass the rule',
             'attachments'=>[UploadedFile::fake()->create($name, 400, $mime)],
         ])->assertSessionHasNoErrors();
@@ -56,6 +57,7 @@ class AttachmentSecurityTest extends TestCase {
     public function test_a_program_is_still_refused(): void {
         $resp=$this->actingAs($this->u('student@my.cspc.edu.ph'))->post('/concerns',[
             'category'=>'Academic','department'=>'College of Computer Studies',
+            'subcategory' => 'Grades',
             'description'=>'a description long enough to pass the rule',
             'attachments'=>[UploadedFile::fake()->create('tool.exe', 10, 'application/octet-stream')],
         ]);
@@ -70,6 +72,7 @@ class AttachmentSecurityTest extends TestCase {
     public function test_valid_image_uploads_and_is_stored_privately(): void {
         $this->actingAs($this->u('student@my.cspc.edu.ph'))->post('/concerns',[
             'category'=>'Academic','department'=>'College of Computer Studies',
+            'subcategory' => 'Grades',
             'description'=>'a concern submitted with photo evidence attached',
             'attachments'=>[UploadedFile::fake()->create('proof.jpg', 100, 'image/jpeg')],
         ]);
@@ -86,6 +89,7 @@ class AttachmentSecurityTest extends TestCase {
     public function test_php_file_is_rejected(): void {
         $resp=$this->actingAs($this->u('student@my.cspc.edu.ph'))->post('/concerns',[
             'category'=>'Academic','department'=>'College of Computer Studies','description'=>'evil',
+            'subcategory' => 'Grades',
             'attachments'=>[UploadedFile::fake()->create('shell.php',10,'application/x-php')],
         ]);
         $resp->assertSessionHasErrors('attachments.0');
@@ -102,6 +106,7 @@ class AttachmentSecurityTest extends TestCase {
         $big=UploadedFile::fake()->create('big.pdf', $overBy1KB, 'application/pdf');
         $resp=$this->actingAs($this->u('student@my.cspc.edu.ph'))->post('/concerns',[
             'category'=>'Academic','department'=>'College of Computer Studies','description'=>'toobig',
+            'subcategory' => 'Grades',
             'attachments'=>[$big],
         ]);
         $resp->assertSessionHasErrors('attachments.0');
@@ -113,6 +118,7 @@ class AttachmentSecurityTest extends TestCase {
         $files=[]; for($i=0;$i<6;$i++){$files[]=UploadedFile::fake()->create("f$i.png", 100, 'image/png');}
         $resp=$this->actingAs($this->u('student@my.cspc.edu.ph'))->post('/concerns',[
             'category'=>'Academic','department'=>'College of Computer Studies','description'=>'toomany',
+            'subcategory' => 'Grades',
             'attachments'=>$files,
         ]);
         $resp->assertSessionHasErrors('attachments');
@@ -124,6 +130,7 @@ class AttachmentSecurityTest extends TestCase {
         // student submits a Mental Health concern with evidence, assigned to counselor
         $this->actingAs($this->u('student@my.cspc.edu.ph'))->post('/concerns',[
             'category'=>'Mental Health','department'=>'Guidance Office',
+            'subcategory' => 'Stress & anxiety',
             'description'=>'sensitive evidence only the counselor may see',
             'attachments'=>[UploadedFile::fake()->create('private.jpg', 100, 'image/jpeg')],
         ]);
@@ -163,6 +170,7 @@ class AttachmentSecurityTest extends TestCase {
         $staff=$this->u('staff@cspc.edu.ph');
         $this->actingAs($this->u('student@my.cspc.edu.ph'))->post('/concerns',[
             'category'=>'Academic','department'=>'College of Computer Studies',
+            'subcategory' => 'Grades',
             'description'=>'a complaint about the teacher with evidence',
             'about_staff_id'=>$staff->id,
             'attachments'=>[UploadedFile::fake()->create('evidence.jpg', 100, 'image/jpeg')],
@@ -178,6 +186,7 @@ class AttachmentSecurityTest extends TestCase {
     public function test_cannot_access_attachment_via_wrong_concern(): void {
         $this->actingAs($this->u('student@my.cspc.edu.ph'))->post('/concerns',[
             'category'=>'Academic','department'=>'College of Computer Studies',
+            'subcategory' => 'Grades',
             'description'=>'concern A which carries the target attachment',
             'attachments'=>[UploadedFile::fake()->create('a.jpg', 100, 'image/jpeg')],
         ]);

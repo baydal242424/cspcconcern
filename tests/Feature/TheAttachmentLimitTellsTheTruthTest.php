@@ -81,6 +81,7 @@ class TheAttachmentLimitTellsTheTruthTest extends TestCase
 
         $this->actingAs($student)->from('/concerns/create')->post('/concerns', [
             'category' => 'Academic',
+            'subcategory' => 'Grades',
             'department' => 'College of Computer Studies',
             'description' => 'a description long enough to pass the rule',
             'attachments' => [\Illuminate\Http\UploadedFile::fake()->create('big.pdf', $overBy1KB, 'application/pdf')],

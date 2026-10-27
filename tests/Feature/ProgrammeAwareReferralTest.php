@@ -68,6 +68,7 @@ class ProgrammeAwareReferralTest extends TestCase
 
         $this->actingAs($student)->post('/concerns', [
             'category' => 'Academic',
+            'subcategory' => 'Grades',
             'description' => 'A problem with a subject in my programme this term.',
             'is_anonymous' => 0,
         ]);

@@ -61,6 +61,7 @@ class SectionAdviserRoutingTest extends TestCase
     {
         $this->actingAs($student)->post('/concerns', [
             'category' => 'Academic',
+            'subcategory' => 'Grades',
             'description' => 'A concern filed to see which adviser it reaches.',
             'is_anonymous' => 0,
         ]);
@@ -160,6 +161,7 @@ class SectionAdviserRoutingTest extends TestCase
 
         $this->actingAs($student)->post('/concerns', [
             'category' => 'Academic',
+            'subcategory' => 'Grades',
             'description' => 'A concern about how my class adviser handled something.',
             'about_staff_id' => $adviser->id,
             'is_anonymous' => 0,

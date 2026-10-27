@@ -125,6 +125,7 @@ class ReportingYourOwnAdviserTest extends TestCase
 
         $this->actingAs($student)->post('/concerns', [
             'category' => 'Academic',
+            'subcategory' => 'Grades',
             'description' => 'A concern about the way my own class adviser handled a grade.',
             'about_staff_id' => $adviser->id,
             'is_anonymous' => 0,

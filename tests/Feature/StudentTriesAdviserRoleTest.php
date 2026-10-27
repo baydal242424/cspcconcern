@@ -77,6 +77,7 @@ class StudentTriesAdviserRoleTest extends TestCase
 
         $this->actingAs($student->refresh())->post('/concerns', [
             'category' => 'Academic',
+            'subcategory' => 'Grades',
             'description' => 'A concern from BSIS 2C, to see the test adviser receive it.',
         ]);
 

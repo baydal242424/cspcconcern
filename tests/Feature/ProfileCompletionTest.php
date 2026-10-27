@@ -49,6 +49,7 @@ class ProfileCompletionTest extends TestCase
     {
         $this->actingAs($this->googleStudent())->post('/concerns', [
             'category' => 'Academic',
+            'subcategory' => 'Grades',
             'description' => 'a concern filed before the profile was completed',
         ])->assertRedirect(route('profile.complete'));
 

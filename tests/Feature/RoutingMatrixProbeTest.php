@@ -85,6 +85,7 @@ class RoutingMatrixProbeTest extends TestCase
             foreach (Concern::CATEGORIES as $category) {
                 $payload = [
                     'category' => $category,
+                    'subcategory' => $this->aSubcategoryFor($category),
                     'description' => "Routing probe for {$category} filed from {$college}.",
                     'is_anonymous' => 0,
                 ];

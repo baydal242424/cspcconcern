@@ -16,6 +16,7 @@ class ConflictOfInterestTest extends TestCase {
         // student submits an Academic concern that is ABOUT that staff member
         $this->actingAs($this->u('student@my.cspc.edu.ph'))->post('/concerns',[
             'category'=>'Academic','department'=>'College of Computer Studies',
+            'subcategory' => 'Grades',
             'description'=>'complaint about this teacher','about_staff_id'=>$staff->id,
         ]);
         $c=Concern::where('description','complaint about this teacher')->firstOrFail();
@@ -36,6 +37,7 @@ class ConflictOfInterestTest extends TestCase {
             ->where('id','!=',$staff->id)->delete();
         $this->actingAs($this->u('student@my.cspc.edu.ph'))->post('/concerns',[
             'category'=>'Academic','department'=>'College of Computer Studies',
+            'subcategory' => 'Grades',
             'description'=>'complaint about the only teacher there is','about_staff_id'=>$staff->id,
         ]);
         $c=Concern::where('description','complaint about the only teacher there is')->firstOrFail();
@@ -49,6 +51,7 @@ class ConflictOfInterestTest extends TestCase {
     public function test_normal_concern_routes_to_staff(): void {
         $resp=$this->actingAs($this->u('student@my.cspc.edu.ph'))->post('/concerns',[
             'category'=>'Academic','department'=>'College of Computer Studies',
+            'subcategory' => 'Grades',
             'description'=>'a normal concern that names no staff member',
         ]);
         $c=Concern::where('description','a normal concern that names no staff member')->firstOrFail();

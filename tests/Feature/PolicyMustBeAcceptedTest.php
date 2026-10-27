@@ -73,6 +73,7 @@ class PolicyMustBeAcceptedTest extends TestCase
 
         $this->actingAsWithoutPolicy($student)->post('/concerns', [
             'category' => 'Academic',
+            'subcategory' => 'Grades',
             'description' => 'A concern posted without ever seeing the policy.',
         ])->assertRedirect(route('policy'));
 

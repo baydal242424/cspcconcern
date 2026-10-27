@@ -698,13 +698,19 @@ class ConcernController extends Controller
             // under. A dropdown is a suggestion: "Grades" on a broken aircon
             // would be counted as an academic complaint for the rest of the
             // year, and no amount of reading the description undoes a number.
-            // Optional for now, and optional in the form too, so the two
-            // agree. Making it compulsory is one rule away -- a requiredIf on
-            // whether the category offers any -- but it would also put a
-            // classification step between a distressed student and the
-            // Submit button, which is a decision about how the system should
-            // feel, not a technical one.
-            'subcategory' => ['nullable', 'string', 'max:120',
+            // Required wherever the category offers a list -- which is all
+            // of them but "Others", the one category that breaks down into
+            // nothing. requiredIf on that, rather than a flat "required",
+            // so filing under Others is not made impossible.
+            //
+            // Every list now ends in its own catch-all ("Other hazard",
+            // "Other academic concern"), so there is always an honest
+            // answer available. That is what makes requiring it fair: a
+            // student who cannot see their situation in the list is not
+            // stuck choosing something untrue about their own report.
+            'subcategory' => [
+                Rule::requiredIf(fn () => Concern::subcategoriesFor($request->input('category')) !== []),
+                'nullable', 'string', 'max:120',
                 function ($attribute, $value, $fail) use ($request) {
                     $category = $request->input('category');
 

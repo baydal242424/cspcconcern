@@ -140,6 +140,7 @@ class NoDuplicateIdsOrConcernsTest extends TestCase
 
         $payload = [
             'category' => 'Academic',
+            'subcategory' => 'Grades',
             'description' => 'Our subject has had no instructor for three weeks now.',
         ];
 
@@ -164,11 +165,13 @@ class NoDuplicateIdsOrConcernsTest extends TestCase
 
         $this->actingAs($student)->post('/concerns', [
             'category' => 'Academic',
+            'subcategory' => 'Grades',
             'description' => 'Our subject has had no instructor for three weeks now.',
         ])->assertRedirect();
 
         $this->actingAs($student)->post('/concerns', [
             'category' => 'Academic',
+            'subcategory' => 'Grades',
             'description' => '   OUR SUBJECT HAS HAD NO INSTRUCTOR FOR THREE WEEKS NOW.  ',
         ])->assertRedirect();
 
@@ -184,17 +187,20 @@ class NoDuplicateIdsOrConcernsTest extends TestCase
 
         $this->actingAs($student)->post('/concerns', [
             'category' => 'Academic',
+            'subcategory' => 'Grades',
             'description' => 'Our subject has had no instructor for three weeks now.',
         ])->assertRedirect();
 
         $this->actingAs($student)->post('/concerns', [
             'category' => 'Academic',
+            'subcategory' => 'Grades',
             'description' => 'A different problem entirely, about the laboratory schedule.',
         ])->assertRedirect();
 
         // Same words, different category: a different office handles it.
         $this->actingAs($student)->post('/concerns', [
             'category' => 'Safety',
+            'subcategory' => 'Damaged stairs or floor',
             'description' => 'Our subject has had no instructor for three weeks now.',
         ])->assertRedirect();
 
@@ -213,6 +219,7 @@ class NoDuplicateIdsOrConcernsTest extends TestCase
 
         $payload = [
             'category' => 'Academic',
+            'subcategory' => 'Grades',
             'description' => 'Our subject has had no instructor for three weeks now.',
         ];
 
@@ -249,6 +256,7 @@ class NoDuplicateIdsOrConcernsTest extends TestCase
 
         $payload = [
             'category' => 'Academic',
+            'subcategory' => 'Grades',
             'description' => 'Our subject has had no instructor for three weeks now.',
         ];
 

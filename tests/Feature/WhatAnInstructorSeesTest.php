@@ -157,6 +157,7 @@ class WhatAnInstructorSeesTest extends TestCase
 
         $this->actingAs($me)->post('/concerns', [
             'category' => 'Academic',
+            'subcategory' => 'Grades',
             'description' => 'An instructor reporting a problem with a shared classroom timetable.',
             'is_anonymous' => 0,
         ]);

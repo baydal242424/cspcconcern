@@ -54,6 +54,7 @@ class PolicyMatchesTheSystemTest extends TestCase
 
         $this->actingAs($student->refresh())->post('/concerns', [
             'category' => 'Academic',
+            'subcategory' => 'Grades',
             'description' => 'A concern filed to check the policy is telling the truth.',
             'is_anonymous' => 1,
         ]);

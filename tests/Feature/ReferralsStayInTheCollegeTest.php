@@ -89,6 +89,7 @@ class ReferralsStayInTheCollegeTest extends TestCase
 
         $this->actingAs($student->refresh())->post('/concerns', [
             'category' => 'Academic',
+            'subcategory' => 'Grades',
             'description' => 'A concern I would rather my class adviser did not handle.',
             'skip_adviser' => 1,
         ])->assertRedirect();
@@ -479,6 +480,7 @@ class ReferralsStayInTheCollegeTest extends TestCase
 
         $this->actingAs($student)->post('/concerns', [
             'category' => 'Facilities',
+            'subcategory' => 'Water',
             'description' => 'The aircon in our room has not worked for a fortnight now.',
         ])->assertRedirect();
 

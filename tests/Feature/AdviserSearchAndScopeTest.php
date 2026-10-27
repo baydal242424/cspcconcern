@@ -103,6 +103,7 @@ class AdviserSearchAndScopeTest extends TestCase
 
         $this->actingAs($student->refresh())->post('/concerns', [
             'category' => 'Academic',
+            'subcategory' => 'Grades',
             'description' => 'A Nursing concern from a section with no adviser.',
         ]);
 

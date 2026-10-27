@@ -73,10 +73,18 @@ class TheAcademicLadderTest extends TestCase
 
     private function file(User $student, array $extra = []): Concern
     {
-        $this->actingAs($student)->post('/concerns', array_merge([
+        $payload = array_merge([
             'category' => 'Academic',
             'description' => 'A concern that has to find the right person to handle it.',
-        ], $extra))->assertRedirect();
+        ], $extra);
+
+        // After the merge: callers override the category, and a
+        // sub-category belongs to exactly one of them.
+        if (! array_key_exists('subcategory', $payload)) {
+            $payload['subcategory'] = $this->aSubcategoryFor($payload['category'] ?? null);
+        }
+
+        $this->actingAs($student)->post('/concerns', $payload)->assertRedirect();
 
         return Concern::latest('id')->firstOrFail();
     }
