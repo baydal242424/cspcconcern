@@ -267,11 +267,13 @@ class CategorySplitAndOtherDetailTest extends TestCase
             $html
         );
 
-        // Still explained, per category, by the line under the select...
-        $this->assertStringContainsString('const scopeByCategory', $html);
-        $this->assertStringContainsString('A hazard that has not caused harm yet', $html);
+        // The per-category explanation that used to sit under the select
+        // has been removed: eleven paragraphs of it, one shown at a time,
+        // made the form cluttered to read. What each category covers is
+        // now carried by the second dropdown alone.
+        $this->assertStringNotContainsString('const scopeByCategory', $html);
 
-        // ...and broken down by the second dropdown.
+        // So that dropdown has to say something for every category.
         foreach (Concern::CATEGORIES as $category) {
             if ($category === 'Others') {
                 continue;

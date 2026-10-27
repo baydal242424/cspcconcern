@@ -98,9 +98,6 @@
                     data-old="{{ old('subcategory') }}">
                 <option value="">-- Select --</option>
             </select>
-            <div style="color:var(--muted); font-size:0.82rem; margin-top:0.25rem;">
-                The office is the same either way.
-            </div>
             @error('subcategory')
                 <div style="color: #dc3545; font-size: 0.85rem; margin-top: 0.25rem;">{{ $message }}</div>
             @enderror
@@ -116,9 +113,6 @@
             <input type="text" name="other_category" id="other_category" maxlength="120"
                    value="{{ old('other_category') }}"
                    placeholder="A few words, e.g. lost locker key, lost ID at the gym">
-            <div style="color:var(--muted); font-size:0.82rem; margin-top:0.25rem;">
-                A short label. Describe it fully below.
-            </div>
             @error('other_category')
                 <div style="color: #dc3545; font-size: 0.85rem; margin-top: 0.25rem;">{{ $message }}</div>
             @enderror
@@ -132,10 +126,6 @@
                     Filed under <strong>{{ Auth::user()->department }}</strong>.
                 </p>
             @endif
-            <p id="department-helper" style="font-size: 0.9rem; color: #60708a; font-style: italic; margin-top: 0.5rem; display:none;"></p>
-            <div id="confidentiality-box" style="display:none; background:#fff3cd; border:1px solid #ffe69c; color:#856404; padding:0.9rem; border-radius:6px; margin-top:1rem; font-size:0.9rem;">
-                Handled confidentially.
-            </div>
         </div>
 
         {{-- "The severity of your concern will be assessed by the assigned
@@ -145,9 +135,6 @@
 
         <div class="form-group">
             <label for="description">Detailed Description *</label>
-            <p style="font-size:0.82rem; color:#64748b; margin:0.15rem 0 0.5rem;">
-                What happened, when, where, and who was involved.
-            </p>
             <details style="margin:0 0 0.7rem; border:1px solid #e2e8f0; border-radius:10px; background:#f8fafc;">
                 <summary style="cursor:pointer; padding:0.6rem 0.9rem; font-size:0.85rem; font-weight:600; color:#2f5bea; list-style:none;">
                     💡 Not sure what to write? Tips for a good report
@@ -767,56 +754,8 @@
 
             (function() {
                 const categoryEl = document.getElementById('category');
-                const helperEl = document.getElementById('department-helper');
-                const confidentialEl = document.getElementById('confidentiality-box');
                 const descEl = document.getElementById('description');
                 const charCountEl = document.getElementById('char-count');
-
-                // Where each category is routed. This MUST mirror the server-side
-                // routing in ConcernController::routeConcern(). Routing is decided
-                // by category only; the department field is informational.
-                //
-                // These strings are a promise to the student about who is
-                // going to read what they are about to write, so a stale one
-                // is worse than none at all: the four adviser categories went
-                // on saying "an instructor in your college" after routing had
-                // already moved to the class adviser a tier above them.
-                // Change routeConcern() and change this in the same commit.
-                const routingByCategory = {
-                    'Academic': 'your class adviser',
-                    'Mental Health': 'the Guidance Office',
-                    'Personal': 'the Guidance Office',
-                    'Bullying': 'the Guidance Office',
-                    'Harassment': 'the Guidance Office',
-                    // Admin triage these and pass them to whichever office
-                    // owns the request -- records, cashier, clearance. Saying
-                    // "the Administration office" sets the right expectation:
-                    // received here, answered elsewhere.
-                    'Administrative': 'the people who run this website',
-                    'Facilities': 'the General Services Unit',
-                    'Equipment': 'the General Services Unit',
-                    'Physical': 'the Guidance Office',
-                    'Safety': 'the Guidance Office',
-                    'Others': 'your class adviser'
-                };
-
-                // One-line plain-English scope for each category. Without this
-                // students guessed, and the same broken lab PC arrived as
-                // "Administrative", "Academic" or "Others" depending on who
-                // filed it -- three different handlers for one problem.
-                const scopeByCategory = {
-                    'Academic': 'Grades, subjects, class schedules, instructors, teaching concerns.',
-                    'Mental Health': 'Stress, anxiety, low mood, or anything affecting how you are coping.',
-                    'Personal': 'Family, money, housing, or another situation you need support with.',
-                    'Bullying': 'Repeated behaviour aimed at you or someone else -- threats, intimidation, humiliation.',
-                    'Harassment': 'Unwanted conduct or discrimination by anyone on campus, including a single incident.',
-                    'Administrative': 'Something wrong with this website -- a page that will not load, a button that does nothing, or information shown that is not yours.',
-                    'Facilities': 'The building itself -- no water or electricity, aircon, lights, damaged rooms, blocked exits.',
-                    'Equipment': 'Things inside it -- computers, lab equipment, chairs, internet.',
-                    'Physical': 'An accident or injury that has already happened to you or someone else.',
-                    'Safety': 'A hazard that has not caused harm yet -- a broken stair, exposed wiring, a blocked exit.',
-                    'Others': 'Anything that does not fit the categories above.'
-                };
 
                 // Who can be named, per category.
                 //
@@ -893,19 +832,6 @@
 
                 function updateHelpers() {
                     const cat = categoryEl.value;
-                    const target = routingByCategory[cat] || null;
-
-                    if (target) {
-                        // Scope first, then destination -- the student needs to
-                        // confirm they picked the right category before the
-                        // routing note means anything to them.
-                        helperEl.textContent = scopeByCategory[cat]
-                            + ' This will be routed to ' + target + '.';
-                        helperEl.style.display = 'block';
-                    } else {
-                        helperEl.style.display = 'none';
-                    }
-
                     // The bypass only exists where there is an adviser tier to
                     // bypass. Unticked on the way out, so switching to
                     // Facilities cannot submit a preference that no longer
@@ -1028,9 +954,6 @@
                         subGroup.style.display = hasOptions ? 'block' : 'none';
                     }
 
-                    // Show the confidentiality note only for sensitive categories.
-                    const sensitive = ['Mental Health', 'Personal', 'Bullying', 'Harassment'].includes(cat);
-                    confidentialEl.style.display = sensitive ? 'block' : 'none';
                 }
 
                 categoryEl.addEventListener('change', updateHelpers);
