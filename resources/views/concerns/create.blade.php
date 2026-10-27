@@ -144,8 +144,14 @@
                     <p style="margin-top:0.5rem; color:#64748b;">Take your time. If a concern is sensitive, share only what you feel safe sharing. Your report is submitted under your name and is visible only to the staff member handling it.</p>
                 </div>
             </details>
-            {{-- position:relative so the name dropdown below anchors here. --}}
-            <div style="position:relative;">
+            {{-- position:relative so the name dropdown below anchors here.
+                 mention-field also anchors the mirror that paints the tags. --}}
+            <div class="mention-field" style="position:relative;">
+            {{-- The mirror. Holds a copy of the description with each chosen
+                 name wrapped in a pill, sitting exactly behind the real text
+                 so the pill lands under it. aria-hidden because it is the
+                 same words twice and a screen reader should hear them once. --}}
+            <div id="mention-backdrop" class="mention-backdrop" aria-hidden="true"></div>
             <textarea name="description" id="description" rows="6"
                 minlength="20" maxlength="2000"
                 placeholder="Example: On March 3rd during our 9:00 AM class in Room 204, ... (describe the situation, dates, and people involved)."
@@ -1086,6 +1092,59 @@
                     return match[1];
                 }
 
+                // Up to two initials: one for a mononym, first and last
+                // otherwise. A middle initial already in the name ("Ma.
+                // Lovella B. Cruz") is skipped, or every circle in the
+                // college reads "MB".
+                function initialsOf(name) {
+                    var words = name.split(/\s+/).filter(function (w) {
+                        return /[A-Za-z]/.test(w) && !/^[A-Za-z]\.$/.test(w);
+                    });
+
+                    if (!words.length) return '?';
+
+                    var first = words[0].charAt(0);
+
+                    return (words.length === 1 ? first : first + words[words.length - 1].charAt(0))
+                        .toUpperCase();
+                }
+
+                // The same name always gets the same colour, so a face in
+                // the list is recognisable the second time it is seen.
+                // Hashed rather than assigned by position: by position the
+                // colours would shuffle on every keystroke.
+                var AVATAR_COLOURS = ['#2f5bea', '#7c3aed', '#0f766e', '#b45309', '#be123c', '#0369a1'];
+
+                function colourFor(name) {
+                    var sum = 0;
+
+                    for (var i = 0; i < name.length; i++) {
+                        sum = (sum * 31 + name.charCodeAt(i)) % 100000;
+                    }
+
+                    return AVATAR_COLOURS[sum % AVATAR_COLOURS.length];
+                }
+
+                // Put the typed letters in bold wherever they fall in the
+                // name, so the list shows why each row is in it.
+                function markMatch(into, name, needle) {
+                    into.textContent = '';
+
+                    var at = needle ? name.toLowerCase().indexOf(needle.toLowerCase()) : -1;
+
+                    if (at === -1) {
+                        into.textContent = name;
+                        return;
+                    }
+
+                    var hit = document.createElement('b');
+                    hit.textContent = name.substr(at, needle.length);
+
+                    into.appendChild(document.createTextNode(name.slice(0, at)));
+                    into.appendChild(hit);
+                    into.appendChild(document.createTextNode(name.slice(at + needle.length)));
+                }
+
                 function hide() {
                     box.hidden = true;
                     box.textContent = '';
@@ -1128,16 +1187,30 @@
                         row.className = 'mention-row' + (index === active ? ' is-active' : '');
                         row.setAttribute('role', 'option');
 
+                        var avatar = document.createElement('span');
+                        avatar.className = 'mention-avatar';
+                        avatar.textContent = initialsOf(person.name);
+                        avatar.style.background = colourFor(person.name);
+
                         var name = document.createElement('span');
                         name.className = 'mention-name';
-                        name.textContent = person.name;
+                        // Built from nodes, never innerHTML: these are names
+                        // off the database, and the matched run is wrapped in
+                        // a tag. Pasting them into markup would be an opening
+                        // for anything somebody managed to register under.
+                        markMatch(name, person.name, lastQuery);
 
                         var who = document.createElement('span');
                         who.className = 'mention-who';
                         who.textContent = person.who;
 
-                        row.appendChild(name);
-                        row.appendChild(who);
+                        var text = document.createElement('span');
+                        text.className = 'mention-text';
+                        text.appendChild(name);
+                        text.appendChild(who);
+
+                        row.appendChild(avatar);
+                        row.appendChild(text);
 
                         // mousedown, not click: the textarea loses focus
                         // first otherwise and the caret position is gone.
@@ -1161,6 +1234,101 @@
 
                     box.hidden = matches.length === 0 && !note;
                 }
+
+                // ---- The tag, painted behind the text -----------------
+                //
+                // A textarea has one colour for all of its text, so a chosen
+                // name cannot be styled where it sits. The pill is drawn on a
+                // div underneath holding the same words at the same metrics,
+                // with its own glyphs invisible; the textarea's real text
+                // lands on top of it. Both have to agree about every property
+                // that decides where a character goes, so the mirror is given
+                // the textarea's own computed values rather than a guess.
+                var backdrop = document.getElementById('mention-backdrop');
+
+                var MIRRORED = [
+                    'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'lineHeight',
+                    'letterSpacing', 'wordSpacing', 'textTransform', 'textIndent',
+                    'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+                    'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth',
+                    'borderRadius', 'boxSizing'
+                ];
+
+                function matchMetrics() {
+                    if (!backdrop) return;
+
+                    var from = window.getComputedStyle(area);
+
+                    MIRRORED.forEach(function (property) {
+                        backdrop.style[property] = from[property];
+                    });
+
+                    backdrop.style.borderStyle = 'solid';
+                }
+
+                // A name that was picked: an "@" followed by capitalised
+                // words. Lower case is left alone on purpose -- it is what
+                // somebody is in the middle of typing, and a pill forming
+                // letter by letter under a half-written name flickers.
+                //
+                // The particles are listed rather than described as "a short
+                // lower-case word", so that "@Juan dela Cruz" is one tag
+                // while "@Christian and Maria" is a tag followed by two
+                // ordinary words. "and" fits any loose description of a
+                // particle, and swallowed the next name with it.
+                var TAG = /@([A-Z][^\s@]*(?:\s+(?:de|del|dela|delos|delas|da|di|van|von|y)\s+)?(?:\s*[A-Z][^\s@]*){0,4})/g;
+
+                function paint() {
+                    if (!backdrop) return;
+
+                    backdrop.textContent = '';
+
+                    var text = area.value;
+                    var at = 0;
+                    var found;
+
+                    TAG.lastIndex = 0;
+
+                    while ((found = TAG.exec(text)) !== null) {
+                        backdrop.appendChild(
+                            document.createTextNode(text.slice(at, found.index))
+                        );
+
+                        var chip = document.createElement('span');
+                        chip.className = 'mention-chip';
+                        chip.textContent = found[0];
+                        backdrop.appendChild(chip);
+
+                        at = found.index + found[0].length;
+                    }
+
+                    // The trailing newline matters: without it a tag on the
+                    // last line sits one line too high once the box scrolls.
+                    backdrop.appendChild(document.createTextNode(text.slice(at) + '\n'));
+
+                    backdrop.scrollTop = area.scrollTop;
+                    backdrop.scrollLeft = area.scrollLeft;
+                }
+
+                matchMetrics();
+                paint();
+
+                area.addEventListener('scroll', function () {
+                    if (!backdrop) return;
+
+                    backdrop.scrollTop = area.scrollTop;
+                    backdrop.scrollLeft = area.scrollLeft;
+                });
+
+                // Dragging the resize handle changes the wrap, and so does
+                // turning a phone sideways.
+                window.addEventListener('resize', matchMetrics);
+
+                if (window.ResizeObserver) {
+                    new window.ResizeObserver(paint).observe(area);
+                }
+
+                area.addEventListener('input', paint);
 
                 area.addEventListener('input', function () {
                     var fragment = currentMention();

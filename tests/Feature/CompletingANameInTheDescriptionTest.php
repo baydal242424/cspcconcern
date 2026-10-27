@@ -101,20 +101,32 @@ class CompletingANameInTheDescriptionTest extends TestCase
         $close = strpos($html, '</script>', $at);
         $script = substr($html, $open, $close - $open);
 
+        $checked = 0;
+
         foreach (explode("\n", $script) as $i => $line) {
-            // Where a regex literal starts: .match(/ .replace(/ .split(/ .test(/
-            if (! preg_match('/\.(?:match|replace|split|test|search)\(\//', $line)) {
+            // A regex literal starts either as an argument -- .match(/ and
+            // its siblings -- or assigned to a name, "var TAG = /.../g".
+            $starts = preg_match('/\.(?:match|replace|split|test|search)\(\//', $line)
+                ? strpos($line, '(/') + 2
+                : (preg_match('/=\s*\//', $line, $m, PREG_OFFSET_CAPTURE)
+                    ? $m[0][1] + strlen($m[0][0])
+                    : null);
+
+            if ($starts === null) {
                 continue;
             }
 
-            $body = substr($line, strpos($line, '(/') + 2);
+            $checked++;
 
             $this->assertStringContainsString(
                 '/',
-                $body,
+                substr($line, $starts),
                 'line '.($i + 1).' opens a regex and never closes it: '.trim($line)
             );
         }
+
+        // Or the loop found nothing and quietly asserted nothing at all.
+        $this->assertGreaterThan(3, $checked, 'the regex scan matched almost nothing');
 
         fwrite(STDERR, "  [mention] every regex closes on its own line\n");
     }
@@ -285,6 +297,111 @@ class CompletingANameInTheDescriptionTest extends TestCase
         $this->assertTrue($found->contains('Pedro Aquilino'), 'a mid-word match became unreachable');
 
         fwrite(STDERR, "  [mention] \"quilino\" still reaches Pedro Aquilino\n");
+    }
+
+    /**
+     * A chosen name is shown as a tag, not as loose words.
+     *
+     * A textarea has one colour for all of its text, so the pill is painted
+     * on a mirror behind it: the same words, the same metrics, its own
+     * glyphs invisible. The mirror has to be in the markup BEFORE the
+     * textarea and inside the same positioned wrapper, or it lands
+     * somewhere other than under the text it is supposed to sit beneath.
+     */
+    public function test_a_chosen_name_is_painted_as_a_tag(): void
+    {
+        $html = $this->page();
+
+        $wrapper = strpos($html, 'class="mention-field"');
+        $mirror = strpos($html, 'id="mention-backdrop"');
+        $textarea = strpos($html, 'id="description"');
+
+        $this->assertNotFalse($wrapper, 'nothing anchors the mirror');
+        $this->assertNotFalse($mirror, 'the mirror is not rendered');
+        $this->assertLessThan($mirror, $wrapper, 'the mirror is outside the wrapper');
+        $this->assertLessThan($textarea, $mirror, 'the mirror is painted over the text, not behind it');
+
+        // Spoken once. It is the same sentence twice in the markup.
+        $this->assertStringContainsString('id="mention-backdrop" class="mention-backdrop" aria-hidden="true"', $html);
+
+        fwrite(STDERR, "  [mention] a chosen name is painted as a tag\n");
+    }
+
+    /**
+     * What gets a pill, and what is left alone.
+     *
+     * Capitalised, because lower case is what somebody is in the middle of
+     * typing and a pill forming letter by letter under a half-written name
+     * flickers. The particle list is spelled out rather than described as
+     * "a short lower-case word": "and" fits any loose description of one,
+     * and "@Christian and Maria" came out as a single tag swallowing the
+     * next person's name.
+     *
+     * @return array<string, array{0: string, 1: array<int, string>}>
+     */
+    public static function writing(): array
+    {
+        return [
+            'a full name' => ['Yesterday @Christian Rey Baydal shouted.', ['@Christian Rey Baydal']],
+            'mid-search' => ['I was typing @ch here', []],
+            'a particle' => ['@Juan dela Cruz was there', ['@Juan dela Cruz']],
+            'two people' => ['@Ma. Lovella Brondial and @Christian S. Nabio', ['@Ma. Lovella Brondial', '@Christian S. Nabio']],
+            'an ordinary word after' => ['@Christian said he would help', ['@Christian']],
+            'a conjunction is not a particle' => ['@Christian and Maria were there', ['@Christian']],
+            'an email address' => ['write to e@mail.com please', []],
+        ];
+    }
+
+    /**
+     * @param  array<int, string>  $expected
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('writing')]
+    public function test_only_a_chosen_name_gets_a_pill(string $written, array $expected): void
+    {
+        $tag = '/@([A-Z][^\s@]*(?:\s+(?:de|del|dela|delos|delas|da|di|van|von|y)\s+)?(?:\s*[A-Z][^\s@]*){0,4})/';
+
+        preg_match_all($tag, $written, $m);
+
+        $this->assertSame($expected, array_map('trim', $m[0]), $written);
+
+        fwrite(STDERR, '  [mention] '.json_encode($written).' -> '
+            .($expected === [] ? "no pill\n" : implode(', ', $expected)."\n"));
+    }
+
+    /** The rule in the test is the rule on the page, not a copy of it. */
+    public function test_the_pill_rule_on_the_page_matches_the_one_tested(): void
+    {
+        $this->assertStringContainsString(
+            'var TAG = /@([A-Z][^\s@]*(?:\s+(?:de|del|dela|delos|delas|da|di|van|von|y)\s+)?(?:\s*[A-Z][^\s@]*){0,4})/g;',
+            $this->page()
+        );
+
+        fwrite(STDERR, "  [mention] the page uses the rule these tests check\n");
+    }
+
+    /** A row is a person: a face, a name, and what they are. */
+    public function test_a_row_looks_like_a_person(): void
+    {
+        $html = $this->page();
+
+        // Initials, because there are no profile photos.
+        $this->assertStringContainsString('mention-avatar', $html);
+        $this->assertStringContainsString('function initialsOf(', $html);
+
+        // The typed letters picked out of the name, so eight near-identical
+        // names show why each of them is in the list.
+        $this->assertStringContainsString('function markMatch(', $html);
+
+        // Built from nodes. These are names off the database, and the
+        // matched run is wrapped in a tag -- innerHTML would make anything
+        // somebody registered under into markup.
+        $this->assertStringNotContainsString('innerHTML', substr(
+            $html,
+            strpos($html, 'function markMatch('),
+            700
+        ));
+
+        fwrite(STDERR, "  [mention] a row shows a face, the name, and the match\n");
     }
 
     /** One letter returns nothing: that would be the directory. */

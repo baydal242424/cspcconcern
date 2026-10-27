@@ -444,12 +444,50 @@
         background:#fff; border:1px solid var(--line,#e7ebf1); border-radius:12px;
         box-shadow:0 14px 32px -12px rgba(16,30,66,.3); overflow:hidden; max-height:260px;
         overflow-y:auto}
-    .mention-row{display:flex; flex-direction:column; gap:.1rem; width:100%; text-align:left;
-        padding:.55rem .8rem; background:none; border:none; cursor:pointer; font-family:inherit}
+    .mention-row{display:flex; align-items:center; gap:.6rem; width:100%; text-align:left;
+        padding:.5rem .7rem; background:none; border:none; cursor:pointer; font-family:inherit}
     .mention-row:hover,.mention-row.is-active{background:var(--brand-50,#eef2ff)}
-    .mention-name{font-size:.9rem; font-weight:600; color:var(--ink,#1f2733)}
-    .mention-who{font-size:.76rem; color:var(--muted,#64748b)}
+    /* Initials, because there are no profile photos. A row that is only two
+       lines of text reads as a menu; the circle is what makes it read as a
+       person, which is the whole difference between picking an option and
+       picking somebody. */
+    .mention-avatar{flex:0 0 34px; width:34px; height:34px; border-radius:50%;
+        display:flex; align-items:center; justify-content:center; font-size:.78rem;
+        font-weight:700; color:#fff; background:var(--brand,#2f5bea); letter-spacing:.02em}
+    .mention-text{display:flex; flex-direction:column; gap:.1rem; min-width:0}
+    .mention-name{font-size:.9rem; font-weight:500; color:var(--ink,#1f2733);
+        white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    /* The letters they have typed so far, picked out of the name. With eight
+       near-identical names in the list, this is what shows WHY each one is
+       there and how much further there is to type to separate them. */
+    .mention-name b{font-weight:700; color:var(--brand-600,#2347c4)}
+    .mention-who{font-size:.76rem; color:var(--muted,#64748b);
+        white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
     .mention-empty{margin:0; padding:.6rem .8rem; font-size:.82rem; color:var(--muted,#64748b)}
+
+    /* A chosen name, shown as a tag.
+       A textarea cannot style part of its own text, so the pill is painted on
+       a div behind it that mirrors the same text with the same metrics. The
+       mirror's own glyphs are invisible; only the pill behind them shows, and
+       the real text of the textarea sits on top of it. Everything that moves
+       the text -- typing, wrapping, scrolling -- has to move both. */
+    .mention-field{position:relative}
+    /* The mirror carries the field's fill, since the textarea above it is
+       now transparent. Same two colours the input rule uses, and the same
+       change on focus, so the field looks no different for having a mirror
+       behind it. */
+    .mention-backdrop{position:absolute; inset:0; z-index:0; overflow:hidden;
+        pointer-events:none; color:transparent; background:#fcfdff;
+        white-space:pre-wrap; overflow-wrap:anywhere; border-color:transparent}
+    .mention-field:focus-within .mention-backdrop{background:#fff}
+    /* :focus named too. The focus rule above also sets a background and has
+       the same weight as this one, so without it the field turns opaque the
+       moment somebody clicks into it -- which is exactly when the tags
+       need to be visible. */
+    .mention-field textarea,.mention-field textarea:focus{position:relative; z-index:1;
+        background:transparent}
+    .mention-chip{border-radius:4px; background:var(--brand-50,#eef2ff);
+        box-shadow:0 0 0 1px rgba(47,91,234,.18)}
 
     /* ---- Attaching evidence ----------------------------------------------
        A drop zone wrapped around the real file input, not a replacement for
