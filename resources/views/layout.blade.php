@@ -159,10 +159,6 @@
         /* Unread is carried by the dot and the weight of the title, not by
            a tinted row: ten tinted rows in a column is just a tinted panel. */
         .navbar-nav .bell-item.unread .bell-title{font-weight:800}
-        /* The round mark, in place of the profile photo a social app shows. */
-        .navbar-nav .bell-avatar{flex:0 0 38px; width:38px; height:38px; border-radius:50%;
-            display:flex; align-items:center; justify-content:center; color:#fff;
-            font-size:1.05rem; font-weight:700; line-height:1}
         .navbar-nav .bell-dot{display:block; width:9px; height:9px; border-radius:50%;
             background:transparent; flex:0 0 9px; margin-left:.3rem}
         .navbar-nav .bell-item.unread .bell-dot{background:var(--brand)}
@@ -242,10 +238,13 @@
            not the same grey -- it was the student's decision, not a
            finding, and the two should not read as one outcome. */
         .status-withdrawn{background:#f5f3ef; color:#6b6052; border-color:#e6e0d6}
-        /* The dot on the Draft button: there is something in it. A
-           count would be precision nobody needs -- there is only ever one. */
-        .draft-pip{display:inline-block; width:7px; height:7px; border-radius:50%;
-            background:var(--brand); margin-left:.4rem; vertical-align:middle}
+        /* How many are in the folder. A count rather than a dot, now
+           that there can be more than one -- "Drafts" with a dot beside
+           it does not tell somebody whether the one they want is there. */
+        .draft-pip{display:inline-block; min-width:18px; height:18px; padding:0 .3rem;
+            border-radius:999px; background:var(--brand); color:#fff; font-size:.72rem;
+            font-weight:700; line-height:18px; text-align:center; margin-left:.4rem;
+            vertical-align:middle}
         .status-referred{background:#ece9ff; color:#5b3bd6; border-color:#d6cdfb}
         .status-approved{background:var(--ok-bg); color:var(--ok-ink); border-color:#bfe8cd}
         .status-pending{background:var(--warn-bg); color:var(--warn-ink); border-color:#f3dca0}

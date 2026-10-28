@@ -22,17 +22,23 @@
                 Carried on from the draft you saved
                 {{ $resumedDraft->updated_at->diffForHumans() }}.
             </span>
-            <form action="{{ route('concerns.draft.discard') }}" method="POST" style="margin:0;">
+            <form action="{{ route('concerns.draft.discard', $resumedDraft) }}" method="POST" style="margin:0;">
                 @csrf
                 @method('DELETE')
                 <button type="submit" class="btn btn-muted" style="font-size:0.85rem;"
-                    onclick="return confirm('Throw this draft away and start again?');">Start again</button>
+                    onclick="return confirm('Delete this draft? It has not been sent to anybody, and this cannot be undone.');">Delete draft</button>
             </form>
         </div>
     @endif
 
     <form action="{{ route('concerns.store') }}" method="POST" enctype="multipart/form-data">
         @csrf
+        {{-- Which draft this was opened from, so Save updates that
+             one instead of starting another, and filing clears that
+             one instead of the whole folder. --}}
+        @if (! empty($resumedDraft))
+            <input type="hidden" name="draft_id" value="{{ $resumedDraft->id }}">
+        @endif
 
         @if (!empty($followsUpOn))
             {{-- Re-checked in store(): a hidden field is a suggestion, and
@@ -242,7 +248,14 @@
             @endif
 
             <label style="display:block; margin-top:0.7rem;">
-                <input type="checkbox" id="about_staff_toggle" class="about-toggle" data-target="about_staff_wrap" data-select="about_staff_id">
+                {{-- Ticked when somebody is already named. Two cases: a
+                     repeat of a settled concern, which arrives with the
+                     same people on it, and a submission that bounced --
+                     where without this the names they had chosen came
+                     back unticked, hidden behind a closed box, and the
+                     student resubmitted without them. --}}
+                <input type="checkbox" id="about_staff_toggle" class="about-toggle" data-target="about_staff_wrap" data-select="about_staff_id"
+                    @checked(! empty(old('about_staff_id')))>
                 {{-- Named for what the box does, not for who happens to be
                      behind it. It listed the roles once -- "a dean, program
                      chair, counselor, office or administrator" -- which was

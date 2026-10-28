@@ -88,6 +88,82 @@ class ReportingASettledConcernAgainTest extends TestCase
         fwrite(STDERR, "  [again] the form says what it follows\n");
     }
 
+    /**
+     * And it answers the questions it has already answered.
+     *
+     * The banner said "reporting #133 again -- Academic" while the
+     * dropdown underneath still read "-- Select a category --". The
+     * student had to answer a question the page had just answered for
+     * them, and picking the wrong one sends the repeat to an office the
+     * first report never went near.
+     */
+    public function test_the_category_and_the_people_are_already_filled_in(): void
+    {
+        $concern = $this->aSettledConcern([
+            'category' => 'Academic',
+            'subcategory' => 'Grades',
+        ]);
+
+        // Taken from the picker the form actually renders, rather than
+        // named here: not every staff account appears in it -- instructors
+        // are reached through the adviser question instead -- and a name
+        // chosen in the test would be asserting against a checkbox that
+        // was never drawn.
+        $blank = $this->actingAs($this->student())
+            ->get('/concerns/create')->assertOk()->getContent();
+
+        $this->assertMatchesRegularExpression('/name="about_staff_id\[\]" value="(\d+)"/', $blank);
+
+        preg_match('/name="about_staff_id\[\]" value="(\d+)"/', $blank, $who);
+
+        $named = User::findOrFail((int) $who[1]);
+
+        $concern->syncSubjects([$named->id]);
+
+        $page = $this->actingAs($this->student())
+            ->get('/concerns/create?follows_up_on='.$concern->id)->assertOk()->getContent();
+
+        $this->assertMatchesRegularExpression(
+            '/<option value="Academic"[^>]*selected/',
+            $page,
+            'the category was not carried over'
+        );
+
+        $this->assertStringContainsString('data-old="Grades"', $page,
+            'the sub-category was not carried over');
+
+        $this->assertMatchesRegularExpression(
+            '/value="'.$named->id.'"[^>]*checked/',
+            $page,
+            'the person it was about was not carried over'
+        );
+
+        fwrite(STDERR, "  [again] the category, sub-category and people come with it\n");
+    }
+
+    /**
+     * The description does not come with it.
+     *
+     * The banner asks what has happened SINCE. Handing back the old
+     * account to edit is an invitation to file the first report twice,
+     * and the staff reading it can already see the first one.
+     */
+    public function test_the_old_description_is_not_carried_over(): void
+    {
+        $concern = $this->aSettledConcern(['description' => 'What happened the first time.']);
+
+        $page = $this->actingAs($this->student())
+            ->get('/concerns/create?follows_up_on='.$concern->id)->assertOk()->getContent();
+
+        preg_match('/<textarea[^>]*id="description".*?<\/textarea>/s', $page, $m);
+
+        $inner = preg_replace(['/^<textarea[^>]*>/s', '/<\/textarea>$/'], '', $m[0] ?? '');
+
+        $this->assertSame('', trim($inner), 'the first report was handed back to be edited');
+
+        fwrite(STDERR, "  [again] the old description is not carried over\n");
+    }
+
     /** Filing it opens a NEW case, and the first one is untouched. */
     public function test_it_opens_a_new_case_and_leaves_the_first_alone(): void
     {

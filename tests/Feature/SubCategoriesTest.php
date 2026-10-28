@@ -137,6 +137,29 @@ class SubCategoriesTest extends TestCase
         fwrite(STDERR, "  [sub] it must be answered\n");
     }
 
+    /**
+     * One thing per option.
+     *
+     * "Subjects & enrolment" is two choices wearing one label. A student
+     * who picks it has said which PAIR their problem falls in, not which
+     * problem it is, and the figure at the end of the term reads
+     * "subjects or enrolment" for ever after. Splitting them costs
+     * nothing: a dropdown is no harder to read for having nine rows
+     * instead of six.
+     */
+    public function test_no_option_bundles_two_things_together(): void
+    {
+        foreach (Concern::SUBCATEGORIES as $category => $options) {
+            foreach ($options as $option) {
+                $this->assertStringNotContainsString(' & ', $option,
+                    $category.' offers "'.$option.'", which is two choices in one row');
+            }
+        }
+
+        fwrite(STDERR, '  [sub] no option bundles two things: '
+            .array_sum(array_map('count', Concern::SUBCATEGORIES))." options in all\n");
+    }
+
     /** Including by way of the catch-all, which every list carries. */
     public function test_every_list_ends_in_a_catch_all(): void
     {

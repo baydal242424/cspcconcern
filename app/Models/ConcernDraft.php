@@ -39,6 +39,38 @@ class ConcernDraft extends Model
     }
 
     /**
+     * What to call this draft in the folder.
+     *
+     * A row needs something to be recognised by, and a draft has no
+     * title: the student never gave it one, and asking for one would be
+     * a field to fill in before they can save the thing they are saving
+     * because they have not finished. So it is named after what it is
+     * about -- the category and sub-category they picked -- and falls
+     * back to the first words they wrote.
+     */
+    public function label(): string
+    {
+        $parts = array_filter([
+            $this->category ? Concern::categoryLabel($this->category) : null,
+            $this->subcategory,
+        ]);
+
+        if ($parts !== []) {
+            return implode(' · ', $parts);
+        }
+
+        $words = trim((string) ($this->other_category ?: $this->description));
+
+        return $words === '' ? 'Untitled draft' : \Illuminate\Support\Str::limit($words, 48);
+    }
+
+    /** The opening of what they wrote, for the line under the label. */
+    public function preview(): string
+    {
+        return \Illuminate\Support\Str::limit(trim((string) $this->description), 110);
+    }
+
+    /**
      * Whether there is anything here worth coming back to.
      *
      * A draft saved from an untouched form is noise: the student is

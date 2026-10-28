@@ -62,11 +62,6 @@
                           class="bell-row {{ $n->is_read ? 'is-read' : 'is-unread' }}">
                         @csrf
                         <button type="submit" class="bell-item {{ $n->is_read ? '' : 'unread' }}">
-                            {{-- The round mark stands in for the profile photo
-                                 a social app would show. There are none here,
-                                 and ten identical grey rows cannot be read at
-                                 a glance. --}}
-                            <span class="bell-avatar" style="background:{{ $n->tint() }}" aria-hidden="true">{{ $n->glyph() }}</span>
                             <span class="bell-item-body">
                                 <span class="bell-title">{{ $n->title }}</span>
                                 <span class="bell-msg">{{ $n->message }}</span>

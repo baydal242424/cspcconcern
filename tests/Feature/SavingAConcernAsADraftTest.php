@@ -67,11 +67,18 @@ class SavingAConcernAsADraftTest extends TestCase
         $list = $this->actingAs($this->student())
             ->get(route('concerns.index'))->assertOk()->getContent();
 
-        $this->assertStringContainsString(route('concerns.create', ['draft' => 1]), $list,
-            'the list does not offer the draft anywhere');
+        $this->assertStringContainsString(route('concerns.drafts'), $list,
+            'the list does not offer the drafts anywhere');
+
+        // Through the folder, which is what the button opens.
+        $draft = ConcernDraft::where('user_id', $this->student()->id)->sole();
+
+        $this->actingAs($this->student())->get(route('concerns.drafts'))
+            ->assertOk()
+            ->assertSee(route('concerns.create', ['draft' => $draft->id]), false);
 
         $page = $this->actingAs($this->student())
-            ->get(route('concerns.create', ['draft' => 1]))->assertOk()->getContent();
+            ->get(route('concerns.create', ['draft' => $draft->id]))->assertOk()->getContent();
 
         $this->assertStringContainsString('still', $page);
         $this->assertStringContainsString('Carried on from the draft you saved', $page);
@@ -101,21 +108,40 @@ class SavingAConcernAsADraftTest extends TestCase
         fwrite(STDERR, "  [draft] an unfinished draft is accepted, which is the point\n");
     }
 
-    /** One each. Saving again replaces. */
-    public function test_saving_again_replaces_the_draft(): void
+    /**
+     * Saving the one you opened replaces it; saving a blank form adds.
+     *
+     * The distinction the folder exists for. While there could only be
+     * one, starting a second report silently overwrote the first.
+     */
+    public function test_saving_updates_the_one_you_opened_and_adds_a_new_one_otherwise(): void
     {
         $this->actingAs($this->student())
             ->post(route('concerns.draft.save'), $this->halfWritten(['description' => 'The first attempt at writing this']));
 
-        $this->actingAs($this->student())
-            ->post(route('concerns.draft.save'), $this->halfWritten(['description' => 'The second attempt, which is better']));
+        $first = ConcernDraft::where('user_id', $this->student()->id)->sole();
 
-        $drafts = ConcernDraft::where('user_id', $this->student()->id)->get();
+        // The same draft, carried back by the hidden field on the form.
+        $this->actingAs($this->student())->post(route('concerns.draft.save'), $this->halfWritten([
+            'draft_id' => $first->id,
+            'description' => 'The same one, written better',
+        ]));
 
-        $this->assertCount(1, $drafts);
-        $this->assertSame('The second attempt, which is better', $drafts->first()->description);
+        $this->assertSame(1, ConcernDraft::where('user_id', $this->student()->id)->count());
+        $this->assertSame('The same one, written better', $first->fresh()->description);
 
-        fwrite(STDERR, "  [draft] saving again replaces rather than piling up\n");
+        // A different report: a second row, and the first left alone.
+        $this->actingAs($this->student())->post(route('concerns.draft.save'), $this->halfWritten([
+            'category' => 'Facilities',
+            'subcategory' => 'Water',
+            'description' => 'Something else entirely',
+        ]));
+
+        $this->assertSame(2, ConcernDraft::where('user_id', $this->student()->id)->count(),
+            'starting a second report overwrote the first');
+        $this->assertSame('The same one, written better', $first->fresh()->description);
+
+        fwrite(STDERR, "  [draft] saving updates the one you opened; a new report adds a row\n");
     }
 
     /**
@@ -165,21 +191,37 @@ class SavingAConcernAsADraftTest extends TestCase
         fwrite(STDERR, "  [draft] a draft is only ever offered back to its author\n");
     }
 
-    /** Filing it clears the draft. */
-    public function test_submitting_clears_the_draft(): void
+    /**
+     * Filing clears the draft it came from -- and only that one.
+     *
+     * Clearing the folder would delete every other report the student
+     * had started, which is the thing a folder exists to stop.
+     */
+    public function test_submitting_clears_only_the_draft_it_came_from(): void
     {
         $this->actingAs($this->student())->post(route('concerns.draft.save'), $this->halfWritten());
 
+        $filed = ConcernDraft::where('user_id', $this->student()->id)->sole();
+
+        $this->actingAs($this->student())->post(route('concerns.draft.save'), $this->halfWritten([
+            'category' => 'Facilities',
+            'subcategory' => 'Water',
+            'description' => 'A different report I have not finished',
+        ]));
+
         $this->actingAs($this->student())->post('/concerns', [
+            'draft_id' => $filed->id,
             'category' => 'Academic',
             'subcategory' => 'Grades',
             'description' => 'The whole account of what happened, written out properly this time.',
         ])->assertRedirect();
 
-        $this->assertSame(0, ConcernDraft::where('user_id', $this->student()->id)->count(),
-            'the draft outlived the concern it became');
+        $left = ConcernDraft::where('user_id', $this->student()->id)->get();
 
-        fwrite(STDERR, "  [draft] filing the concern clears the draft behind it\n");
+        $this->assertCount(1, $left, 'filing one concern emptied the folder');
+        $this->assertSame('A different report I have not finished', $left->first()->description);
+
+        fwrite(STDERR, "  [draft] filing clears the draft it came from, and leaves the rest\n");
     }
 
     /** Throwing it away works, and only on your own. */
@@ -187,9 +229,11 @@ class SavingAConcernAsADraftTest extends TestCase
     {
         $this->actingAs($this->student())->post(route('concerns.draft.save'), $this->halfWritten());
 
+        $draft = ConcernDraft::where('user_id', $this->student()->id)->sole();
+
         $this->actingAs($this->student())
-            ->delete(route('concerns.draft.discard'))
-            ->assertRedirect(route('concerns.index'));
+            ->delete(route('concerns.draft.discard', $draft))
+            ->assertRedirect(route('concerns.drafts'));
 
         $this->assertSame(0, ConcernDraft::where('user_id', $this->student()->id)->count());
 
@@ -201,8 +245,15 @@ class SavingAConcernAsADraftTest extends TestCase
     {
         $this->actingAs($this->student())->post(route('concerns.draft.save'), $this->halfWritten());
 
+        $draft = ConcernDraft::where('user_id', $this->student()->id)->sole();
+
         $classmate = User::where('email', 'student2@my.cspc.edu.ph')->firstOrFail();
-        $this->actingAs($classmate)->delete(route('concerns.draft.discard'));
+
+        // Named outright now, since deleting takes an id -- so this is no
+        // longer "it happened to miss", it is a refusal.
+        $this->actingAs($classmate)
+            ->delete(route('concerns.draft.discard', $draft))
+            ->assertForbidden();
 
         $this->assertSame(1, ConcernDraft::where('user_id', $this->student()->id)->count(),
             'somebody else discarding cleared this student\'s draft');
@@ -232,8 +283,10 @@ class SavingAConcernAsADraftTest extends TestCase
 
         // Asking for the draft explicitly, which is the only case where
         // this can still go wrong -- and the one worth testing.
+        $draft = ConcernDraft::where('user_id', $this->student()->id)->sole();
+
         $page = $this->actingAs($this->student())
-            ->get(route('concerns.create', ['draft' => 1]))->assertOk()->getContent();
+            ->get(route('concerns.create', ['draft' => $draft->id]))->assertOk()->getContent();
 
         $this->assertStringContainsString('too short', $page);
         $this->assertStringNotContainsString('The older draft from last week', $page);
@@ -270,14 +323,15 @@ class SavingAConcernAsADraftTest extends TestCase
         $withNone = $this->actingAs($this->student())
             ->get(route('concerns.index'))->assertOk()->getContent();
 
-        $this->assertStringNotContainsString(route('concerns.create', ['draft' => 1]), $withNone);
+        $this->assertStringNotContainsString(route('concerns.drafts'), $withNone);
 
         $this->actingAs($this->student())->post(route('concerns.draft.save'), $this->halfWritten());
 
         $withOne = $this->actingAs($this->student())
             ->get(route('concerns.index'))->assertOk()->getContent();
 
-        $this->assertStringContainsString(route('concerns.create', ['draft' => 1]), $withOne);
+        $this->assertStringContainsString(route('concerns.drafts'), $withOne);
+        $this->assertStringContainsString('>1</span>', $withOne, 'the button does not say how many');
 
         fwrite(STDERR, "  [draft] the button appears only when there is a draft\n");
     }
@@ -292,7 +346,7 @@ class SavingAConcernAsADraftTest extends TestCase
         $page = $this->actingAs($classmate)
             ->get(route('concerns.index'))->assertOk()->getContent();
 
-        $this->assertStringNotContainsString(route('concerns.create', ['draft' => 1]), $page);
+        $this->assertStringNotContainsString(route('concerns.drafts'), $page);
 
         fwrite(STDERR, "  [draft] somebody else's draft is not offered\n");
     }
@@ -331,6 +385,75 @@ class SavingAConcernAsADraftTest extends TestCase
         $this->assertStringContainsString('formnovalidate', $page);
 
         fwrite(STDERR, "  [draft] the form offers to save one, and will save an incomplete one\n");
+    }
+
+    /**
+     * The folder lists them, newest first, and says what each one is.
+     *
+     * A draft has no title -- the student never gave it one, and asking
+     * for one would be a field to fill in before they can save the thing
+     * they are saving because they have not finished. So a row is named
+     * after what it is about.
+     */
+    public function test_the_folder_lists_every_draft(): void
+    {
+        $this->actingAs($this->student())->post(route('concerns.draft.save'), $this->halfWritten([
+            'subcategory' => 'Grades',
+            'description' => 'The older one, about a grade',
+        ]));
+
+        $this->travel(2)->minutes();
+
+        $this->actingAs($this->student())->post(route('concerns.draft.save'), $this->halfWritten([
+            'category' => 'Facilities',
+            'subcategory' => 'Water',
+            'description' => 'The newer one, about the water',
+        ]));
+
+        $page = $this->actingAs($this->student())
+            ->get(route('concerns.drafts'))->assertOk()->getContent();
+
+        $this->assertStringContainsString('Academic · Grades', $page);
+        $this->assertStringContainsString('Water', $page);
+        $this->assertStringContainsString('The older one, about a grade', $page);
+
+        // Newest first: what somebody coming back for "the one I was
+        // writing" is looking for.
+        $this->assertLessThan(
+            strpos($page, 'The older one, about a grade'),
+            strpos($page, 'The newer one, about the water'),
+            'the oldest draft is at the top'
+        );
+
+        fwrite(STDERR, "  [draft] the folder lists every draft, newest first\n");
+    }
+
+    /** And only ever your own. */
+    public function test_the_folder_holds_nobody_elses(): void
+    {
+        $this->actingAs($this->student())->post(route('concerns.draft.save'), $this->halfWritten([
+            'description' => 'Something only I should be able to read back',
+        ]));
+
+        $classmate = User::where('email', 'student2@my.cspc.edu.ph')->firstOrFail();
+
+        $this->actingAs($classmate)->get(route('concerns.drafts'))
+            ->assertOk()
+            ->assertDontSee('Something only I should be able to read back');
+
+        fwrite(STDERR, "  [draft] the folder holds nobody else's\n");
+    }
+
+    /** An empty draft is not a row. */
+    public function test_an_empty_draft_is_not_listed(): void
+    {
+        $this->actingAs($this->student())->post(route('concerns.draft.save'), ['category' => 'Academic']);
+
+        $this->actingAs($this->student())->get(route('concerns.drafts'))
+            ->assertOk()
+            ->assertSee('Nothing saved yet');
+
+        fwrite(STDERR, "  [draft] an empty draft is not given a row\n");
     }
 
     /** Signed out, there is nothing to save to. */

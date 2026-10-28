@@ -74,40 +74,6 @@ class TheNotificationPanelReadsAtAGlanceTest extends TestCase
         fwrite(STDERR, "  [bell] the age is written short: now, 16m, 5h, 2d, 3w\n");
     }
 
-    /**
-     * Each kind of notice has its own mark.
-     *
-     * Standing in for the profile photo a social app would show. The test
-     * that matters is that they are not all the same -- one glyph for
-     * everything is the grey column this replaced.
-     */
-    public function test_each_kind_of_notice_looks_different(): void
-    {
-        $kinds = ['status_update', 'new_concern', 'named_in_concern',
-            'notice_from_handler', 'documents_added'];
-
-        $looks = [];
-
-        foreach ($kinds as $kind) {
-            $row = $this->notify(['type' => $kind]);
-            $looks[] = $row->glyph().$row->tint();
-
-            $this->assertNotSame('', trim($row->glyph()));
-            $this->assertMatchesRegularExpression('/^#[0-9a-f]{6}$/i', $row->tint());
-        }
-
-        $this->assertGreaterThan(1, count(array_unique($looks)),
-            'every notice is drawn the same, which is the column this replaced');
-
-        // And an unmapped type still draws something rather than nothing.
-        $odd = $this->notify(['type' => 'something_new_nobody_mapped']);
-
-        $this->assertNotSame('', trim($odd->glyph()));
-        $this->assertMatchesRegularExpression('/^#[0-9a-f]{6}$/i', $odd->tint());
-
-        fwrite(STDERR, "  [bell] each kind of notice has its own mark\n");
-    }
-
     /** Today and before today, split, but only when there is both. */
     public function test_recent_and_older_are_split(): void
     {

@@ -379,10 +379,11 @@ class ConcernController extends Controller
         // Whether to offer the Draft button. Only when there is
         // something in it: a button that opens a blank form is a
         // second "New Concern" wearing a different word.
-        $hasDraft = $user->id === Auth::id()
-            && optional(ConcernDraft::where('user_id', $user->id)->first())->hasContent();
+        $draftCount = ConcernDraft::where('user_id', Auth::id())->get()
+            ->filter->hasContent()
+            ->count();
 
-        return view('concerns.index', compact('concerns', 'showResolved', 'filters', 'activeFilterCount', 'hasDraft'));
+        return view('concerns.index', compact('concerns', 'showResolved', 'filters', 'activeFilterCount', 'draftCount'));
     }
 
     /**
@@ -497,6 +498,30 @@ class ConcernController extends Controller
             }
         }
 
+        // What the repeat already knows about itself.
+        //
+        // The banner says "reporting #133 again -- Academic", and the
+        // category dropdown underneath still said "-- Select a category --".
+        // The student had to answer a question the page had just answered
+        // for them, and getting it wrong sends the repeat somewhere the
+        // first one never went.
+        //
+        // The same thing happens again in the same category, to the same
+        // people. The description is deliberately NOT carried: the banner
+        // asks what has happened SINCE, and handing them the old account
+        // to edit is an invitation to file the first report twice.
+        //
+        // Flashed into old input, like the draft above, so the fields fill
+        // through the same old() calls they already use.
+        if ($followsUpOn && ! $request->old()) {
+            $request->session()->flashInput([
+                'category' => $followsUpOn->category,
+                'subcategory' => $followsUpOn->subcategory,
+                'other_category' => $followsUpOn->other_category,
+                'about_staff_id' => $followsUpOn->subjects->pluck('id')->all(),
+            ]);
+        }
+
         // Staff-type users the student can name as the subject of a
         // conflict-of-interest concern (so it is routed away from them).
         // Split into two pickers: students looking for "my teacher" should not
@@ -581,19 +606,22 @@ class ConcernController extends Controller
         // there: that means a submission has just been refused, and
         // replacing what they are correcting with something older is the
         // one thing worse than losing it.
-        $draft = ConcernDraft::where('user_id', Auth::id())->first();
         $resumedDraft = null;
 
-        if ($draft && $draft->hasContent() && $request->boolean('draft')
-            && ! $request->old() && ! $followsUpOn) {
-            $request->session()->flashInput($draft->toFormInput());
-            $resumedDraft = $draft;
+        if ($request->filled('draft') && ! $request->old() && ! $followsUpOn) {
+            // Scoped to the owner: an id in the address bar must not
+            // open somebody else's half-written report.
+            $resumedDraft = ConcernDraft::where('user_id', Auth::id())
+                ->find($request->integer('draft'));
+
+            if ($resumedDraft) {
+                $request->session()->flashInput($resumedDraft->toFormInput());
+            }
         }
 
         return view('concerns.create', [
             'followsUpOn' => $followsUpOn,
             'resumedDraft' => $resumedDraft,
-            'hasDraft' => (bool) ($draft && $draft->hasContent()),
             // Grouped by college so a long list stays navigable. Instructors
             // from every college are offered, not just the student's own --
             // general-education subjects are taught across colleges.
@@ -767,6 +795,9 @@ class ConcernController extends Controller
             // somebody else read this.
             'skip_adviser' => ['nullable', 'boolean'],
             'follows_up_on_id' => ['nullable', 'integer'],
+            // Which draft this was written from, so filing can clear
+            // that one and leave the rest of the folder alone.
+            'draft_id' => ['nullable', 'integer'],
             'attachments' => ['nullable', 'array', 'max:'.config('concerns.max_attachments')],
             // Extensions only. The paired mimetypes rule went with the
             // short list: phones label the same recording half a dozen
@@ -870,6 +901,11 @@ class ConcernController extends Controller
         $subjectIds = $validated['about_staff_id'] ?? [];
         unset($validated['about_staff_id']);
 
+        // Nor is the draft it was written from. It names a row in another
+        // table and is read from the request below, once the concern is
+        // safely saved.
+        unset($validated['draft_id']);
+
         $concern = Concern::create($validated);
 
         if (! empty($subjectIds)) {
@@ -918,10 +954,15 @@ class ConcernController extends Controller
             'ip_address' => $request->ip(),
         ]);
 
-        // Filed, so the draft of it has done its job. Left behind, it
-        // would greet them with "you have a saved draft" on the next
-        // concern they came to write.
-        ConcernDraft::where('user_id', Auth::id())->delete();
+        // The draft this was written from has done its job. Only that
+        // one: clearing the folder would delete every other report the
+        // student had started, which is the thing a folder exists to
+        // stop happening.
+        if ($request->filled('draft_id')) {
+            ConcernDraft::where('user_id', Auth::id())
+                ->whereKey($request->integer('draft_id'))
+                ->delete();
+        }
 
         return redirect()->route('concerns.show', $concern)->with('success', 'Concern submitted successfully');
     }
@@ -1549,7 +1590,10 @@ class ConcernController extends Controller
      * worth saving. Only the lengths are checked, and those only so a
      * draft cannot be used to store something enormous.
      *
-     * One per student, so this overwrites.
+     * A student may keep several. Saving a draft they opened updates
+     * that one; saving from a blank form starts another. While the
+     * limit was one, beginning a second report quietly overwrote the
+     * first -- which is the failure this exists to prevent.
      */
     public function saveDraft(Request $request)
     {
@@ -1565,20 +1609,28 @@ class ConcernController extends Controller
             'skip_adviser' => ['nullable', 'boolean'],
             'about_staff_id' => ['nullable', 'array', 'max:50'],
             'about_staff_id.*' => ['integer'],
+            // Which draft this is. Absent means a new one.
+            'draft_id' => ['nullable', 'integer'],
         ]);
 
-        ConcernDraft::updateOrCreate(
-            ['user_id' => $user->id],
-            [
-                'category' => $validated['category'] ?? null,
-                'subcategory' => $validated['subcategory'] ?? null,
-                'other_category' => $validated['other_category'] ?? null,
-                'description' => $validated['description'] ?? null,
-                'is_anonymous' => (bool) ($validated['is_anonymous'] ?? false),
-                'skip_adviser' => (bool) ($validated['skip_adviser'] ?? false),
-                'about_staff_id' => $validated['about_staff_id'] ?? [],
-            ]
-        );
+        // Scoped to the person saving, so an id typed into the form
+        // cannot reach into somebody else's folder. A stranger's id
+        // finds nothing and starts a new draft rather than failing,
+        // which is also the right answer for a draft deleted in
+        // another tab while this one sat open.
+        $draft = $request->filled('draft_id')
+            ? ConcernDraft::where('user_id', $user->id)->find($validated['draft_id'])
+            : null;
+
+        ($draft ?: new ConcernDraft(['user_id' => $user->id]))->fill([
+            'category' => $validated['category'] ?? null,
+            'subcategory' => $validated['subcategory'] ?? null,
+            'other_category' => $validated['other_category'] ?? null,
+            'description' => $validated['description'] ?? null,
+            'is_anonymous' => (bool) ($validated['is_anonymous'] ?? false),
+            'skip_adviser' => (bool) ($validated['skip_adviser'] ?? false),
+            'about_staff_id' => $validated['about_staff_id'] ?? [],
+        ])->save();
 
         // No audit entry. Nothing has been reported yet, and a log of what
         // somebody considered writing is a record of an accusation that
@@ -1592,12 +1644,42 @@ class ConcernController extends Controller
             ->with('success', 'Saved as a draft. Open it again from the Draft button.');
     }
 
-    /** Throw the draft away. */
-    public function discardDraft()
+    /**
+     * The folder: everything this student has started and not filed.
+     *
+     * Newest first, which is what somebody coming back to "the one I was
+     * writing" is looking for. Only ever their own -- a draft is not a
+     * concern and no office can reach this at all.
+     */
+    public function drafts()
     {
-        ConcernDraft::where('user_id', Auth::id())->delete();
+        $drafts = ConcernDraft::where('user_id', Auth::id())
+            ->latest('updated_at')
+            ->get()
+            // Empty ones are not worth a row. They happen: the form has a
+            // Save button and somebody will press it on a blank page.
+            ->filter->hasContent()
+            ->values();
 
-        return redirect()->route('concerns.index')
+        return view('concerns.drafts', compact('drafts'));
+    }
+
+    /**
+     * Throw one away.
+     *
+     * Bound by id rather than clearing the lot, now that there can be
+     * more than one -- and scoped to the owner, so an id in the URL
+     * cannot empty somebody else's folder.
+     */
+    public function discardDraft(ConcernDraft $draft)
+    {
+        if ($draft->user_id !== Auth::id()) {
+            abort(403, 'That draft is not yours.');
+        }
+
+        $draft->delete();
+
+        return redirect()->route('concerns.drafts')
             ->with('success', 'Draft discarded.');
     }
 

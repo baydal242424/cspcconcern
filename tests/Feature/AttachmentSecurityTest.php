@@ -130,7 +130,7 @@ class AttachmentSecurityTest extends TestCase {
         // student submits a Mental Health concern with evidence, assigned to counselor
         $this->actingAs($this->u('student@my.cspc.edu.ph'))->post('/concerns',[
             'category'=>'Mental Health','department'=>'Guidance Office',
-            'subcategory' => 'Stress & anxiety',
+            'subcategory' => 'Stress',
             'description'=>'sensitive evidence only the counselor may see',
             'attachments'=>[UploadedFile::fake()->create('private.jpg', 100, 'image/jpeg')],
         ]);

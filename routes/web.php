@@ -77,9 +77,12 @@ Route::middleware(['auth', 'track.last_seen', 'profile.complete', 'policy.accept
 
     // A concern somebody is part way through writing. Declared before the
     // resource, or "draft" is read as a concern id by concerns/{concern}.
+    Route::get('concerns/drafts', [ConcernController::class, 'drafts'])
+        ->name('concerns.drafts');
     Route::post('concerns/draft', [ConcernController::class, 'saveDraft'])
         ->name('concerns.draft.save');
-    Route::delete('concerns/draft', [ConcernController::class, 'discardDraft'])
+    // By id: there can be several, so discarding has to say which.
+    Route::delete('concerns/draft/{draft}', [ConcernController::class, 'discardDraft'])
         ->name('concerns.draft.discard');
 
     // No destroy, and no withdraw. A concern is never removed through

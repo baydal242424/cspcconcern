@@ -45,9 +45,9 @@
                  the question it answers -- "what happened to the one I
                  started?" is asked from the list, not from a page the
                  student has to open first to find out. --}}
-            @if (! empty($hasDraft))
-                <a href="{{ route('concerns.create', ['draft' => 1]) }}" class="btn btn-muted">
-                    Draft <span class="draft-pip" aria-hidden="true"></span>
+            @if (! empty($draftCount))
+                <a href="{{ route('concerns.drafts') }}" class="btn btn-muted">
+                    Drafts <span class="draft-pip">{{ $draftCount }}</span>
                 </a>
             @endif
             @if (optional(Auth::user()->role)->name === 'Student' && $concerns->count() > 0)
