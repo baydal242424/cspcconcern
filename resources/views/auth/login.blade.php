@@ -34,9 +34,7 @@
             box-shadow:0 8px 22px -8px rgba(0,0,0,.6)}
         .bhead .t1{font-size:1.45rem;font-weight:800;letter-spacing:-.02em;line-height:1.1}
         .bhead .t2{font-size:.9rem;color:#9fc1ff;font-weight:600;margin-top:2px}
-        .quote{border-top:1px solid #ffffff22;padding-top:1.1rem;margin-top:1.4rem}
-        .quote .lab{color:var(--gold);font-weight:800;font-style:italic;font-size:.95rem}
-        .quote p{color:#cdd8f0;font-style:italic;font-size:.88rem;line-height:1.55;margin-top:.2rem}
+        /* .quote went with the Vision statement it was written for. */
         .hero h1{font-size:2.1rem;font-weight:800;letter-spacing:-.03em;line-height:1.12}
         .hero p{color:#b9c6e6;font-size:1rem;line-height:1.6;margin-top:.7rem;max-width:42ch}
         .botquote{border-top:1px solid #ffffff22;padding-top:1.1rem}
@@ -149,10 +147,6 @@
                         <div class="t2">Report Concern</div>
                     </div>
                 </div>
-                <div class="quote">
-                    <span class="lab">VISION:</span>
-                    <p>"CSPC envisions a dynamic, inclusive, resilient and globally competitive polytechnic educational institution committed to achieving excellence and advancing innovation that transcends societies in the Bicol region and beyond."</p>
-                </div>
             </div>
 
             <div class="hero">
@@ -160,9 +154,12 @@
                 <p>Submit academic, personal, facility, or safety concerns to the right office — securely, and seen only by the staff handling them.</p>
             </div>
 
-            {{-- Mission statement lives on the register page; keeping only the
-                 Vision here gives the hero message room to breathe. The empty
-                 spacer preserves the three-slot layout so the hero stays centered. --}}
+            {{-- Neither the Mission nor the Vision statement is here now:
+                 the Mission lives on the register page, and the Vision was
+                 three lines of institutional prose above a sign-in box,
+                 saying nothing about the thing somebody came here to do.
+                 The empty spacer keeps the three-slot layout, which is what
+                 holds the hero centred. --}}
             <div aria-hidden="true"></div>
         </aside>
 
