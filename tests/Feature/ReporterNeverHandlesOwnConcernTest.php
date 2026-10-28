@@ -96,7 +96,17 @@ class ReporterNeverHandlesOwnConcernTest extends TestCase
     public function test_forged_referral_to_the_reporter_is_rejected(): void
     {
         $dean = $this->u('ccs@cspc.edu.ph');
-        $staff = $this->u('staff@cspc.edu.ph');
+
+        // Referred by a Program Chair, who is the only office that can
+        // reach a Dean at all now. Anybody else is refused one step
+        // earlier, on the destination, and this test would pass without
+        // ever exercising the thing it is named for.
+        $staff = User::factory()->create([
+            'name' => 'CCS Chair',
+            'role_id' => \App\Models\Role::where('name', 'Program Chair')->value('id'),
+            'department' => 'College of Computer Studies',
+            'status' => 'approved',
+        ]);
 
         $concern = Concern::create([
             'user_id' => $dean->id,

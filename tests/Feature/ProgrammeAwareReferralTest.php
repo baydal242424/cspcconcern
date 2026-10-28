@@ -154,7 +154,13 @@ class ProgrammeAwareReferralTest extends TestCase
             'assigned_to' => $this->u('ccs.instructor@cspc.edu.ph')->id,
         ]);
 
-        $this->actingAs($this->u('ccs.instructor@cspc.edu.ph'))->patch("/concerns/{$concern->id}", [
+        // Sent up by the programme chair, the only office that reaches
+        // a Dean now. What is under test is unchanged: "Dean" must mean
+        // the dean of the STUDENT'S college.
+        $sender = $this->chair('ccs.sender.chair@cspc.edu.ph', 'CCS Sending Chair', 'BS Information Systems');
+        $concern->forceFill(['assigned_to' => $sender->id])->save();
+
+        $this->actingAs($sender)->patch("/concerns/{$concern->id}", [
             'investigation_notes' => 'Looked into this and spoke with the people involved.',
             'resolution_notes' => 'Recorded what is being done about it.',
             'status' => 'referred',

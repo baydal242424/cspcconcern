@@ -159,7 +159,12 @@ class ConcernShowsSectionTest extends TestCase
             'name' => 'The Section Adviser',
             'email' => 'section.adviser.picker@cspc.edu.ph',
             'password' => \Illuminate\Support\Facades\Hash::make('not-used'),
-            'role_id' => \App\Models\Role::where('name', 'Instructor')->firstOrFail()->id,
+            // The Adviser role, not Instructor. Teaching staff are no
+            // longer a referral destination, so an instructor appears in
+            // no group at all -- and a marking that cannot be rendered
+            // anywhere is not a marking. Advisers are still a
+            // destination, which is where this label belongs.
+            'role_id' => \App\Models\Role::where('name', 'Adviser')->firstOrFail()->id,
             'department' => 'College of Computer Studies',
             'status' => 'approved',
             'email_verified_at' => now(),

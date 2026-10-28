@@ -10,20 +10,28 @@ class RefFixesTest extends TestCase {
     private function u($e){return User::where('email',$e)->firstOrFail();}
     private function line($t){fwrite(STDERR,"  $t\n");}
 
-    /** Referral to Dean now transfers to a real user who can resolve */
+    /**
+     * A referral transfers ownership to a real user who can resolve it.
+     *
+     * The destination used to be the Dean. Deans are reached from a
+     * Program Chair now and from nowhere else, so this asks the office
+     * a counsellor CAN hand a bullying case to -- what is under test is
+     * that the receiver is a real account that can carry it to a close,
+     * not which office it is.
+     */
     public function test_dept_head_referral_can_be_resolved(): void {
         $counselor=$this->u('counselor@cspc.edu.ph');
-        $depthead=$this->u('ccs@cspc.edu.ph');
+        $depthead=$this->u('lao@cspc.edu.ph');
         $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Bullying',
             'department'=>'Guidance Office','description'=>'x','urgency'=>'Medium','status'=>'submitted',
             'is_anonymous'=>true,'assigned_to'=>$counselor->id]);
         // counselor refers to Dean
         $this->actingAs($counselor)->patch("/concerns/{$c->id}",[
             'investigation_notes' => 'Looked into this and spoke with the people involved.',
-            'resolution_notes' => 'Recorded what is being done about it.','status'=>'referred','referred_to'=>'Dean','urgency'=>'Medium']);
+            'resolution_notes' => 'Recorded what is being done about it.','status'=>'referred','referred_to'=>'Legal Affairs','urgency'=>'Medium']);
         $c->refresh();
         $this->line("[refer] after refer to Dept Head, assigned_to=".$c->assigned_to." (depthead id=".$depthead->id.")");
-        $this->assertEquals($depthead->id,$c->assigned_to,'Ownership must transfer to the Dean');
+        $this->assertEquals($depthead->id,$c->assigned_to,'Ownership must transfer to the office it went to');
         // dept head resolves it
         $r=$this->actingAs($depthead)->patch("/concerns/{$c->id}",[
             'investigation_notes' => 'Looked into this and spoke with the people involved.',

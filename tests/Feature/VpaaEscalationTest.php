@@ -143,7 +143,12 @@ class VpaaEscalationTest extends TestCase
     public function test_she_is_offered_as_a_referral_destination(): void
     {
         $vpaa = $this->vpaa();
-        $staff = User::where('email', 'staff@cspc.edu.ph')->firstOrFail();
+
+        // Offered to a DEAN. The VPAA sits at the top of the ladder and
+        // is reached from the rung below it -- every office being able
+        // to refer straight to them is not an escalation path, it is a
+        // way round the dean.
+        $staff = User::where('email', 'ccs@cspc.edu.ph')->firstOrFail();
 
         $concern = Concern::create([
             'user_id' => $this->student()->id,

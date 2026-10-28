@@ -148,7 +148,10 @@ class StudentIsEmailedOnStatusChangeTest extends TestCase
             'investigation_notes' => 'Looked into this and spoke with the people involved.',
             'resolution_notes' => 'Recorded what is being done about it.',
                 'status' => 'referred',
-                'referred_to' => 'Guidance Counselor',
+                // Where a chair may send a case: their Dean, or an office.
+                // What is under test is that the STUDENT is emailed when it
+                // moves, not which office it moves to.
+                'referred_to' => 'Dean',
             ])
             ->assertRedirect();
 

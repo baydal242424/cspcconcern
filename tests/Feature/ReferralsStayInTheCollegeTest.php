@@ -263,8 +263,16 @@ class ReferralsStayInTheCollegeTest extends TestCase
             'assigned_to' => $dean->id,
         ]);
 
+        // Read by a college office rather than by the Dean. Destinations
+        // are decided by the reader now, and a Dean stands on the ladder:
+        // theirs is the VPAA and Faculty/Staff, chairs included nowhere.
+        // What is under test here is the COLLEGE boundary, which needs
+        // somebody who can be offered a chair at all.
+        $office = $this->person('Office of '.$college, $slug.'.office@cspc.edu.ph', 'Faculty/Staff', $college);
+        $concern->forceFill(['assigned_to' => $office->id])->save();
+
         $offered = collect(
-            $this->actingAs($dean)->get("/concerns/{$concern->id}")->assertOk()->viewData('referralCandidates')
+            $this->actingAs($office)->get("/concerns/{$concern->id}")->assertOk()->viewData('referralCandidates')
         )->flatten();
 
         // Their own chair is there; the college's other chair is not.
@@ -399,14 +407,21 @@ class ReferralsStayInTheCollegeTest extends TestCase
             'a dean is not offered Dean, even with a second dean in the college'
         );
 
-        // The colleague is still eligible underneath: it is the office that
-        // is not offered, not the person who is disqualified. Anyone whose
-        // own office is not Dean still reaches them by name.
+        // And the colleague is not reachable underneath either. This
+        // used to check that the OFFICE was hidden while the person
+        // stayed eligible by name -- true when every office was offered
+        // and only your own was struck out. A Dean now stands on a
+        // ladder: their destinations are the VPAA and Faculty/Staff, and
+        // another Dean is not on it under any heading.
         $candidates = $this->actingAs($first)->get("/concerns/{$concern->id}")
-            ->viewData('referralCandidates')->get('Dean');
+            ->viewData('referralCandidates');
 
-        $this->assertTrue($candidates->contains('id', $second->id), 'the colleague is still eligible');
-        $this->assertFalse($candidates->contains('id', $first->id), 'never themselves');
+        $this->assertNull($candidates->get('Dean'), 'a dean can still reach another dean');
+
+        foreach ($candidates->keys() as $office) {
+            $this->assertContains($office, ['Vice President for Academic Affairs', 'Faculty/Staff'],
+                'a dean is offered '.$office.', which is off their rung');
+        }
 
         fwrite(STDERR, "  [college] a colleague in the same role does not bring the office back\n");
     }

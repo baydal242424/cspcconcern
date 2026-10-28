@@ -113,6 +113,15 @@ class DepartmentRoutingTest extends TestCase
         // A Health Sciences student's case, referred by the counselor to
         // "Dean", must reach the CHS dean -- not whichever dean
         // happens to have the lowest user id.
+        // A chair for that college to climb from. The seeder has none,
+        // and the Dean is now reached only from a Program Chair.
+        User::factory()->create([
+            'name' => 'CHS Chair',
+            'role_id' => \App\Models\Role::where('name', 'Program Chair')->value('id'),
+            'department' => 'College of Health Sciences',
+            'status' => 'approved',
+        ]);
+
         $c = $this->submit([
             'category' => 'Bullying',
             'description' => 'a bullying concern from a health sciences student',
@@ -121,7 +130,21 @@ class DepartmentRoutingTest extends TestCase
         $counselor = User::where('email', 'counselor@cspc.edu.ph')->firstOrFail();
         $this->assertSame($counselor->id, $c->assigned_to, 'Should start with the counselor');
 
+        // Two hops, because the Dean is now reached by climbing: the
+        // counsellor passes it to the programme chair, and the chair
+        // takes it up. What is under test is unchanged -- "Dean" must
+        // mean the dean of the STUDENT'S college, not whichever dean has
+        // the lowest id.
         $this->actingAs($counselor)->patch("/concerns/{$c->id}", [
+            'investigation_notes' => 'Looked into this and spoke with the people involved.',
+            'resolution_notes' => 'Recorded what is being done about it.',
+            'status' => 'referred', 'referred_to' => 'Program Chair', 'urgency' => 'Medium',
+        ]);
+
+        $chair = User::find($c->fresh()->assigned_to);
+        $this->assertSame('Program Chair', optional($chair->role)->name, 'the first hop did not land on a chair');
+
+        $this->actingAs($chair)->patch("/concerns/{$c->id}", [
             'investigation_notes' => 'Looked into this and spoke with the people involved.',
             'resolution_notes' => 'Recorded what is being done about it.',
             'status' => 'referred', 'referred_to' => 'Dean', 'urgency' => 'Medium',
@@ -150,9 +173,20 @@ class DepartmentRoutingTest extends TestCase
             'description' => 'a bullying concern with no dean of its own to receive it',
         ], 'College of Health Sciences');
 
-        $counselor = User::where('email', 'counselor@cspc.edu.ph')->firstOrFail();
+        // Asked for by a chair of that college, since the Dean is
+        // reached from a chair and nowhere else. The point is unchanged:
+        // a college with no dean of its own is refused, not handed to
+        // whichever dean happens to exist.
+        $chair = User::factory()->create([
+            'name' => 'CHS Chair',
+            'role_id' => \App\Models\Role::where('name', 'Program Chair')->value('id'),
+            'department' => 'College of Health Sciences',
+            'status' => 'approved',
+        ]);
 
-        $response = $this->actingAs($counselor)->patch("/concerns/{$c->id}", [
+        $c->forceFill(['assigned_to' => $chair->id])->save();
+
+        $response = $this->actingAs($chair)->patch("/concerns/{$c->id}", [
             'investigation_notes' => 'Looked into this and spoke with the people involved.',
             'resolution_notes' => 'Recorded what is being done about it.',
             'status' => 'referred', 'referred_to' => 'Dean', 'urgency' => 'Medium',
@@ -168,7 +202,7 @@ class DepartmentRoutingTest extends TestCase
 
         // And the case stays where it was, rather than being stranded.
         $c->refresh();
-        $this->assertSame($counselor->id, $c->assigned_to);
+        $this->assertSame($chair->id, $c->assigned_to);
         $this->assertNotSame('referred', $c->status);
     }
 

@@ -219,8 +219,19 @@ class StudentTimelinePrivacyTest extends TestCase
             'urgency' => 'Low',
         ])->assertRedirect();
 
-        // ...then referred onward again.
-        $this->refer($concern, $concern->fresh()->assignedUser, 'Dean');
+        // Somebody in that office for it to land on.
+        User::factory()->create([
+            'name' => 'A Class Adviser',
+            'role_id' => \App\Models\Role::where('name', 'Adviser')->value('id'),
+            'department' => 'College of Computer Studies',
+            'status' => 'approved',
+        ]);
+
+        // ...then referred onward again. To the adviser rather than the
+        // Dean: a counsellor does not reach a Dean any more, and which
+        // office it goes to is beside the point -- what is under test is
+        // that the SECOND hand-off is its own line on the timeline.
+        $this->refer($concern, $concern->fresh()->assignedUser, 'Adviser');
 
         $html = $this->studentView($concern)->getContent();
 

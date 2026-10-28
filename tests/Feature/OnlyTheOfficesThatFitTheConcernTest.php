@@ -57,8 +57,10 @@ class OnlyTheOfficesThatFitTheConcernTest extends TestCase
         $this->assertNotContains('Guidance Counselor', $offices);
         $this->assertNotContains('General Services', $offices);
 
-        // And still offers the people who do handle a grade.
-        $this->assertContains('Instructor', $offices);
+        // The teaching staff are no longer a destination at all -- the
+        // panel took them off the list. What is left is the academic
+        // line a grade actually travels.
+        $this->assertNotContains('Instructor', $offices);
         $this->assertContains('Program Chair', $offices);
         $this->assertContains('Adviser', $offices);
 
@@ -93,13 +95,62 @@ class OnlyTheOfficesThatFitTheConcernTest extends TestCase
     public function test_every_category_can_still_go_somewhere(): void
     {
         foreach (Concern::CATEGORIES as $category) {
-            $offices = ConcernController::referralRolesFor($category);
-
-            $this->assertNotEmpty($offices, $category.' can be referred nowhere');
-            $this->assertContains('Dean', $offices, $category.' cannot be escalated');
+            $this->assertNotEmpty(
+                ConcernController::referralRolesFor($category),
+                $category.' can be referred nowhere'
+            );
         }
 
-        fwrite(STDERR, "  [offices] every category can still be escalated\n");
+        fwrite(STDERR, "  [offices] every category can still go somewhere\n");
+    }
+
+    /**
+     * Going UP is a ladder, not a list.
+     *
+     * The Dean and the VPAA used to be offered on every concern, so any
+     * office could hand a case straight to the top. That is not an
+     * escalation path; it is a way round the person above them. A Chair
+     * reaches their Dean, a Dean reaches the VPAA, and neither office is
+     * reachable from anywhere else.
+     */
+    public function test_the_top_two_offices_are_reachable_only_by_climbing(): void
+    {
+        foreach (Concern::CATEGORIES as $category) {
+            $offices = ConcernController::referralRolesFor($category);
+
+            $this->assertNotContains('Dean', $offices, $category.' reaches the Dean directly');
+            $this->assertNotContains('Vice President for Academic Affairs', $offices,
+                $category.' reaches the VPAA directly');
+        }
+
+        $chair = User::whereHas('role', fn ($q) => $q->where('name', 'Program Chair'))->first()
+            ?? User::factory()->create([
+                'role_id' => \App\Models\Role::where('name', 'Program Chair')->value('id'),
+                'department' => 'College of Computer Studies',
+                'status' => 'approved',
+            ]);
+
+        $dean = User::whereHas('role', fn ($q) => $q->where('name', 'Dean'))->first()
+            ?? User::factory()->create([
+                'role_id' => \App\Models\Role::where('name', 'Dean')->value('id'),
+                'department' => 'College of Computer Studies',
+                'status' => 'approved',
+            ]);
+
+        $this->assertSame(['Dean', 'Faculty/Staff'],
+            ConcernController::referralRolesFor('Academic', $chair));
+
+        $this->assertSame(['Vice President for Academic Affairs', 'Faculty/Staff'],
+            ConcernController::referralRolesFor('Academic', $dean));
+
+        // The rung they stand on holds whatever the concern is about.
+        $this->assertSame(
+            ConcernController::referralRolesFor('Academic', $dean),
+            ConcernController::referralRolesFor('Facilities', $dean),
+            'the ladder changed with the category'
+        );
+
+        fwrite(STDERR, "  [offices] the Dean and the VPAA are reached only by climbing\n");
     }
 
     /**
@@ -132,12 +183,19 @@ class OnlyTheOfficesThatFitTheConcernTest extends TestCase
     /** "Others" is the bucket for what nobody anticipated, so it keeps everything. */
     public function test_others_keeps_the_full_list(): void
     {
+        $offices = ConcernController::referralRolesFor('Others');
+
+        // Everything except the two at the top of the ladder, which are
+        // reached by climbing or not at all -- "Others" is the bucket for
+        // what nobody anticipated, not a way past the person above you.
         $this->assertSame(
-            ConcernController::REFERRAL_ROLES,
-            ConcernController::referralRolesFor('Others')
+            array_values(array_diff(ConcernController::REFERRAL_ROLES,
+                ['Dean', 'Vice President for Academic Affairs'])),
+            $offices
         );
 
-        fwrite(STDERR, "  [offices] Others keeps the full list\n");
+        fwrite(STDERR, '  [offices] Others keeps everything below the ladder: '
+            .count($offices)." offices\n");
     }
 
     /**
@@ -174,6 +232,17 @@ class OnlyTheOfficesThatFitTheConcernTest extends TestCase
      */
     private function officesOfferedOn(Concern $concern): array
     {
+        // Somebody for an Academic concern to be handed to. The seeded
+        // data has nobody in the offices that category now reaches -- the
+        // Dean used to stand in for all of them, and the Dean is off the
+        // list except by climbing.
+        User::factory()->create([
+            'name' => 'A College Office',
+            'role_id' => \App\Models\Role::where('name', 'Faculty/Staff')->value('id'),
+            'department' => 'College of Computer Studies',
+            'status' => 'approved',
+        ]);
+
         return $this->actingAs($this->handler())
             ->get(route('concerns.show', $concern))
             ->assertOk()

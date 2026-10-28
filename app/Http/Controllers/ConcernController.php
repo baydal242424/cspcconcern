@@ -127,8 +127,14 @@ class ConcernController extends Controller
      */
     public const REFERRAL_ROLES = [
         'Adviser',
+        // The VPAA and the Dean are reachable, but not from everywhere:
+        // see ROLE_REFERRAL_ROLES, which is the ladder they sit on.
+        //
+        // 'Instructor' is NOT here. The panel took the teaching staff off
+        // the list of places a case can be sent. They can still be named
+        // in a concern and still receive one by routing -- this list is
+        // only about where a handler may pass a case on to.
         'Vice President for Academic Affairs',
-        'Instructor',
         'Guidance Counselor',
         'Program Chair',
         // Staff Admin is no longer offered as a destination. With the
@@ -173,20 +179,17 @@ class ConcernController extends Controller
      */
     public const CATEGORY_REFERRAL_ROLES = [
         // Grades, enrolment, schedules, how somebody teaches. Academic
-        // work, handled in the academic line: adviser, the instructor
-        // concerned, the chair of the programme.
-        'Academic' => ['Adviser', 'Instructor', 'Program Chair', 'Faculty/Staff',
-            'Vice President for Academic Affairs'],
+        // work, handled in the academic line: the adviser and the chair
+        // of the programme.
+        'Academic' => ['Adviser', 'Program Chair', 'Faculty/Staff'],
         // The counselling cases. General Services and System Admin have no
         // part in any of them.
         'Mental Health' => ['Guidance Counselor', 'Adviser'],
         'Personal' => ['Guidance Counselor', 'Adviser'],
         // Bullying and harassment can need the GAD office or Legal, and
         // bullying between classmates often starts with the adviser.
-        'Bullying' => ['Guidance Counselor', 'Adviser', 'Program Chair', 'Gender and Development', 'Legal Affairs',
-            'Vice President for Academic Affairs'],
-        'Harassment' => ['Guidance Counselor', 'Gender and Development', 'Legal Affairs',
-            'Vice President for Academic Affairs'],
+        'Bullying' => ['Guidance Counselor', 'Adviser', 'Program Chair', 'Gender and Development', 'Legal Affairs'],
+        'Harassment' => ['Guidance Counselor', 'Gender and Development', 'Legal Affairs'],
         // This category means the website is broken.
         'Administrative' => ['System Admin', 'Faculty/Staff'],
         // Maintenance. A dead lab PC is ICT's, but students report it to
@@ -213,19 +216,70 @@ class ConcernController extends Controller
      * turned up as a destination for a broken aircon. Listed by hand on
      * the categories where that office is really the next step up.
      */
-    private const ALWAYS_REFERRABLE = ['Dean'];
+    /**
+     * Where each office may send a case, whatever it is about.
+     *
+     * A ladder, decided by the panel: a Program Chair goes up to their
+     * Dean, a Dean goes up to the VPAA, and either may pass a case
+     * sideways to the office that owns it. Those two posts are reachable
+     * ONLY this way -- every office below being able to refer straight
+     * to the VPAA is not an escalation path, it is a way round the
+     * person above them.
+     *
+     * This REPLACES the category list for these roles rather than
+     * narrowing it. A Dean holding a counselling case can no longer pass
+     * it to Guidance: they send it up, or they deal with it. That is a
+     * real narrowing and worth knowing before somebody wonders where
+     * Guidance went.
+     *
+     * @var array<string, array<int, string>>
+     */
+    public const ROLE_REFERRAL_ROLES = [
+        'Program Chair' => ['Dean', 'Faculty/Staff'],
+        'Dean' => ['Vice President for Academic Affairs', 'Faculty/Staff'],
+        // The top of the ladder. Nothing above to climb to, so sideways
+        // is all that is left -- and a case that reaches here and does
+        // not belong to an office is one the VPAA decides themselves.
+        'Vice President for Academic Affairs' => ['Faculty/Staff'],
+    ];
+
+    /** Nothing is offered on every concern any more; the ladder replaced it. */
+    private const ALWAYS_REFERRABLE = [];
 
     /**
      * The offices this concern may be referred to, by category.
      *
      * @return array<int, string>
      */
-    public static function referralRolesFor(?string $category): array
+    public static function referralRolesFor(?string $category, ?User $viewer = null): array
     {
-        // 'Others', and any category not mapped, gets the full list: it is
-        // the bucket for what nobody anticipated.
+        // The ladder first, where the person is standing on a rung of it.
+        //
+        // Every role they hold, not just the primary one, and the first
+        // match wins in the order the ladder is written -- so somebody
+        // who is both a Chair and a Dean is treated as the Chair and can
+        // still reach their Dean.
+        if ($viewer) {
+            foreach (self::ROLE_REFERRAL_ROLES as $role => $destinations) {
+                if (in_array($role, $viewer->allRoleNames(), true)) {
+                    return array_values(array_intersect(self::REFERRAL_ROLES, $destinations));
+                }
+            }
+        }
+
+        // The two at the top appear in no category list: they are reached
+        // by climbing or not at all. Derived rather than named, so moving
+        // one into a category list is all it would take to open it up.
+        $byClimbingOnly = array_diff(
+            self::REFERRAL_ROLES,
+            array_merge(...array_values(self::CATEGORY_REFERRAL_ROLES))
+        );
+
+        // 'Others', and any category not mapped, gets everything below
+        // the ladder: it is the bucket for what nobody anticipated, so it
+        // narrows to nothing -- but it is not a way past the rung above.
         if ($category === null || ! isset(self::CATEGORY_REFERRAL_ROLES[$category])) {
-            return self::REFERRAL_ROLES;
+            return array_values(array_diff(self::REFERRAL_ROLES, $byClimbingOnly));
         }
 
         return array_values(array_intersect(
@@ -241,7 +295,6 @@ class ConcernController extends Controller
         'Vice President for Academic Affairs' => 'VPAA (above the Administration)',
         'Dean'                   => 'Dean (whole college)',
         'Adviser'                => 'Adviser (a college)',
-        'Instructor'             => 'Instructor (teaching staff)',
         'Faculty/Staff'          => 'Faculty/Staff (offices & units)',
         'Gender and Development' => 'Gender and Development (GAD)',
         'Legal Affairs'          => 'Legal Affairs Office (legal counsel)',
@@ -1030,7 +1083,7 @@ class ConcernController extends Controller
                 // dropdown below. The office list is what the server
                 // validates, so this is not the gate -- it just stops the
                 // page carrying a few dozen names nobody can pick.
-                ->filter(fn ($people, $role) => in_array($role, self::referralRolesFor($concern->category), true))
+                ->filter(fn ($people, $role) => in_array($role, self::referralRolesFor($concern->category, $user), true))
             : collect();
 
         // Only the offices somebody eligible is standing in -- and never the
@@ -1050,7 +1103,7 @@ class ConcernController extends Controller
         // And only the offices that have any part in a concern of this
         // kind. Every office used to be offered on every concern, so a
         // disputed grade could be handed to the Guidance Counselor.
-        $fitsCategory = self::referralRolesFor($concern->category);
+        $fitsCategory = self::referralRolesFor($concern->category, $user);
 
         $referralDestinations = collect(self::REFERRAL_ROLE_LABELS)
             ->filter(fn ($label, $role) => $referralCandidates->has($role)
@@ -1176,7 +1229,7 @@ class ConcernController extends Controller
             // from. Validating against the full set would make the
             // narrowing cosmetic -- a crafted post could still send a
             // disputed grade to the Guidance Counselor.
-            'referred_to' => ['nullable', Rule::in(self::referralRolesFor($concern->category))],
+            'referred_to' => ['nullable', Rule::in(self::referralRolesFor($concern->category, $user))],
             // Optional: refer to a NAMED person in that office rather than
             // letting findHandler() pick. Only ever set from the people
             // dropdown, and re-checked against the candidate list below --
