@@ -84,6 +84,18 @@ class ReferralPersonPickerTest extends TestCase
             'department' => 'College of Computer Studies',
         ]);
 
+        // Somebody for them to refer TO. An adviser reaches the chair
+        // of the programme and the college offices, and the seeder has
+        // neither in this college.
+        User::create([
+            'name' => 'A College Office',
+            'email' => 'a.college.office@cspc.edu.ph',
+            'password' => \Illuminate\Support\Facades\Hash::make('not-used'),
+            'role_id' => \App\Models\Role::where('name', 'Faculty/Staff')->firstOrFail()->id,
+            'status' => 'approved',
+            'department' => 'College of Computer Studies',
+        ]);
+
         $concern = $this->makeConcern(['assigned_to' => $adviser->id]);
 
         $offered = $this->actingAs($adviser)->get("/concerns/{$concern->id}")->assertOk()
@@ -106,8 +118,11 @@ class ReferralPersonPickerTest extends TestCase
             );
         }
 
-        // And the ones that do have somebody are still there.
-        $this->assertArrayHasKey('Guidance Counselor', $offered->all());
+        // And the ones that do have somebody are still there. Checked
+        // on an office an ADVISER can reach: theirs is the chair of the
+        // programme and the college offices, and Guidance is not on
+        // their rung any more.
+        $this->assertArrayHasKey('Faculty/Staff', $offered->all());
 
         fwrite(STDERR, "  [picker] only destinations with somebody eligible are offered\n");
     }

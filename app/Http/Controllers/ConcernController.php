@@ -235,6 +235,11 @@ class ConcernController extends Controller
      * @var array<string, array<int, string>>
      */
     public const ROLE_REFERRAL_ROLES = [
+        // The bottom rung. An adviser takes a case to the chair of the
+        // programme, or to the office that owns it -- not to Guidance,
+        // GAD, Legal, General Services or the System Admin, none of
+        // which sit anywhere near them in the line.
+        'Adviser' => ['Program Chair', 'Faculty/Staff'],
         'Program Chair' => ['Dean', 'Faculty/Staff'],
         'Dean' => ['Vice President for Academic Affairs', 'Faculty/Staff'],
         // The top of the ladder. Nothing above to climb to, so sideways
