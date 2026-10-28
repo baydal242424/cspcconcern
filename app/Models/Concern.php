@@ -289,7 +289,7 @@ class Concern extends Model
         'Academic' => [
             'Grades',
             'Subjects',
-            'Enrolment',
+            'Enrollment',
             'Class schedule',
             'Teaching',
             'Instructor conduct',
