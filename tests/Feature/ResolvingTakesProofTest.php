@@ -156,7 +156,7 @@ class ResolvingTakesProofTest extends TestCase
         fwrite(STDERR, "  [proof] closing without action is not asked for proof\n");
     }
 
-    /** The field is on the form, and only when it is wanted. */
+    /** The field is on the form, ready for when it is wanted. */
     public function test_the_field_appears_for_an_unresolved_concern(): void
     {
         $open = $this->aConcern();
@@ -166,5 +166,56 @@ class ResolvingTakesProofTest extends TestCase
             ->assertSee('enctype="multipart/form-data"', false);
 
         fwrite(STDERR, "  [proof] the field is on the update form\n");
+    }
+
+    /**
+     * But it starts hidden, whatever the concern's status.
+     *
+     * It used to start VISIBLE on anything not already resolved and rely
+     * on the script to put it away. So a handler moving a case to "In
+     * Progress" was shown "Proof this was dealt with *" -- a receipt
+     * demanded for work that had only just started -- and anything that
+     * stopped the script left it on screen for good.
+     *
+     * Hidden by default there is no such state: it appears when resolved
+     * is chosen, and at no other time.
+     */
+    public function test_the_proof_field_starts_hidden(): void
+    {
+        foreach (['submitted', 'in_progress', 'referred'] as $status) {
+            $concern = $this->aConcern(['status' => $status]);
+
+            $page = $this->actingAs($this->handler())
+                ->get("/concerns/{$concern->id}")->assertOk()->getContent();
+
+            $this->assertMatchesRegularExpression(
+                '/id="resolution-proof-group"[^>]*style="display:none;"/',
+                $page,
+                'the proof field is on screen for a concern that is '.$status
+            );
+        }
+
+        fwrite(STDERR, "  [proof] the field starts hidden, whatever the status\n");
+    }
+
+    /** And the script only ever reveals it for "resolved". */
+    public function test_only_resolving_reveals_the_field(): void
+    {
+        $page = $this->actingAs($this->handler())
+            ->get('/concerns/'.$this->aConcern()->id)->assertOk()->getContent();
+
+        $at = strpos($page, "getElementById('resolution-proof-group')");
+        $this->assertNotFalse($at, 'nothing drives the proof field');
+
+        $script = substr($page, strrpos(substr($page, 0, $at), '<script'),
+            strpos($page, '</script>', $at) - strrpos(substr($page, 0, $at), '<script'));
+
+        // The one condition that may show it.
+        $this->assertStringContainsString(
+            "(statusEl.value === 'resolved' && !ALREADY_RESOLVED) ? 'block' : 'none'",
+            $script
+        );
+
+        fwrite(STDERR, "  [proof] only choosing resolved reveals it\n");
     }
 }

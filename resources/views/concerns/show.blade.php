@@ -604,8 +604,19 @@
 
                      Asked only on the move TO resolved -- correcting a typo
                      on an already-resolved case does not ask again. --}}
-                <div class="form-group" id="resolution-proof-group"
-                     @if ($concern->status === 'resolved') style="display:none;" @endif>
+                {{-- Hidden until the script says otherwise, whatever the
+                     concern's current status.
+
+                     It used to start visible on anything not already
+                     resolved, and relied on sync() running to put it away.
+                     So a handler setting "In Progress" saw "Proof this was
+                     dealt with *" sitting under the form -- asked for a
+                     receipt for work that has only just started -- and
+                     anything that stopped the script left it there for
+                     good. Hidden by default there is no such state: the
+                     field appears when resolved is chosen and at no other
+                     time. --}}
+                <div class="form-group" id="resolution-proof-group" style="display:none;">
                     <label for="resolution_attachments">Proof this was dealt with *</label>
                     <input type="file" name="resolution_attachments[]" id="resolution_attachments" multiple
                            accept="{{ collect(config('concerns.attachment_extensions'))->map(fn ($e) => '.'.$e)->implode(',') }}">
