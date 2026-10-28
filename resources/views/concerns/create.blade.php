@@ -61,7 +61,18 @@
 
         <div class="form-group">
             <label for="category">Concern Category *</label>
-            <select name="category" id="category" required>
+            {{-- Fixed on a repeat: it is the category of the thing
+                 being reported again, and the banner above has just
+                 said so. Offering it as a question invites an answer
+                 that contradicts the sentence above it.
+
+                 disabled, not readonly -- readonly does nothing to a
+                 <select> -- and a disabled control submits nothing,
+                 so the hidden field below carries the value. The
+                 server takes it from the first concern either way;
+                 this is only what the student sees. --}}
+            <select name="category" id="category" required
+                @disabled(! empty($followsUpOn))>
                 <option value="">-- Select a category --</option>
                 {{-- Looped from Concern::CATEGORIES rather than written out,
                      so the form cannot offer a category the server rejects or
@@ -85,6 +96,12 @@
                     </option>
                 @endforeach
             </select>
+            @if (! empty($followsUpOn))
+                <input type="hidden" name="category" value="{{ $followsUpOn->category }}">
+                <p style="font-size:.8rem; color:var(--muted,#64748b); margin-top:.3rem;">
+                    Same category as the concern this repeats.
+                </p>
+            @endif
             @error('category')
                 <div style="color: #dc3545; font-size: 0.85rem; margin-top: 0.25rem;">{{ $message }}</div>
             @enderror

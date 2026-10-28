@@ -886,9 +886,31 @@ class ConcernController extends Controller
         if (! empty($validated['follows_up_on_id'])) {
             $parent = Concern::find($validated['follows_up_on_id']);
 
-            $validated['follows_up_on_id'] = $parent && $parent->canBeReportedAgainBy(Auth::user())
-                ? $parent->id
-                : null;
+            $valid = $parent && $parent->canBeReportedAgainBy(Auth::user());
+
+            $validated['follows_up_on_id'] = $valid ? $parent->id : null;
+
+            // A repeat is filed under the category of the thing it
+            // repeats, taken from that concern rather than from the form.
+            //
+            // The form shows it locked, but a locked field is a drawing:
+            // the value still arrives in the POST and can be anything. If
+            // it were trusted, "reporting #133 again -- Academic" could
+            // file a Harassment case, which routes somewhere else
+            // entirely and reaches an office the first report never
+            // touched.
+            if ($valid) {
+                $validated['category'] = $parent->category;
+
+                // Only where it still fits. The lists change, and a
+                // sub-category retired since the first report would be
+                // refused by the rule above -- so the repeat falls back
+                // to whatever the student chose.
+                if (Concern::subcategoryBelongsTo($parent->category, $parent->subcategory)
+                    && filled($parent->subcategory)) {
+                    $validated['subcategory'] = $parent->subcategory;
+                }
+            }
         }
 
         // 'attachments' is not a column on concerns -- handle it separately.

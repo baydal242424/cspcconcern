@@ -141,6 +141,61 @@ class ReportingASettledConcernAgainTest extends TestCase
         fwrite(STDERR, "  [again] the category, sub-category and people come with it\n");
     }
 
+    /** And the form does not ask again: the category is shown locked. */
+    public function test_the_category_cannot_be_changed_on_the_form(): void
+    {
+        $concern = $this->aSettledConcern(['category' => 'Academic']);
+
+        $page = $this->actingAs($this->student())
+            ->get('/concerns/create?follows_up_on='.$concern->id)->assertOk()->getContent();
+
+        $this->assertMatchesRegularExpression(
+            '/<select[^>]*id="category"[^>]*\sdisabled/',
+            $page,
+            'the category is still a question on a repeat'
+        );
+
+        // A disabled control submits nothing, so the value has to travel
+        // some other way or the form arrives without a category at all.
+        $this->assertStringContainsString(
+            '<input type="hidden" name="category" value="Academic">',
+            $page
+        );
+
+        fwrite(STDERR, "  [again] the category is shown locked\n");
+    }
+
+    /**
+     * And locking it is enforced, not drawn.
+     *
+     * A disabled field is a picture: the POST can carry anything. If the
+     * form were trusted, "reporting #133 again -- Academic" could file a
+     * Harassment case, which routes to a different office entirely --
+     * one the first report never reached.
+     */
+    public function test_a_crafted_repeat_cannot_change_the_category(): void
+    {
+        $concern = $this->aSettledConcern([
+            'category' => 'Academic',
+            'subcategory' => 'Grades',
+        ]);
+
+        $this->actingAs($this->student())->post('/concerns', [
+            'follows_up_on_id' => $concern->id,
+            'category' => 'Harassment',
+            'subcategory' => 'Stalking',
+            'description' => 'It has happened again and here is what has changed since.',
+        ])->assertRedirect();
+
+        $filed = Concern::latest('id')->firstOrFail();
+
+        $this->assertSame($concern->id, $filed->follows_up_on_id);
+        $this->assertSame('Academic', $filed->category, 'the repeat was filed under another category');
+        $this->assertSame('Grades', $filed->subcategory);
+
+        fwrite(STDERR, "  [again] a crafted repeat cannot change the category\n");
+    }
+
     /**
      * The description does not come with it.
      *
