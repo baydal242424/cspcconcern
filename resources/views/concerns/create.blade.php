@@ -31,6 +31,20 @@
         </div>
     @endif
 
+@php
+    // A repeat is the first concern happening again: same category,
+    // same people, routed the same way. Everything that decides WHERE
+    // it lands is fixed; what is left to write is what has happened
+    // since, and whatever evidence there is for it.
+    //
+    // The sub-category locks only when the first concern has one --
+    // older concerns predate it being required, and locking an empty
+    // field would leave a required question nobody could answer.
+    $repeat = ! empty($followsUpOn);
+    $lockSub = $repeat && filled($followsUpOn->subcategory)
+        && \App\Models\Concern::subcategoryBelongsTo($followsUpOn->category, $followsUpOn->subcategory);
+@endphp
+
     <form action="{{ route('concerns.store') }}" method="POST" enctype="multipart/form-data">
         @csrf
         {{-- Which draft this was opened from, so Save updates that
@@ -71,8 +85,7 @@
                  so the hidden field below carries the value. The
                  server takes it from the first concern either way;
                  this is only what the student sees. --}}
-            <select name="category" id="category" required
-                @disabled(! empty($followsUpOn))>
+            <select name="category" id="category" required @disabled($repeat)>
                 <option value="">-- Select a category --</option>
                 {{-- Looped from Concern::CATEGORIES rather than written out,
                      so the form cannot offer a category the server rejects or
@@ -96,7 +109,7 @@
                     </option>
                 @endforeach
             </select>
-            @if (! empty($followsUpOn))
+            @if ($repeat)
                 <input type="hidden" name="category" value="{{ $followsUpOn->category }}">
                 <p style="font-size:.8rem; color:var(--muted,#64748b); margin-top:.3rem;">
                     Same category as the concern this repeats.
@@ -118,9 +131,12 @@
         <div class="form-group" id="subcategory-group" style="display:none;">
             <label for="subcategory">What is it about? *</label>
             <select name="subcategory" id="subcategory"
-                    data-old="{{ old('subcategory') }}">
+                    data-old="{{ old('subcategory') }}" @disabled($lockSub)>
                 <option value="">-- Select --</option>
             </select>
+            @if ($lockSub)
+                <input type="hidden" name="subcategory" value="{{ $followsUpOn->subcategory }}">
+            @endif
             @error('subcategory')
                 <div style="color: #dc3545; font-size: 0.85rem; margin-top: 0.25rem;">{{ $message }}</div>
             @enderror
@@ -272,7 +288,7 @@
                      back unticked, hidden behind a closed box, and the
                      student resubmitted without them. --}}
                 <input type="checkbox" id="about_staff_toggle" class="about-toggle" data-target="about_staff_wrap" data-select="about_staff_id"
-                    @checked(! empty(old('about_staff_id')))>
+                    @checked(! empty(old('about_staff_id'))) @disabled($repeat)>
                 {{-- Named for what the box does, not for who happens to be
                      behind it. It listed the roles once -- "a dean, program
                      chair, counselor, office or administrator" -- which was
@@ -284,6 +300,15 @@
                      picker that used to sit above this one and is now gone. --}}
                 <span style="font-weight: normal; margin-left: 0.5rem;">This concern is about a particular person</span>
             </label>
+            @if ($repeat)
+                {{-- The people, carried rather than picked. The
+                     checkboxes below are switched on by the toggle,
+                     which is fixed now, so nothing in that list
+                     would submit. --}}
+                @foreach ($followsUpOn->subjects as $subject)
+                    <input type="hidden" name="about_staff_id[]" value="{{ $subject->id }}">
+                @endforeach
+            @endif
             <div id="about_staff_wrap" style="display:none; margin-top:0.6rem;">
                 <label style="font-size:0.9rem;">Who is this concern about? You can pick more than one.</label>
                 <input type="search" class="people-filter" data-list="about_staff_id" placeholder="Type a name to narrow the list" aria-label="Search staff" style="width:100%; margin:0.4rem 0;">
@@ -371,7 +396,12 @@
                      below: the nested box cannot be the only thing holding that
                      answer, or the form would reopen showing an accusation with
                      nothing on screen saying where it routes. --}}
-                <input type="checkbox" name="skip_adviser" id="skip_adviser" value="1" {{ old('skip_adviser') || ($adviser && $namedSubjects->contains($adviser->id)) ? 'checked' : '' }}>
+                <input type="checkbox" name="skip_adviser" id="skip_adviser" value="1"
+                    {{ old('skip_adviser') || ($adviser && $namedSubjects->contains($adviser->id)) ? 'checked' : '' }}
+                    @disabled($repeat)>
+                @if ($repeat && $followsUpOn->skip_adviser)
+                    <input type="hidden" name="skip_adviser" value="1">
+                @endif
                 <span style="font-weight: normal; margin-left: 0.5rem;">I do not want this to go to my class adviser</span>
             </label>
             <p style="font-size: 0.82rem; color: #666; margin-top: 0.4rem; padding-left: 1.6rem;">
@@ -671,6 +701,16 @@
                         const boxes = boxesIn(field);
 
                         wrap.style.display = toggle.checked ? 'block' : 'none';
+
+                        // A fixed toggle means a fixed row. On a repeat the
+                        // people are carried from the first concern and the
+                        // toggle cannot move, so the list is shown as a
+                        // record and must not become editable underneath
+                        // it -- otherwise a student can tick somebody the
+                        // server is going to ignore.
+                        if (toggle.disabled) {
+                            return;
+                        }
 
                         if (boxes.length) {
                             boxes.forEach(function (box) {

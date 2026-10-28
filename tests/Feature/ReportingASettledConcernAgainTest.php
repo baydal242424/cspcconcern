@@ -38,6 +38,25 @@ class ReportingASettledConcernAgainTest extends TestCase
         return User::where('email', 'student@my.cspc.edu.ph')->firstOrFail();
     }
 
+    /**
+     * Somebody the form will actually draw a checkbox for.
+     *
+     * Not every staff account appears in that picker -- instructors are
+     * reached through the adviser question instead -- so a name chosen
+     * here would be asserted against a checkbox that was never rendered.
+     */
+    private function someoneNameable(): User
+    {
+        $blank = $this->actingAs($this->student())
+            ->get('/concerns/create')->assertOk()->getContent();
+
+        $this->assertMatchesRegularExpression('/name="about_staff_id\[\]" value="(\d+)"/', $blank);
+
+        preg_match('/name="about_staff_id\[\]" value="(\d+)"/', $blank, $who);
+
+        return User::findOrFail((int) $who[1]);
+    }
+
     private function aSettledConcern(array $overrides = []): Concern
     {
         return Concern::create(array_merge([
@@ -163,6 +182,87 @@ class ReportingASettledConcernAgainTest extends TestCase
         );
 
         fwrite(STDERR, "  [again] the category is shown locked\n");
+    }
+
+    /**
+     * Everything that decides where it lands is fixed; the account is not.
+     *
+     * A repeat is the first concern happening again: same category, same
+     * people, routed the same way. What is left to write is what has
+     * happened since, and whatever evidence there is for it.
+     */
+    public function test_only_the_account_and_its_evidence_can_be_changed(): void
+    {
+        $named = $this->someoneNameable();
+
+        $concern = $this->aSettledConcern([
+            'category' => 'Academic',
+            'subcategory' => 'Grades',
+            'skip_adviser' => true,
+        ]);
+
+        $concern->syncSubjects([$named->id]);
+
+        $page = $this->actingAs($this->student())
+            ->get('/concerns/create?follows_up_on='.$concern->id)->assertOk()->getContent();
+
+        $locked = [
+            'category' => '/<select[^>]*id="category"[^>]*\sdisabled/',
+            'sub-category' => '/<select[^>]*id="subcategory"[^>]*\sdisabled/',
+            'the person it is about' => '/<input[^>]*id="about_staff_toggle"[^>]*\sdisabled/s',
+            'the adviser bypass' => '/<input[^>]*id="skip_adviser"[^>]*\sdisabled/s',
+        ];
+
+        foreach ($locked as $what => $pattern) {
+            $this->assertMatchesRegularExpression($pattern, $page, $what.' can still be changed');
+        }
+
+        // Locked controls submit nothing, so each answer travels in a
+        // hidden field or the repeat arrives missing it.
+        foreach ([
+            '<input type="hidden" name="category" value="Academic">',
+            '<input type="hidden" name="subcategory" value="Grades">',
+            '<input type="hidden" name="about_staff_id[]" value="'.$named->id.'">',
+            '<input type="hidden" name="skip_adviser" value="1">',
+        ] as $carried) {
+            $this->assertStringContainsString($carried, $page);
+        }
+
+        // And the two things they came here to do are still open.
+        $this->assertDoesNotMatchRegularExpression(
+            '/<textarea[^>]*id="description"[^>]*\sdisabled/s', $page,
+            'the student cannot write what has happened since');
+
+        $this->assertDoesNotMatchRegularExpression(
+            '/<input[^>]*id="attachments"[^>]*\sdisabled/s', $page,
+            'the student cannot attach anything');
+
+        fwrite(STDERR, "  [again] everything but the account and its evidence is locked\n");
+    }
+
+    /** The people carried over cannot be added to either. */
+    public function test_a_crafted_repeat_cannot_change_who_it_is_about(): void
+    {
+        $named = $this->someoneNameable();
+        $stranger = User::where('email', 'counselor@cspc.edu.ph')->firstOrFail();
+
+        $concern = $this->aSettledConcern(['category' => 'Academic', 'subcategory' => 'Grades']);
+        $concern->syncSubjects([$named->id]);
+
+        $this->actingAs($this->student())->post('/concerns', [
+            'follows_up_on_id' => $concern->id,
+            'category' => 'Academic',
+            'subcategory' => 'Grades',
+            'about_staff_id' => [$stranger->id],
+            'description' => 'It has happened again and here is what has changed since.',
+        ])->assertRedirect();
+
+        $filed = Concern::latest('id')->firstOrFail();
+
+        $this->assertSame([$named->id], $filed->subjects->pluck('id')->all(),
+            'a repeat named somebody the first concern never did');
+
+        fwrite(STDERR, "  [again] a crafted repeat cannot change who it names\n");
     }
 
     /**

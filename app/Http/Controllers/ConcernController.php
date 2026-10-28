@@ -519,6 +519,11 @@ class ConcernController extends Controller
                 'subcategory' => $followsUpOn->subcategory,
                 'other_category' => $followsUpOn->other_category,
                 'about_staff_id' => $followsUpOn->subjects->pluck('id')->all(),
+                // Flashed so the locked checkbox SHOWS the answer it is
+                // locked to. Without it the box reads unticked on a
+                // repeat of a concern that did bypass the adviser, which
+                // says the opposite of what will happen.
+                'skip_adviser' => $followsUpOn->skip_adviser ? '1' : null,
             ]);
         }
 
@@ -910,6 +915,14 @@ class ConcernController extends Controller
                     && filled($parent->subcategory)) {
                     $validated['subcategory'] = $parent->subcategory;
                 }
+
+                // Who it is about, and whether it goes over the adviser's
+                // head, come across too. The repeat IS the first concern
+                // happening again: the same people, routed the same way.
+                // Both decide where the case lands, so both are taken
+                // from the record rather than from the form.
+                $validated['about_staff_id'] = $parent->subjects->pluck('id')->all();
+                $validated['skip_adviser'] = (bool) $parent->skip_adviser;
             }
         }
 
