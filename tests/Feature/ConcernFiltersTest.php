@@ -87,9 +87,10 @@ class ConcernFiltersTest extends TestCase
         $closed = $this->concern(['status' => 'closed_no_action']);
         $closed->forceFill(['closed_at' => now()])->save();
 
-        // A withdrawn concern is finished too. It is the pile that has to
-        // hold it: withdrawing replaced deleting, and the whole point is
-        // that the student can still find what they filed.
+        // A withdrawn concern is finished too. Nothing can create one
+        // any more -- withdrawing was removed -- but rows filed while it
+        // existed must still land somewhere a student can find them,
+        // rather than sitting in the active list for ever.
         $withdrawn = $this->concern(['status' => Concern::STATUS_WITHDRAWN]);
         $withdrawn->forceFill(['closed_at' => now()])->save();
 
@@ -112,7 +113,7 @@ class ConcernFiltersTest extends TestCase
         $this->assertNotContains($open->id, $ids, 'an open concern must not appear in the finished list');
 
         // And the page says which pile you are looking at.
-        $finished->assertSee('Finished — resolved, closed and withdrawn', false)
+        $finished->assertSee('Finished — resolved and closed', false)
             ->assertSee('Show active', false);
 
         fwrite(STDERR, "  [filters] Show resolved swaps to the finished pile instead of adding to the open one\n");

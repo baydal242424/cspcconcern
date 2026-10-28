@@ -24,7 +24,7 @@
                  than adding to it, so without this line a page showing only
                  finished cases looks like a page that has lost the rest. --}}
             <p style="color:#64748b; font-size:0.85rem; margin-top:0.25rem;">
-                {{ $showResolved ? 'Finished — resolved, closed and withdrawn' : 'Active — still being handled' }}
+                {{ $showResolved ? 'Finished — resolved and closed' : 'Active — still being handled' }}
             </p>
         </div>
         <div style="display: flex; gap: 0.6rem; align-items: center;">
@@ -119,7 +119,16 @@
                     <label for="filter-status">Status</label>
                     <select id="filter-status" name="status">
                         <option value="">Any status</option>
+                        {{-- Withdrawn is left out. Nothing can reach that
+                             status any more, so offering it here is a filter
+                             that returns nothing for everybody. It stays in
+                             STATUS_LABELS because rows filed while
+                             withdrawing existed still have to render a
+                             badge, and those rows still appear under
+                             "Finished" -- just not behind a filter of their
+                             own. --}}
                         @foreach (\App\Models\Concern::STATUS_LABELS as $value => $label)
+                            @continue($value === \App\Models\Concern::STATUS_WITHDRAWN)
                             <option value="{{ $value }}" @selected($filters['status'] === $value)>{{ $label }}</option>
                         @endforeach
                     </select>
@@ -217,16 +226,13 @@
                         <td>{{ $concern->created_at->local()->format('M d, Y · g:i A') }}</td>
                         <td style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
                             <a href="{{ route('concerns.show', $concern) }}" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.85rem;">View</a>
-                            {{-- Withdraw, not delete. The concern stays on the
-                                 record either way; this says so rather than
-                                 implying the report can be made to vanish. --}}
-                            @if ($concern->canBeWithdrawnBy(Auth::user()))
-                                <form action="{{ route('concerns.withdraw', $concern) }}" method="POST" style="display:inline-block; margin:0;">
-                                    @csrf
-                                    <button type="submit" class="btn btn-ghost-danger" style="font-size: 0.85rem;"
-                                        onclick="return confirm('Withdraw this concern? It stays on your record, marked as withdrawn, and nobody will act on it.');">Withdraw</button>
-                                </form>
-                            @endif
+                            {{-- Withdrawing is offered on the concern itself,
+                                 not from the list. Here it was one click and
+                                 a browser confirm beside a row of six, with
+                                 nothing on screen saying which concern was
+                                 about to be pulled. On the page there is the
+                                 concern in front of them, a two-step
+                                 confirmation and somewhere to say why. --}}
                         </td>
                     </tr>
                 @endforeach

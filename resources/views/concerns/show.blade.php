@@ -1039,55 +1039,12 @@
     @endif
 
     <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
+    {{-- No way out of here for the reporter. A filed concern is not theirs
+         to delete and no longer theirs to withdraw either; staff close one
+         with a written reason, which is the same decision taken where the
+         student can read it. --}}
     <div style="display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap;">
         <a href="{{ route('concerns.index') }}" class="btn btn-muted">Back to List</a>
-
-        @if ($concern->canBeWithdrawnBy(Auth::user()))
-            <button type="button" id="withdraw-arm-btn" class="btn btn-ghost-danger"
-                onclick="document.getElementById('withdraw-confirm').style.display='block'; this.style.display='none';">
-                Withdraw Concern
-            </button>
-        @endif
     </div>
-
-    {{-- In-page confirmation, same two-step pattern as the identity reveal
-         above -- no native browser popup.
-
-         It says what actually happens. The old copy here promised the
-         concern would be "permanently removed", which was never true: it
-         was soft-deleted, so the row, its evidence and its audit trail all
-         stayed exactly where they were. The only thing the student really
-         got was a report they could no longer find. --}}
-    @if ($concern->canBeWithdrawnBy(Auth::user()))
-        <div id="withdraw-confirm" style="display:none; margin-top:1rem; background:#fff; border:1px solid #f6c9cf; border-radius:10px; padding:1rem; max-width:480px; margin-left:auto; margin-right:auto;">
-            <form action="{{ route('concerns.withdraw', $concern) }}" method="POST" style="margin:0;">
-                @csrf
-
-                <p style="font-size:0.9rem; color:#a31726; margin:0 0 .8rem;">
-                    <strong>Withdraw this concern?</strong>
-                    Nobody will act on it. It stays on your record marked as withdrawn, and cannot be reopened
-                    &mdash; though you can report the same thing again later if you need to.
-                </p>
-
-                <div class="form-group" style="margin-bottom:.8rem;">
-                    <label for="withdraw-reason" style="font-size:.85rem;">Why? (optional)</label>
-                    <textarea name="reason" id="withdraw-reason" rows="2" maxlength="500"
-                        placeholder="You do not have to give a reason."
-                        style="overflow-wrap:anywhere;">{{ old('reason') }}</textarea>
-                    @error('reason')
-                        <div style="color:#dc3545; font-size:.85rem; margin-top:.25rem;">{{ $message }}</div>
-                    @enderror
-                </div>
-
-                <div style="display:flex; gap:0.6rem; flex-wrap:wrap; justify-content:center;">
-                    <button type="submit" class="btn btn-danger">Yes, withdraw it</button>
-                    <button type="button" class="btn btn-muted"
-                        onclick="document.getElementById('withdraw-confirm').style.display='none'; document.getElementById('withdraw-arm-btn').style.display='inline-flex';">
-                        Cancel
-                    </button>
-                </div>
-            </form>
-        </div>
-    @endif
 </div>
 @endsection

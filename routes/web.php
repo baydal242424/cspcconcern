@@ -82,15 +82,11 @@ Route::middleware(['auth', 'track.last_seen', 'profile.complete', 'policy.accept
     Route::delete('concerns/draft', [ConcernController::class, 'discardDraft'])
         ->name('concerns.draft.discard');
 
-    // No destroy. A concern is never deleted through the interface -- the
-    // reporter withdraws it and staff close it, and either way the record,
-    // its evidence and its audit trail stay. Permanent removal is a
-    // retention job, and lives in the concerns:purge console command.
+    // No destroy, and no withdraw. A concern is never removed through
+    // the interface by anybody: staff close one with a written reason and
+    // the record, its evidence and its audit trail all stay. Permanent
+    // removal is a retention job, in the concerns:purge console command.
     Route::resource('concerns', ConcernController::class)->except(['edit', 'destroy']);
-
-    // The reporter taking their own concern back, before anybody starts.
-    Route::post('concerns/{concern}/withdraw', [ConcernController::class, 'withdraw'])
-        ->name('concerns.withdraw');
     // Break-glass: Head of School reveals a pseudonymous reporter's identity
     // (logged, reason required). Kept separate from the normal update flow.
     Route::post('concerns/{concern}/reveal-identity', [ConcernController::class, 'revealIdentity'])

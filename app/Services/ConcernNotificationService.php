@@ -233,36 +233,6 @@ class ConcernNotificationService
         ]);
     }
 
-    /** The reporter taking their own concern back before anybody started. */
-    public const TYPE_CONCERN_WITHDRAWN = 'concern_withdrawn';
-
-    /**
-     * Tell the desk a concern had landed on that the student has taken it
-     * back.
-     *
-     * Otherwise they find out by opening a case that is not going
-     * anywhere, or worse, by working it. In-app only: the case is over,
-     * so nothing turns on them reading it within the hour, and an email
-     * saying a named student withdrew a complaint is exactly the sort of
-     * thing rule 1 keeps out of mailboxes.
-     */
-    public function concernWithdrawn(Concern $concern): void
-    {
-        if (! $concern->assigned_to) {
-            return;
-        }
-
-        Notification::create([
-            'user_id' => $concern->assigned_to,
-            'type' => self::TYPE_CONCERN_WITHDRAWN,
-            'concern_id' => $concern->id,
-            'title' => 'A concern you were assigned has been withdrawn',
-            'message' => "Concern #{$concern->id} was withdrawn by the student who filed it."
-                .' No further action is needed. It stays on the record, marked as withdrawn.',
-            'email_sent' => false,
-        ]);
-    }
-
     /**
      * Tell a STAFF MEMBER a concern has landed on their desk -- so a Critical
      * case does not wait until the next time they happen to open the app.

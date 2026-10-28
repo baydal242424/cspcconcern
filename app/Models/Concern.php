@@ -454,14 +454,18 @@ class Concern extends Model
     ];
 
     /**
-     * The student taking their own concern back.
+     * A concern the student took back, from when they could.
      *
-     * Its own status rather than reuse of 'closed_no_action', which is a
-     * STAFF decision carrying a written reason the reporter is shown, and
-     * which the handbook counts as a case reviewed and dismissed. A
-     * student changing their mind is neither of those, and folding the two
-     * together would put withdrawals into the figures for complaints staff
-     * threw out.
+     * NOTHING SETS THIS ANY MORE. Withdrawing was removed: a filed concern
+     * is not the reporter's to retract, and staff close one with a written
+     * reason instead, which is the same decision taken where the student
+     * can read it.
+     *
+     * The status is kept because rows may already carry it -- withdrawal
+     * was live for a few days -- and a row with a status nothing maps
+     * renders as a blank badge in a list and sits in the open queue
+     * forever. Everything below that mentions it is read-only: a label, a
+     * colour, a timeline line and its place among the finished.
      */
     public const STATUS_WITHDRAWN = 'withdrawn';
 
@@ -483,19 +487,6 @@ class Concern extends Model
         self::STATUS_WITHDRAWN => 'Withdrawn',
     ];
 
-    /**
-     * Whether this user may take this concern back.
-     *
-     * The same line the old delete drew, and for the same reason: once
-     * staff have started on it, the record of what they did is not the
-     * reporter's to remove. Before that, nobody has acted on it and a
-     * student who filed in haste should not be stuck with it on their
-     * record for ever.
-     */
-    public function canBeWithdrawnBy(User $user): bool
-    {
-        return $user->id === $this->user_id && $this->status === 'submitted';
-    }
 
     /**
      * Human label for a raw status value, falling back to the old derivation
