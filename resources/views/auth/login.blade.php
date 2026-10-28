@@ -18,30 +18,31 @@
         *{margin:0;padding:0;box-sizing:border-box}
         body{font-family:'Inter',-apple-system,'Segoe UI',sans-serif;color:var(--ink);min-height:100vh;
             display:flex;-webkit-font-smoothing:antialiased}
-        .wrap{display:grid;grid-template-columns:1.1fr .9fr;width:100%;min-height:100vh}
-        .brand{position:relative;color:#fff;padding:3rem 3.2rem;display:flex;flex-direction:column;
-            justify-content:space-between;overflow:hidden;
-            background:radial-gradient(800px 500px at 12% 6%,rgba(47,91,234,.4),transparent 55%),
-                radial-gradient(700px 600px at 95% 100%,rgba(0,85,164,.4),transparent 55%),
+        /* One column, centred. The gradient that used to dress the left
+           half now dresses the whole page, so the card sits in the middle
+           of it rather than beside an empty rectangle. */
+        .wrap{position:relative;display:flex;flex-direction:column;align-items:center;
+            justify-content:center;gap:2rem;width:100%;min-height:100vh;padding:2.5rem 1.25rem;
+            background:radial-gradient(900px 600px at 20% 10%,rgba(47,91,234,.4),transparent 55%),
+                radial-gradient(800px 700px at 85% 95%,rgba(0,85,164,.4),transparent 55%),
                 linear-gradient(155deg,#0a1530,#0D1B3E 55%,#10245c)}
-        .brand::after{content:"";position:absolute;inset:0;
+        /* The dot texture, faded out towards the edges so it never competes
+           with the card sitting on top of it. */
+        .wrap::after{content:"";position:absolute;inset:0;pointer-events:none;
             background-image:radial-gradient(rgba(255,255,255,.05) 1px,transparent 1px);background-size:24px 24px;
-            -webkit-mask-image:radial-gradient(700px 500px at 50% 45%,#000,transparent 75%);
-            mask-image:radial-gradient(700px 500px at 50% 45%,#000,transparent 75%);opacity:.7}
-        .brand>*{position:relative;z-index:1}
+            -webkit-mask-image:radial-gradient(900px 700px at 50% 45%,#000,transparent 75%);
+            mask-image:radial-gradient(900px 700px at 50% 45%,#000,transparent 75%);opacity:.7}
+        .wrap>*{position:relative;z-index:1}
+        /* The mark, above the card instead of beside it. */
+        .brand{color:#fff;display:flex;justify-content:center}
         .bhead{display:flex;align-items:center;gap:1rem}
         .bhead img{width:74px;height:74px;border-radius:14px;object-fit:contain;background:#fff;padding:6px;
             box-shadow:0 8px 22px -8px rgba(0,0,0,.6)}
         .bhead .t1{font-size:1.45rem;font-weight:800;letter-spacing:-.02em;line-height:1.1}
         .bhead .t2{font-size:.9rem;color:#9fc1ff;font-weight:600;margin-top:2px}
-        /* .quote went with the Vision statement it was written for. */
-        .hero h1{font-size:2.1rem;font-weight:800;letter-spacing:-.03em;line-height:1.12}
-        .hero p{color:#b9c6e6;font-size:1rem;line-height:1.6;margin-top:.7rem;max-width:42ch}
-        .botquote{border-top:1px solid #ffffff22;padding-top:1.1rem}
-        .botquote .lab{color:var(--gold);font-weight:800;font-style:italic;font-size:.95rem}
-        .botquote p{color:#cdd8f0;font-style:italic;font-size:.82rem;line-height:1.5;margin-top:.2rem}
-        .formside{background:linear-gradient(180deg,#eef2f9,#f6f8fc);display:flex;align-items:center;
-            justify-content:center;padding:2.5rem}
+        /* .quote, .hero and .botquote all went with the text they styled.
+           The panel is the mark and the gradient now, and nothing else. */
+        .formside{display:flex;align-items:center;justify-content:center;width:100%}
         .card{background:#fff;border:1px solid var(--line);border-radius:18px;
             box-shadow:0 24px 60px -18px rgba(13,27,62,.28);padding:2.4rem;width:100%;max-width:410px}
         .card h2{font-size:1.5rem;font-weight:800;text-align:center;color:var(--navy);letter-spacing:-.02em}
@@ -110,16 +111,12 @@
         .demo-select:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 4px var(--brand50)}
         .demo-hint{font-size:.68rem;color:var(--muted);margin-top:.4rem;text-align:center}
         .foot{text-align:center;color:var(--muted);font-size:.8rem;margin-top:1.1rem}
-        @media(max-width:900px){.wrap{grid-template-columns:1fr}.brand{display:none}.formside{padding:1.25rem}}
+        @media(max-width:900px){.wrap{gap:1.5rem;padding:2rem 1rem}
+            .bhead img{width:60px;height:60px}.bhead .t1{font-size:1.25rem}}
         @media(max-width:480px){.card{padding:1.5rem 1.25rem}}
         /* ---- Demo sign-in (only rendered when DEMO_LOGIN_ENABLED is set) ---- */
         .demo-signin{margin-top:1.4rem;padding-top:1.2rem;border-top:1px dashed #cbd5e1;
             display:flex;flex-direction:column;gap:.6rem;text-align:left}
-        .demo-warn{background:#fff4d6;border:1px solid #f3dca0;color:#8a5a00;
-            border-radius:9px;padding:.6rem .75rem;font-size:.74rem;line-height:1.45}
-        .demo-warn strong{display:block;font-weight:700}
-        .demo-lab{font-size:.68rem;text-transform:uppercase;letter-spacing:.06em;
-            color:var(--muted);font-weight:600}
         .demo-signin select{width:100%;padding:.6rem .7rem;border:1.5px solid #e7ebf1;
             border-radius:9px;font-family:inherit;font-size:.88rem;background:#fcfdff;color:inherit}
         .demo-signin select:focus{outline:none;border-color:var(--brand);
@@ -149,18 +146,12 @@
                 </div>
             </div>
 
-            <div class="hero">
-                <h1>Your concern,<br>heard and handled.</h1>
-                <p>Submit academic, personal, facility, or safety concerns to the right office — securely, and seen only by the staff handling them.</p>
-            </div>
-
-            {{-- Neither the Mission nor the Vision statement is here now:
-                 the Mission lives on the register page, and the Vision was
-                 three lines of institutional prose above a sign-in box,
-                 saying nothing about the thing somebody came here to do.
-                 The empty spacer keeps the three-slot layout, which is what
-                 holds the hero centred. --}}
-            <div aria-hidden="true"></div>
+            {{-- Nothing else. The Mission statement lives on the register
+                 page; the Vision statement and the hero have both gone.
+                 The spacer that used to sit here went with them -- it
+                 existed only to centre the hero between the three slots,
+                 and with one slot left the mark sits at the top on its
+                 own, which is where space-between puts it. --}}
         </aside>
 
         <main class="formside">
@@ -230,13 +221,6 @@
                 @if ($demoAccounts->isNotEmpty())
                     <form action="{{ route('auth.demo') }}" method="POST" class="demo-signin">
                         @csrf
-                        <div class="demo-warn" role="note">
-                            <strong>Demo sign-in is on.</strong>
-                            Anyone visiting this page can sign in as these accounts.
-                            Switch it off after the demonstration.
-                        </div>
-
-                        <label class="demo-lab" for="demo_user">Sign in as a demo account</label>
                         {{-- Several hundred accounts in one dropdown is a list
                              nobody reads to the end. Typing narrows it by name,
                              by role and by college, because which of those a
@@ -245,7 +229,8 @@
                         <input type="search" id="demo-search" autocomplete="off"
                                placeholder="Search name, role or college"
                                aria-label="Search demo accounts" aria-describedby="demo-count">
-                        <select name="user_id" id="demo_user" required>
+                        <select name="user_id" id="demo_user" required
+                                aria-label="Sign in as a demo account">
                             <option value="">Choose a role to preview…</option>
                             @foreach ($demoAccounts as $roleName => $people)
                                 <optgroup label="{{ $roleName }}">
