@@ -376,7 +376,13 @@ class ConcernController extends Controller
             $filters['from'], $filters['to'], $filters['q'],
         ]));
 
-        return view('concerns.index', compact('concerns', 'showResolved', 'filters', 'activeFilterCount'));
+        // Whether to offer the Draft button. Only when there is
+        // something in it: a button that opens a blank form is a
+        // second "New Concern" wearing a different word.
+        $hasDraft = $user->id === Auth::id()
+            && optional(ConcernDraft::where('user_id', $user->id)->first())->hasContent();
+
+        return view('concerns.index', compact('concerns', 'showResolved', 'filters', 'activeFilterCount', 'hasDraft'));
     }
 
     /**
@@ -560,19 +566,26 @@ class ConcernController extends Controller
         // one.
         $adviserUnknown = ! $adviser && filled(auth()->user()->section);
 
-        // A draft they started earlier. Put straight into the session's
-        // old input, so every field on the form repopulates through the
-        // same old() calls it already uses for a failed submission --
-        // rather than each one growing a second source to read from.
+        // A draft they started earlier, opened only when they ask for it
+        // -- the Draft button on their list sends them here with ?draft=1.
         //
-        // Only when the form is otherwise fresh: old input means they
-        // have just had a submission bounced back, and overwriting what
-        // they were typing with an older draft would be the one thing
-        // worse than losing it.
+        // Not loaded automatically any more. With a button of its own,
+        // "New Concern" has to mean a blank form: a student starting
+        // something unrelated should not find last week's half-written
+        // report already in the box.
+        //
+        // It goes into the session's old input, so every field
+        // repopulates through the same old() calls the form already uses
+        // for a bounced submission, rather than each one growing a second
+        // source to read from. Never over old input that is already
+        // there: that means a submission has just been refused, and
+        // replacing what they are correcting with something older is the
+        // one thing worse than losing it.
         $draft = ConcernDraft::where('user_id', Auth::id())->first();
         $resumedDraft = null;
 
-        if ($draft && $draft->hasContent() && ! $request->old() && ! $followsUpOn) {
+        if ($draft && $draft->hasContent() && $request->boolean('draft')
+            && ! $request->old() && ! $followsUpOn) {
             $request->session()->flashInput($draft->toFormInput());
             $resumedDraft = $draft;
         }
@@ -1570,8 +1583,13 @@ class ConcernController extends Controller
         // No audit entry. Nothing has been reported yet, and a log of what
         // somebody considered writing is a record of an accusation that
         // was never made.
-        return redirect()->route('concerns.create')
-            ->with('success', 'Saved. Your draft will be here when you come back.');
+        // Away from the form, not back onto it. Saving and then being
+        // handed the same half-filled page back reads as nothing having
+        // happened -- the student cannot tell the draft was kept. The
+        // list is where the Draft button is, which is the answer to
+        // "where did it go".
+        return redirect()->route('concerns.index')
+            ->with('success', 'Saved as a draft. Open it again from the Draft button.');
     }
 
     /** Throw the draft away. */
@@ -1579,7 +1597,7 @@ class ConcernController extends Controller
     {
         ConcernDraft::where('user_id', Auth::id())->delete();
 
-        return redirect()->route('concerns.create')
+        return redirect()->route('concerns.index')
             ->with('success', 'Draft discarded.');
     }
 

@@ -51,15 +51,27 @@ class SavingAConcernAsADraftTest extends TestCase
         ], $overrides);
     }
 
-    /** Saved, and waiting on the form when they come back. */
-    public function test_a_draft_is_kept_and_put_back_on_the_form(): void
+    /**
+     * Saved, and waiting behind the Draft button when they come back.
+     *
+     * Saving leaves the form. Being handed the same half-filled page
+     * back reads as nothing having happened -- there is no way to tell
+     * the draft was kept, so the student saves again.
+     */
+    public function test_a_draft_is_kept_and_opened_from_the_button(): void
     {
         $this->actingAs($this->student())
             ->post(route('concerns.draft.save'), $this->halfWritten())
-            ->assertRedirect(route('concerns.create'));
+            ->assertRedirect(route('concerns.index'));
+
+        $list = $this->actingAs($this->student())
+            ->get(route('concerns.index'))->assertOk()->getContent();
+
+        $this->assertStringContainsString(route('concerns.create', ['draft' => 1]), $list,
+            'the list does not offer the draft anywhere');
 
         $page = $this->actingAs($this->student())
-            ->get(route('concerns.create'))->assertOk()->getContent();
+            ->get(route('concerns.create', ['draft' => 1]))->assertOk()->getContent();
 
         $this->assertStringContainsString('still', $page);
         $this->assertStringContainsString('Carried on from the draft you saved', $page);
@@ -177,7 +189,7 @@ class SavingAConcernAsADraftTest extends TestCase
 
         $this->actingAs($this->student())
             ->delete(route('concerns.draft.discard'))
-            ->assertRedirect(route('concerns.create'));
+            ->assertRedirect(route('concerns.index'));
 
         $this->assertSame(0, ConcernDraft::where('user_id', $this->student()->id)->count());
 
@@ -218,13 +230,71 @@ class SavingAConcernAsADraftTest extends TestCase
             'description' => 'too short',
         ])->assertSessionHasErrors('description');
 
+        // Asking for the draft explicitly, which is the only case where
+        // this can still go wrong -- and the one worth testing.
         $page = $this->actingAs($this->student())
-            ->get(route('concerns.create'))->assertOk()->getContent();
+            ->get(route('concerns.create', ['draft' => 1]))->assertOk()->getContent();
 
         $this->assertStringContainsString('too short', $page);
         $this->assertStringNotContainsString('The older draft from last week', $page);
 
         fwrite(STDERR, "  [draft] a bounced submission is not overwritten by an older draft\n");
+    }
+
+    /**
+     * "New Concern" means a blank form, draft or no draft.
+     *
+     * This is what the button buys. While the draft loaded itself, a
+     * student starting something unrelated found last week's half-written
+     * report already in the box -- and the quickest way past that is to
+     * type over it, which loses the draft to save the new one.
+     */
+    public function test_starting_a_new_concern_does_not_open_the_draft(): void
+    {
+        $this->actingAs($this->student())->post(route('concerns.draft.save'), $this->halfWritten([
+            'description' => 'Something unrelated I started last week',
+        ]));
+
+        $page = $this->actingAs($this->student())
+            ->get(route('concerns.create'))->assertOk()->getContent();
+
+        $this->assertStringNotContainsString('Something unrelated I started last week', $page);
+        $this->assertStringNotContainsString('Carried on from the draft', $page);
+
+        fwrite(STDERR, "  [draft] New Concern opens a blank form, draft or no draft\n");
+    }
+
+    /** No draft, no button. */
+    public function test_the_button_appears_only_when_there_is_a_draft(): void
+    {
+        $withNone = $this->actingAs($this->student())
+            ->get(route('concerns.index'))->assertOk()->getContent();
+
+        $this->assertStringNotContainsString(route('concerns.create', ['draft' => 1]), $withNone);
+
+        $this->actingAs($this->student())->post(route('concerns.draft.save'), $this->halfWritten());
+
+        $withOne = $this->actingAs($this->student())
+            ->get(route('concerns.index'))->assertOk()->getContent();
+
+        $this->assertStringContainsString(route('concerns.create', ['draft' => 1]), $withOne);
+
+        fwrite(STDERR, "  [draft] the button appears only when there is a draft\n");
+    }
+
+    /** And it is not offered to somebody else. */
+    public function test_the_button_is_not_shown_to_another_student(): void
+    {
+        $this->actingAs($this->student())->post(route('concerns.draft.save'), $this->halfWritten());
+
+        $classmate = User::where('email', 'student2@my.cspc.edu.ph')->firstOrFail();
+
+        $page = $this->actingAs($classmate)
+            ->get(route('concerns.index'))->assertOk()->getContent();
+
+        $this->assertStringNotContainsString(route('concerns.create', ['draft' => 1]), $page);
+
+        fwrite(STDERR, "  [draft] somebody else's draft is not offered\n");
     }
 
     /**

@@ -135,19 +135,43 @@
            word from producing the sideways scrollbar this panel had. */
         .navbar-nav .bell-list{max-height:380px; overflow-y:auto; overflow-x:hidden}
         .navbar-nav .bell-list form{display:block; margin:0}
-        .navbar-nav .bell-item{width:100%; display:flex; gap:.6rem; align-items:flex-start; text-align:left;
-            background:none; border:none; border-bottom:1px solid var(--line); cursor:pointer;
-            padding:.8rem 1rem; font-family:inherit; border-radius:0; transition:background .15s}
-        .navbar-nav .bell-item:hover{background:#f6f9ff}
-        .navbar-nav .bell-item.unread{background:#f2f6ff}
-        .navbar-nav .bell-dot{display:block; width:7px; height:7px; border-radius:50%;
-            background:transparent; margin-top:.42rem; flex:0 0 7px}
+        /* All / Unread. Pills rather than links: they swap what the list
+           shows, they do not go anywhere. */
+        .navbar-nav .bell-tabs{display:flex; gap:.4rem; padding:.55rem .8rem;
+            border-bottom:1px solid var(--line)}
+        .navbar-nav .bell-tab{background:#eef1f6; border:none; cursor:pointer; font-family:inherit;
+            font-size:.82rem; font-weight:600; color:#51607a; padding:.35rem .85rem; border-radius:999px;
+            display:inline-flex; align-items:center; gap:.35rem; transition:.15s}
+        .navbar-nav .bell-tab:hover{background:#e3e8f1; color:var(--navy-900)}
+        .navbar-nav .bell-tab.is-on{background:var(--brand); color:#fff}
+        .navbar-nav .bell-tab-n{background:rgba(255,255,255,.28); border-radius:999px;
+            padding:0 .35rem; font-size:.72rem; font-weight:700; line-height:1.5}
+        .navbar-nav .bell-tab:not(.is-on) .bell-tab-n{background:var(--brand); color:#fff}
+        /* "New" / "Earlier". A date on every row answers a question nobody
+           asked; two headings answer the one they did. */
+        .navbar-nav .bell-wrap p.bell-group{margin:0; padding:.7rem 1rem .3rem; font-size:.78rem;
+            font-weight:800; color:var(--navy-900); letter-spacing:-.01em}
+        .navbar-nav .bell-item{width:100%; display:flex; gap:.65rem; align-items:center; text-align:left;
+            background:none; border:none; cursor:pointer;
+            padding:.6rem .8rem; font-family:inherit; border-radius:10px; transition:background .15s}
+        .navbar-nav .bell-row{padding:0 .35rem}
+        .navbar-nav .bell-item:hover{background:#eef2f9}
+        /* Unread is carried by the dot and the weight of the title, not by
+           a tinted row: ten tinted rows in a column is just a tinted panel. */
+        .navbar-nav .bell-item.unread .bell-title{font-weight:800}
+        /* The round mark, in place of the profile photo a social app shows. */
+        .navbar-nav .bell-avatar{flex:0 0 38px; width:38px; height:38px; border-radius:50%;
+            display:flex; align-items:center; justify-content:center; color:#fff;
+            font-size:1.05rem; font-weight:700; line-height:1}
+        .navbar-nav .bell-dot{display:block; width:9px; height:9px; border-radius:50%;
+            background:transparent; flex:0 0 9px; margin-left:.3rem}
         .navbar-nav .bell-item.unread .bell-dot{background:var(--brand)}
         /* min-width:0 lets the flex child shrink below its content width,
            which is what allows the text below to wrap instead of overflowing. */
         .navbar-nav .bell-item-body{display:flex; flex-direction:column; gap:.12rem; min-width:0; flex:1}
         .navbar-nav .bell-wrap span.bell-title{display:block; font-size:.85rem; font-weight:700; color:var(--navy-900)}
-        .navbar-nav .bell-wrap span.bell-msg{display:block; font-size:.82rem; color:var(--ink); line-height:1.45;
+        .navbar-nav .bell-wrap span.bell-msg{display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+            overflow:hidden; font-size:.82rem; color:#44506b; line-height:1.45;
             white-space:normal; overflow-wrap:anywhere}
         .navbar-nav .bell-wrap span.bell-time{display:block; font-size:.72rem; color:#5d6b80; margin-top:.2rem}
         .navbar-nav .bell-wrap p.bell-empty{padding:1.6rem 1rem; text-align:center; color:var(--muted);
@@ -218,6 +242,10 @@
            not the same grey -- it was the student's decision, not a
            finding, and the two should not read as one outcome. */
         .status-withdrawn{background:#f5f3ef; color:#6b6052; border-color:#e6e0d6}
+        /* The dot on the Draft button: there is something in it. A
+           count would be precision nobody needs -- there is only ever one. */
+        .draft-pip{display:inline-block; width:7px; height:7px; border-radius:50%;
+            background:var(--brand); margin-left:.4rem; vertical-align:middle}
         .status-referred{background:#ece9ff; color:#5b3bd6; border-color:#d6cdfb}
         .status-approved{background:var(--ok-bg); color:var(--ok-ink); border-color:#bfe8cd}
         .status-pending{background:var(--warn-bg); color:var(--warn-ink); border-color:#f3dca0}

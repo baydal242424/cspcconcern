@@ -37,6 +37,19 @@
                  the empty state below has its own button, and two identical
                  buttons on one screen read as two different things -- students
                  in the survey kept asking which one to press. --}}
+            {{-- Where a saved draft lives. Shown only when there is one:
+                 a Draft button that opens a blank form is a second "New
+                 Concern" wearing a different word.
+
+                 It is here rather than on the filing form because that is
+                 the question it answers -- "what happened to the one I
+                 started?" is asked from the list, not from a page the
+                 student has to open first to find out. --}}
+            @if (! empty($hasDraft))
+                <a href="{{ route('concerns.create', ['draft' => 1]) }}" class="btn btn-muted">
+                    Draft <span class="draft-pip" aria-hidden="true"></span>
+                </a>
+            @endif
             @if (optional(Auth::user()->role)->name === 'Student' && $concerns->count() > 0)
                 <a href="{{ route('concerns.create') }}" class="btn btn-primary">+ New Concern</a>
             @endif
