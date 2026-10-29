@@ -42,6 +42,24 @@ class NotificationController extends Controller
 
         // The concern may since have been deleted; fall back to the list
         // rather than 404-ing on a stale notification.
+        // Being called in to the office is the one notice with somewhere
+        // better to go than the concern: the letter they are expected to
+        // bring. They cannot open the case, but the letter is theirs.
+        if ($notification->type === \App\Services\ConcernNotificationService::TYPE_CALLED_IN
+            && $notification->concern_id) {
+            $summons = \App\Models\ConcernSummons::where('concern_id', $notification->concern_id)
+                ->where('user_id', Auth::id())
+                ->latest('id')
+                ->first();
+
+            if ($summons) {
+                return redirect()->route('concerns.summons.letter', [
+                    $notification->concern_id,
+                    $summons->id,
+                ]);
+            }
+        }
+
         if ($notification->concern_id && $notification->concern) {
             // A notice can belong to somebody who may not open the
             // concern behind it: the person a complaint names is told

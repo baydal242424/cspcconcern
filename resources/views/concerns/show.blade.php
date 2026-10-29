@@ -941,11 +941,98 @@
         </div>
     @endif
 
-    {{-- The handler writing to the student.
-         Until this existed a case could tell a student its status and
-         nothing else, so a handler who needed a receipt had to reach them
-         outside the system -- leaving no record, and reaching nobody at
-         all when the report was anonymous. --}}
+    {{-- Calling in the person the concern names.
+
+         They have already been told something naming them is being looked
+         into, and told nothing else. This is the step after: a time, a
+         place, and a letter to hand over. Who complained stays out of all
+         of it -- they cannot open the concern, and the letter carries
+         neither the complaint nor the complainant. --}}
+    @if ($canNotifyReporter && $concern->subjects->isNotEmpty())
+        <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
+        <div>
+            <h2 class="section-title" style="margin-bottom:.4rem;">Call someone in</h2>
+            <p style="color:var(--muted); font-size:.85rem; margin:0 0 1rem;">
+                Only the people this concern names. They are told the time and place, and
+                a letter is produced to print or hand over &mdash; it says neither what the
+                concern is nor who raised it.
+            </p>
+
+            @if ($summonses->isNotEmpty())
+                <div style="display:flex; flex-direction:column; gap:.5rem; margin-bottom:1.2rem;">
+                    @foreach ($summonses as $past)
+                        <div style="border:1px solid var(--line,#e7ebf1); border-left:3px solid var(--brand,#2f5bea); border-radius:10px; padding:.7rem .9rem; display:flex; gap:1rem; align-items:center; flex-wrap:wrap;">
+                            <span style="flex:1; min-width:14rem; font-size:.9rem;">
+                                <strong>{{ $past->person->name }}</strong> &mdash;
+                                {{ $past->meet_at->local()->format('j M Y, g:i A') }}, {{ $past->place }}
+                                @if ($past->isPast())
+                                    <span style="color:var(--muted); font-size:.8rem;">· past</span>
+                                @endif
+                            </span>
+                            <a href="{{ route('concerns.summons.letter', [$concern, $past]) }}"
+                               class="btn btn-muted" style="font-size:.82rem;">Open the letter</a>
+                        </div>
+                    @endforeach
+                </div>
+            @endif
+
+            <form action="{{ route('concerns.summon', $concern) }}" method="POST">
+                @csrf
+
+                <div class="form-group">
+                    <label for="summon-user">Who</label>
+                    <select name="user_id" id="summon-user" required>
+                        @foreach ($concern->subjects as $subject)
+                            <option value="{{ $subject->id }}">
+                                {{ $subject->name }}@if ($subject->course) — {{ trim($subject->course.' '.$subject->section) }}@endif
+                            </option>
+                        @endforeach
+                    </select>
+                    @error('user_id')
+                        <div style="color:#dc3545; font-size:.85rem; margin-top:.25rem;">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <div class="form-group">
+                    <label for="summon-when">When</label>
+                    {{-- The box reads and writes a wall clock with no zone on
+                         it, so the floor has to be the local wall clock too.
+                         now() is UTC here, and eight hours of today would
+                         otherwise be greyed out. --}}
+                    <input type="datetime-local" name="meet_at" id="summon-when" required
+                           min="{{ now()->local()->format('Y-m-d\TH:i') }}" value="{{ old('meet_at') }}">
+                    @error('meet_at')
+                        <div style="color:#dc3545; font-size:.85rem; margin-top:.25rem;">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <div class="form-group">
+                    <label for="summon-place">Where</label>
+                    <input type="text" name="place" id="summon-place" maxlength="120" required
+                           value="{{ old('place', optional(Auth::user()->role)->name === 'Guidance Counselor' ? 'the Guidance Office' : '') }}"
+                           placeholder="the Guidance Office">
+                    @error('place')
+                        <div style="color:#dc3545; font-size:.85rem; margin-top:.25rem;">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <div class="form-group">
+                    <label for="summon-note">Anything they should bring or know <span style="font-weight:400; color:var(--muted);">(optional)</span></label>
+                    {{-- Practical only. The substance belongs in the meeting,
+                         not in a letter the person can read before it. --}}
+                    <input type="text" name="note" id="summon-note" maxlength="300"
+                           value="{{ old('note') }}"
+                           placeholder="Bring your student ID. Ask for the duty counsellor at the desk.">
+                    @error('note')
+                        <div style="color:#dc3545; font-size:.85rem; margin-top:.25rem;">{{ $message }}</div>
+                    @enderror
+                </div>
+
+                <button type="submit" class="btn btn-primary">Call them in and make the letter</button>
+            </form>
+        </div>
+    @endif
+
     @if ($canNotifyReporter)
         <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
         <div>

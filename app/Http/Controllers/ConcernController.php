@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Concern;
 use App\Models\ConcernDraft;
+use App\Models\ConcernSummons;
 use App\Models\AuditLog;
 use App\Models\User;
 use App\Models\Attachment;
@@ -610,6 +611,33 @@ class ConcernController extends Controller
             fn (User $u) => optional($u->role)->name === 'Instructor'
         );
 
+        // Their own class, so a concern about a classmate can say who.
+        //
+        // Bullying and harassment are the categories most often about
+        // another student, and until now the picker held only staff --
+        // so the one kind of complaint where naming matters most could
+        // not name anybody, and the person complained of was never told.
+        //
+        // Their section, not the whole college: a complaint about a
+        // classmate is about somebody in the room, and eight hundred
+        // names is a directory rather than a picker.
+        $classmates = collect();
+
+        $me = auth()->user();
+
+        if (filled($me->course) && filled($me->section)) {
+            $classmates = User::with('role')
+                ->whereHas('role', fn ($q) => $q->where('name', 'Student'))
+                ->where('course', $me->course)
+                ->where('section', $me->section)
+                ->where('status', 'approved')
+                ->whereKeyNot($me->id)
+                ->orderBy('name')
+                ->get(['id', 'name', 'department', 'course', 'section', 'role_id']);
+        }
+
+        $otherStaff = $otherStaff->concat($classmates);
+
         // What counts as a college, for "show me my own college's people".
         // COURSES_BY_COLLEGE names the six that enrol undergraduates; the
         // Graduate School has a dean and no entry there, and was reaching
@@ -746,6 +774,7 @@ class ConcernController extends Controller
                         'Program Chair' => 'Program Chair',
                         'Dean' => 'Dean',
                         'Vice President for Academic Affairs' => 'Vice President for Academic Affairs',
+                        'Student' => 'Classmates',
                         default => 'Staff and offices',
                     };
                 })
@@ -756,6 +785,9 @@ class ConcernController extends Controller
                     'Dean',
                     'Vice President for Academic Affairs',
                     'Staff and offices',
+                    // Last: a concern about a classmate is the exception,
+                    // and the ladder above is what most students came for.
+                    'Classmates',
                 ], true)),
 
             // Name completion inside the description, built from the list
@@ -845,9 +877,31 @@ class ConcernController extends Controller
             'about_staff_id' => ['nullable', 'array', 'max:10'],
             'about_staff_id.*' => ['integer', \Illuminate\Validation\Rule::exists('users', 'id'),
                 function ($attribute, $value, $fail) {
-                    $roleName = optional(optional(User::find($value))->role)->name;
-                    if (! in_array($roleName, self::STAFF_ROLES, true)) {
-                        $fail('The selected person is not a staff member.');
+                    $person = User::with('role')->find($value);
+                    $roleName = optional(optional($person)->role)->name;
+
+                    // Staff, or a fellow student.
+                    //
+                    // Students were refused here, which meant the one
+                    // kind of concern most often about a classmate --
+                    // bullying, harassment -- could never name who it
+                    // was about, and the person complained of was never
+                    // told anything. A named student is not a handler,
+                    // so nothing routes around them and the
+                    // conflict-of-interest rule has nothing to do;
+                    // being named simply means they are told it is
+                    // being looked into.
+                    $allowed = array_merge(self::STAFF_ROLES, ['Student']);
+
+                    if (! in_array($roleName, $allowed, true)) {
+                        $fail('That person cannot be named on a concern.');
+                    }
+
+                    // A student cannot name themselves. It reads as a
+                    // mis-click, and the conflict rule would then wall
+                    // them out of their own report.
+                    if ($person && (int) $person->id === (int) Auth::id()) {
+                        $fail('You cannot name yourself on your own concern.');
                     }
                 },
             ],
@@ -1131,13 +1185,22 @@ class ConcernController extends Controller
         // And answering is the reporter's, while the concern is live.
         $canAddDocuments = $user->id === $concern->user_id && $concern->acceptsNotices();
 
+        // Letters already issued on this concern. Shown to the office so
+        // a second one is a decision rather than an accident, and so a
+        // lost letter can be reprinted from the record.
+        $summonses = ConcernSummons::where('concern_id', $concern->id)
+            ->with('person')
+            ->orderBy('meet_at')
+            ->get();
+
         return view('concerns.show', compact(
             'concern',
             'referralCandidates',
             'referralDestinations',
             'notices',
             'canNotifyReporter',
-            'canAddDocuments'
+            'canAddDocuments',
+            'summonses'
         ));
     }
 
@@ -1774,6 +1837,127 @@ class ConcernController extends Controller
 
         return redirect()->route('concerns.drafts')
             ->with('success', 'Draft discarded.');
+    }
+
+    /**
+     * Call the person a concern names in to the office.
+     *
+     * The second half of what the panel asked for. They are already told
+     * when work starts that something naming them is being looked into,
+     * without being told by whom; this is the step after -- a date, a
+     * place, and a letter they can be handed.
+     *
+     * Only somebody the concern actually names, and only by the office
+     * holding it. The letter says when and where and nothing else: the
+     * person being called cannot open the concern, and a letter that
+     * explained itself would walk around that wall.
+     */
+    public function summon(Request $request, Concern $concern, ConcernNotificationService $notifier)
+    {
+        /** @var User $user */
+        $user = Auth::user();
+
+        if (! $this->canActOn($concern, $user)) {
+            abort(403, 'You cannot call anybody in on this concern.');
+        }
+
+        $validated = $request->validate([
+            'user_id' => ['required', 'integer'],
+            // Checked below rather than with after:/before: rules. The box
+            // is a datetime-local, so what arrives is the wall clock the
+            // staff member read off their own screen -- Manila time, with
+            // no zone on it. Compared against now() it would be measured
+            // against UTC and sit eight hours out, which on this field
+            // means a letter sending somebody in at the wrong hour.
+            'meet_at' => ['required', 'date'],
+            'place' => ['required', 'string', 'max:120'],
+            'note' => ['nullable', 'string', 'max:300'],
+        ], [
+            'place.required' => 'Say where they should go.',
+        ]);
+
+        // Read in the zone it was typed in, stored in UTC like every other
+        // timestamp here, and rendered back through ->local().
+        $meetAt = \Illuminate\Support\Carbon::parse(
+            $validated['meet_at'],
+            config('app.display_timezone')
+        )->utc();
+
+        // Not in the past, and not years out: both are a slip of the
+        // keyboard, and the letter goes out with whatever is typed.
+        if ($meetAt->isPast()) {
+            return back()->withInput()
+                ->withErrors(['meet_at' => 'Pick a date and time that has not already passed.']);
+        }
+
+        if ($meetAt->gt(now()->addYear())) {
+            return back()->withInput()
+                ->withErrors(['meet_at' => 'That is more than a year away. Check the date.']);
+        }
+
+        // Only the people this concern names. Checked against the record
+        // rather than the form: an id typed into the post would otherwise
+        // summon anybody in the college to answer a complaint that never
+        // mentioned them.
+        $person = $concern->subjects->firstWhere('id', (int) $validated['user_id']);
+
+        if (! $person) {
+            return redirect()->route('concerns.show', $concern)
+                ->with('error', 'That person is not named on this concern.');
+        }
+
+        $summons = ConcernSummons::create([
+            'concern_id' => $concern->id,
+            'user_id' => $person->id,
+            'issued_by' => $user->id,
+            'meet_at' => $meetAt,
+            'place' => $validated['place'],
+            'note' => $validated['note'] ?? null,
+        ]);
+
+        $notifier->calledIn($concern, $person, $summons->meet_at, $summons->place, $summons->note);
+
+        // Recorded on the case: that somebody was called in, and when.
+        // Not who complained, which is nowhere near this.
+        AuditLog::create([
+            'user_id' => $user->id,
+            'concern_id' => $concern->id,
+            'action' => 'person_called_in',
+            'description' => 'Called '.$person->name.' to '.$summons->place
+                .' on '.$summons->meet_at->local()->format('j M Y, g:i A'),
+            'ip_address' => $request->ip(),
+        ]);
+
+        return redirect()->route('concerns.summons.letter', [$concern, $summons])
+            ->with('success', 'Called in. The letter is ready to print.');
+    }
+
+    /**
+     * The letter itself, laid out to be printed or saved as a PDF.
+     *
+     * Readable by the office that issued it and by the person called --
+     * they are handed it, and they lose it. NOT by the reporter: it
+     * names the person their complaint is about, beside a date they are
+     * expected, which is not theirs to have.
+     */
+    public function summonsLetter(Concern $concern, ConcernSummons $summons)
+    {
+        /** @var User $user */
+        $user = Auth::user();
+
+        if ($summons->concern_id !== $concern->id) {
+            abort(404);
+        }
+
+        $isThePerson = $user->id === $summons->user_id;
+
+        if (! $isThePerson && ! $this->canActOn($concern, $user)) {
+            abort(403, 'This letter is not yours to read.');
+        }
+
+        $summons->load('person', 'issuer.role');
+
+        return view('concerns.summons', compact('concern', 'summons'));
     }
 
     /**

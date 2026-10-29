@@ -233,6 +233,45 @@ class ConcernNotificationService
         ]);
     }
 
+    /** The person a concern names, called in to the office. */
+    public const TYPE_CALLED_IN = 'called_in';
+
+    /**
+     * Tell the person a concern names that they are expected at the office.
+     *
+     * The second half of what the panel asked for: they are told early
+     * that something naming them is being looked into, and told again --
+     * with a date and a place -- once the office is ready to deal with
+     * it.
+     *
+     * When and where, and nothing about what. They still cannot open the
+     * concern, and a notice that explained itself would route around
+     * that in one line. Who complained is not in here either, for the
+     * same reason it is in nothing else they can see.
+     *
+     * In-app only, like every other notice to a named person: an email
+     * saying a student is wanted at the Guidance Office is readable on a
+     * lock screen by anybody standing nearby.
+     */
+    public function calledIn(Concern $concern, User $person, \DateTimeInterface $meetAt, string $place, ?string $note = null): void
+    {
+        Notification::create([
+            'user_id' => $person->id,
+            'type' => self::TYPE_CALLED_IN,
+            'concern_id' => $concern->id,
+            'title' => 'You are asked to come to '.$place,
+            // ->local(), like every other time a reader is shown: the row
+            // is stored in UTC and a notice saying six in the evening for
+            // a ten o'clock meeting is worse than no notice.
+            'message' => 'Please come to '.$place.' on '
+                .\Illuminate\Support\Carbon::parse($meetAt)->local()->format('l, j F Y \a\t g:i A').'.'
+                .($note ? ' '.$note : '')
+                .' A letter has been issued. This is about a matter being looked into;'
+                .' it will be explained when you get there.',
+            'email_sent' => false,
+        ]);
+    }
+
     /**
      * Tell a STAFF MEMBER a concern has landed on their desk -- so a Critical
      * case does not wait until the next time they happen to open the app.

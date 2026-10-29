@@ -102,6 +102,14 @@ Route::middleware(['auth', 'track.last_seen', 'profile.complete', 'policy.accept
     Route::post('concerns/{concern}/feedback', [ConcernController::class, 'storeFeedback'])
         ->name('concerns.feedback');
 
+    // Calling the person a concern NAMES in to the office, and the
+    // letter that goes with it. The letter is its own page because it is
+    // printed and handed over.
+    Route::post('concerns/{concern}/summon', [ConcernController::class, 'summon'])
+        ->name('concerns.summon');
+    Route::get('concerns/{concern}/summons/{summons}/letter', [ConcernController::class, 'summonsLetter'])
+        ->name('concerns.summons.letter');
+
     // The handler writing to the student -- asking for a document, or for
     // them to come in. One way and logged: the reply to "send me the
     // receipt" is the receipt, which is the route below.
