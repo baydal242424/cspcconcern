@@ -282,8 +282,87 @@ class DashboardController extends Controller
                 ];
             });
 
+        // ------------------------------------------------------------------
+        // HOW LONG IT TAKES
+        // ------------------------------------------------------------------
+        // The first question anybody asks of a queue, and the page could not
+        // answer it: both timestamps were already stored and nothing read
+        // the gap between them.
+        //
+        // The MEDIAN, not the mean. One case that sat for eight months drags
+        // an average far enough to make a service that mostly answers within
+        // the week look broken; the median says what a student can expect.
+        $settled = (clone $analyticsBase)
+            ->whereNotNull('resolved_at')
+            ->get(['created_at', 'resolved_at'])
+            ->map(fn ($c) => max(0, $c->created_at->diffInDays($c->resolved_at)))
+            ->sort()
+            ->values();
+
+        $resolutionCount = $settled->count();
+        $medianResolutionDays = $resolutionCount
+            ? (int) round($settled[intdiv($resolutionCount, 2)])
+            : null;
+        $slowestResolutionDays = $resolutionCount ? (int) $settled->last() : null;
+
+        // ------------------------------------------------------------------
+        // WHAT IS SITTING
+        // ------------------------------------------------------------------
+        // A status breakdown says how much there is, not whether any of it
+        // is stuck. These are the same open concerns, counted by age.
+        $openConcerns = (clone $analyticsBase)
+            ->whereNotIn('status', Concern::TERMINAL_STATUSES)
+            ->get(['id', 'created_at', 'assigned_to']);
+
+        $ageBuckets = [
+            'under a week' => 0,
+            '1 to 2 weeks' => 0,
+            '2 to 4 weeks' => 0,
+            'over a month' => 0,
+        ];
+
+        foreach ($openConcerns as $c) {
+            $days = $c->created_at->diffInDays(now());
+
+            $key = match (true) {
+                $days < 7 => 'under a week',
+                $days < 14 => '1 to 2 weeks',
+                $days < 30 => '2 to 4 weeks',
+                default => 'over a month',
+            };
+
+            $ageBuckets[$key]++;
+        }
+
+        $openTotal = $openConcerns->count();
+        $stalledCount = $ageBuckets['2 to 4 weeks'] + $ageBuckets['over a month'];
+
+        // ------------------------------------------------------------------
+        // WHO IS CARRYING IT
+        // ------------------------------------------------------------------
+        // "Unassigned: 0" reads as a queue in good order while one counsellor
+        // holds two hundred cases. Nothing on the page said so.
+        $loadByHandler = User::whereIn('id', $openConcerns->pluck('assigned_to')->filter()->unique())
+            ->with('role')
+            ->get()
+            ->map(fn (User $u) => [
+                'name' => $u->name,
+                'office' => optional($u->role)->name,
+                'open' => $openConcerns->where('assigned_to', $u->id)->count(),
+            ])
+            ->sortByDesc('open')
+            ->take(6)
+            ->values();
+
         return view('dashboard', compact(
             'role',
+            'medianResolutionDays',
+            'slowestResolutionDays',
+            'resolutionCount',
+            'ageBuckets',
+            'openTotal',
+            'stalledCount',
+            'loadByHandler',
             'timelineDays',
             'timelineRows',
             'totalConcerns',

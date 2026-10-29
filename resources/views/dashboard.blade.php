@@ -84,6 +84,92 @@
         </div>
     </div>
 
+    {{-- How long a student waits, and how much is not moving.
+
+         Everything above this point counts concerns: how many came in,
+         under what heading, from where. None of it answers the two
+         questions an administrator is actually asked -- are we getting
+         slower, and is anything stuck -- which is what these two say. --}}
+    <div class="grid-2" style="gap: 1.5rem; margin-top: 2rem;">
+        <div class="card" style="padding: 1.5rem;">
+            <h3 style="margin-bottom: 0.25rem;">Time to Resolve</h3>
+            <p style="color:#94a3b8; font-size:0.8rem; margin-bottom: 1rem;">
+                Filed to resolved, for every concern that has been settled
+            </p>
+
+            @if ($medianResolutionDays === null)
+                <p style="color:#64748b; font-size:0.9rem;">Nothing has been resolved yet, so there is no time to measure.</p>
+            @else
+                <div style="font-size: 2.4rem; font-weight: 700;">
+                    {{ $medianResolutionDays }}<span style="font-size:1rem; font-weight:600; color:#64748b;"> {{ \Illuminate\Support\Str::plural('day', $medianResolutionDays) }}</span>
+                </div>
+                {{-- The median, not the average: one case that sat for
+                     months pulls a mean far enough to make a service that
+                     mostly answers within the week look broken. --}}
+                <p style="color:#666; margin-top:0.5rem; font-size:0.88rem;">
+                    The middle case, across {{ number_format($resolutionCount) }} resolved.
+                    The slowest took {{ $slowestResolutionDays }}.
+                </p>
+            @endif
+        </div>
+
+        <div class="card" style="padding: 1.5rem;">
+            <h3 style="margin-bottom: 0.25rem;">Open Work by Age</h3>
+            <p style="color:#94a3b8; font-size:0.8rem; margin-bottom: 1rem;">
+                How long the {{ number_format($openTotal) }} still open have been waiting
+            </p>
+
+            @if ($openTotal === 0)
+                <p style="color:#64748b; font-size:0.9rem;">Nothing is open.</p>
+            @else
+                @foreach ($ageBuckets as $label => $count)
+                    @php $share = $openTotal ? round($count / $openTotal * 100) : 0; @endphp
+                    <div style="display:flex; align-items:center; gap:0.7rem; margin-bottom:0.55rem;">
+                        <span style="width:7.5rem; font-size:0.85rem; color:#475569;">{{ $label }}</span>
+                        <span style="flex:1; height:8px; background:#eef1f6; border-radius:999px; overflow:hidden;">
+                            {{-- Red only past a fortnight: a week-old concern
+                                 is work in hand, not a failure. --}}
+                            <span style="display:block; height:100%; width:{{ $share }}%;
+                                background:{{ in_array($label, ['2 to 4 weeks', 'over a month'], true) ? '#be123c' : '#2f5bea' }};"></span>
+                        </span>
+                        <span style="width:3.5rem; text-align:right; font-weight:700; font-size:0.9rem;">{{ $count }}</span>
+                    </div>
+                @endforeach
+
+                @if ($stalledCount > 0)
+                    <p style="color:#a31726; margin-top:0.8rem; font-size:0.88rem;">
+                        <strong>{{ number_format($stalledCount) }}</strong> have been waiting more than a fortnight.
+                    </p>
+                @endif
+            @endif
+        </div>
+    </div>
+
+    {{-- And who is holding it. "Unassigned: 0" below reads as a queue in
+         good order while one person carries two hundred cases; this is the
+         same open work, counted by whose desk it is on. --}}
+    @if ($loadByHandler->isNotEmpty())
+        <div class="card" style="padding: 1.5rem; margin-top: 2rem;">
+            <h3 style="margin-bottom: 0.25rem;">Where the Work Is Sitting</h3>
+            <p style="color:#94a3b8; font-size:0.8rem; margin-bottom: 1rem;">Open concerns, by the person holding them</p>
+
+            @php $heaviest = $loadByHandler->max('open') ?: 1; @endphp
+
+            @foreach ($loadByHandler as $handler)
+                <div style="display:flex; align-items:center; gap:0.7rem; margin-bottom:0.6rem;">
+                    <span style="width:13rem; min-width:0; font-size:0.88rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                        {{ $handler['name'] }}
+                        <span style="color:#94a3b8; font-size:0.78rem;">· {{ $handler['office'] }}</span>
+                    </span>
+                    <span style="flex:1; height:8px; background:#eef1f6; border-radius:999px; overflow:hidden;">
+                        <span style="display:block; height:100%; width:{{ round($handler['open'] / $heaviest * 100) }}%; background:#2f5bea;"></span>
+                    </span>
+                    <span style="width:3.5rem; text-align:right; font-weight:700; font-size:0.9rem;">{{ $handler['open'] }}</span>
+                </div>
+            @endforeach
+        </div>
+    @endif
+
     {{-- What is stuck, rather than what was filed. Each row is a thing an
          administrator can act on today, and each says what happens if nobody
          does. --}}
