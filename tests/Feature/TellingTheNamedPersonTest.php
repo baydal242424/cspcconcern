@@ -79,6 +79,85 @@ class TellingTheNamedPersonTest extends TestCase
         ])->assertRedirect();
     }
 
+    /**
+     * They are emailed as well as shown a row in the bell.
+     *
+     * This was in-app only, which put the whole guarantee behind a habit:
+     * somebody who does not sign in was never told at all, and not being
+     * told is exactly what this exists to prevent.
+     */
+    public function test_the_named_person_is_emailed_as_well(): void
+    {
+        \Illuminate\Support\Facades\Notification::fake();
+
+        $named = $this->named();
+        $concern = $this->aConcernNaming($named);
+
+        $this->beginInvestigation($concern);
+
+        \Illuminate\Support\Facades\Notification::assertSentTo(
+            $named,
+            \App\Notifications\NamedInAConcern::class
+        );
+
+        $row = Notification::where('user_id', $named->id)
+            ->where('type', ConcernNotificationService::TYPE_NAMED_IN_CONCERN)
+            ->firstOrFail();
+
+        $this->assertTrue((bool) $row->email_sent, 'the row should record that it went out');
+
+        fwrite(STDERR, "  [named] they are emailed as well as told in the app\n");
+    }
+
+    /**
+     * And the email gives away nothing -- not even the concern number.
+     *
+     * It is read on a lock screen by whoever is standing nearby. "A
+     * bullying report naming you" is an accusation in those conditions,
+     * and in a section of twenty it narrows the complainant too.
+     */
+    public function test_the_email_carries_nothing_about_the_case(): void
+    {
+        \Illuminate\Support\Facades\Notification::fake();
+
+        $named = $this->named();
+        $concern = $this->aConcernNaming($named);
+
+        $this->beginInvestigation($concern);
+
+        \Illuminate\Support\Facades\Notification::assertSentTo(
+            $named,
+            \App\Notifications\NamedInAConcern::class,
+            function ($notification) use ($named, $concern) {
+                $mail = $notification->toMail($named);
+                $body = $mail->subject.' '.strip_tags((string) $mail->render());
+
+                foreach ([
+                    $this->reporter()->name,
+                    $this->reporter()->email,
+                    $concern->description,
+                    $concern->category,
+                    'complaint',
+                    'accus',
+                    '#'.$concern->id,
+                ] as $forbidden) {
+                    $this->assertStringNotContainsStringIgnoringCase(
+                        $forbidden,
+                        $body,
+                        "The email must not carry '{$forbidden}'."
+                    );
+                }
+
+                // And it must not send them at the concern, which is a 403.
+                $this->assertStringNotContainsString('/concerns/'.$concern->id, $body);
+
+                return true;
+            }
+        );
+
+        fwrite(STDERR, "  [named] the email names nothing: not the case, not the number\n");
+    }
+
     /** They get a notice when work starts. */
     public function test_the_named_person_is_told_when_it_starts(): void
     {

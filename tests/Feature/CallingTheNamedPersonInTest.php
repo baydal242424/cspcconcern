@@ -317,12 +317,15 @@ class CallingTheNamedPersonInTest extends TestCase
     }
 
     /**
-     * A student can be called in, not only a staff member.
+     * Calling somebody in does not care what role they hold.
      *
-     * Bullying is the kind of concern this exists for, and it is almost
-     * always about a classmate.
+     * The filing form offers staff only, so a new concern cannot name a
+     * student -- but concerns filed while classmates were offered still
+     * name one, and an office must be able to call those people in. The
+     * subject is written straight onto the concern here for that reason:
+     * it is the state on file, not a state the form can still produce.
      */
-    public function test_a_student_can_be_called_in(): void
+    public function test_anybody_named_can_be_called_in_whatever_their_role(): void
     {
         $classmate = User::where('email', 'student2@my.cspc.edu.ph')->first();
 
@@ -362,6 +365,32 @@ class CallingTheNamedPersonInTest extends TestCase
         $this->actingAs($this->named())
             ->post("/notifications/{$notice->id}/read")
             ->assertRedirect(route('concerns.summons.letter', [$concern->id, $summons->id]));
+    }
+
+    /**
+     * A bell row whose notification is gone is not a dead end.
+     *
+     * The bell is the one part of the app people leave open. A tab from
+     * this morning still lists rows the retention job has since purged
+     * along with their concern, and clicking one gave a bare 404.
+     */
+    public function test_a_notification_that_no_longer_exists_does_not_404(): void
+    {
+        $concern = $this->aConcernNaming($this->named());
+
+        $this->actingAs($this->handler())
+            ->post("/concerns/{$concern->id}/summon", $this->callIn($concern, $this->named()));
+
+        $notice = Notification::where('user_id', $this->named()->id)
+            ->where('type', ConcernNotificationService::TYPE_CALLED_IN)
+            ->firstOrFail();
+
+        $id = $notice->id;
+        $notice->delete();
+
+        $this->actingAs($this->named())
+            ->post("/notifications/{$id}/read")
+            ->assertRedirect(route('concerns.index'));
     }
 
     /** Called in is written on the case, so the file shows it was done. */

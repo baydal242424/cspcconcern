@@ -62,15 +62,38 @@ class TheAttachmentLimitTellsTheTruthTest extends TestCase
             .config('concerns.max_attachment_mb')." MB\n");
     }
 
-    /** And the form prints that same number, not a different one. */
-    public function test_the_form_prints_the_real_number(): void
+    /**
+     * If the form names a size at all, it names the real one.
+     *
+     * It used to print "up to 5 files, 2 MB each" under the drop zone, and
+     * this asserted that line verbatim. The line is gone -- the form had
+     * grown a sentence of guidance under every field -- so what is left to
+     * guard is the thing that line was for: never telling a student a
+     * figure the server will not honour. A form that promises nothing
+     * cannot promise wrongly, and a file that is too big is still refused
+     * with the real number (see the test below).
+     */
+    public function test_the_form_never_names_a_size_it_will_not_honour(): void
     {
         $student = User::where('email', 'student@my.cspc.edu.ph')->firstOrFail();
 
-        $this->actingAs($student)->get('/concerns/create')->assertOk()
-            ->assertSee(config('concerns.max_attachment_mb').'&nbsp;MB each', false);
+        $html = $this->actingAs($student)->get('/concerns/create')->assertOk()->getContent();
 
-        fwrite(STDERR, "  [limit] the form prints the same number\n");
+        $real = (int) config('concerns.max_attachment_mb');
+
+        // Any "<number> MB" on the page has to be the real limit.
+        preg_match_all('~(\d+)(?:&nbsp;|\s)*MB~i', $html, $found);
+
+        foreach ($found[1] as $printed) {
+            $this->assertSame(
+                $real,
+                (int) $printed,
+                "The form shows {$printed} MB; the server enforces {$real} MB."
+            );
+        }
+
+        fwrite(STDERR, '  [limit] the form names no size other than the real one ('
+            .count($found[1])." shown)\n");
     }
 
     /** A file over it is refused with a message that names the real figure. */

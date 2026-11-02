@@ -431,21 +431,46 @@
         </div>
     @endif
 
-    @if ($concern->investigation_notes)
-        <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
-        <div>
-            <h2 class="section-title">{{ $concern->handlingNoteLabel() }}</h2>
-            <p class="user-text">{{ $concern->investigation_notes }}</p>
-        </div>
-    @endif
+    {{-- The whole handling record, not only its last line.
 
-    @if ($concern->resolution_notes)
-        <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
-        <div>
-            <h2 class="section-title">Resolution Notes</h2>
-            <p class="user-text">{{ $concern->resolution_notes }}</p>
-        </div>
-    @endif
+         Each entry is kept as it was written, so a case that passed
+         through an adviser and then a chair shows both accounts rather
+         than the chair's having replaced the adviser's. A single entry
+         renders as one paragraph, exactly as it always did; the dates and
+         names appear only once there is more than one, where they are
+         what makes the sequence readable. --}}
+    @foreach ([
+        ['heading' => $concern->handlingNoteLabel(), 'entries' => $reviewNotes, 'latest' => $concern->investigation_notes],
+        ['heading' => 'Resolution Notes', 'entries' => $resolutionNotes, 'latest' => $concern->resolution_notes],
+    ] as $log)
+        @if ($log['entries']->isNotEmpty() || $log['latest'])
+            <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
+            <div>
+                <h2 class="section-title">{{ $log['heading'] }}</h2>
+
+                @if ($log['entries']->isEmpty())
+                    {{-- Written before the record kept its history. --}}
+                    <p class="user-text">{{ $log['latest'] }}</p>
+                @elseif ($log['entries']->count() === 1)
+                    <p class="user-text">{{ $log['entries']->first()->body }}</p>
+                @else
+                    <div style="display:flex; flex-direction:column; gap:.9rem;">
+                        @foreach ($log['entries'] as $entry)
+                            <div style="border-left:3px solid var(--line,#e7ebf1); padding-left:.9rem;">
+                                <p class="user-text" style="margin:0;">{{ $entry->body }}</p>
+                                <p style="margin:.35rem 0 0; font-size:.78rem; color:var(--muted,#64748b);">
+                                    {{ $entry->created_at->local()->format('M j, Y g:i A') }}
+                                    @if ($viewerIsStaff && $entry->author)
+                                        · {{ $entry->author->name }}@if ($entry->author->role) ({{ $entry->author->role->name }})@endif
+                                    @endif
+                                </p>
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
+            </div>
+        @endif
+    @endforeach
 
     {{-- A concern closed without action gives the reporter no outcome, so the
          reason stands in for one and is deliberately prominent rather than
@@ -617,14 +642,18 @@
                      field appears when resolved is chosen and at no other
                      time. --}}
                 <div class="form-group" id="resolution-proof-group" style="display:none;">
-                    <label for="resolution_attachments">Proof this was dealt with *</label>
+                    <label for="resolution_attachments">
+                        Proof this was dealt with
+                        <span style="font-weight:400; color:var(--muted);">(optional)</span>
+                    </label>
                     <input type="file" name="resolution_attachments[]" id="resolution_attachments" multiple
                            accept="{{ collect(config('concerns.attachment_extensions'))->map(fn ($e) => '.'.$e)->implode(',') }}">
                     <div style="color:var(--muted); font-size:0.82rem; margin-top:0.25rem;">
                         A photo of the repair, a scan of the corrected record, a signed memo &mdash;
                         up to {{ config('concerns.max_attachments') }} files,
                         {{ config('concerns.max_attachment_mb') }}&nbsp;MB each.
-                        The student sees these too.
+                        The student sees these too. Where there is nothing to attach,
+                        your notes are the record.
                     </div>
                     @error('resolution_attachments')
                         <div style="color:#dc3545; font-size:0.85rem; margin-top:0.25rem;">{{ $message }}</div>
@@ -879,6 +908,20 @@
                      empty one before the request leaves, and the server
                      checks again -- required is a rule, and a rule enforced
                      only in the page is a suggestion. --}}
+                {{-- Both boxes always open empty.
+
+                     They used to open with whatever was saved. That put a
+                     copy of the notes on the page twice -- once as the
+                     record above, once as editable text above a Save
+                     button -- and the copy is the one that gets submitted
+                     back, unread, as this visit's account of the case.
+                     What was written is kept above, in full, which is
+                     where it is meant to be read.
+
+                     old() still wins, so a save that bounces hands back
+                     what was being typed rather than throwing it away. --}}
+                @php($hasEarlierNotes = $concern->investigation_notes || $concern->resolution_notes)
+
                 <div class="form-group">
                     {{-- Named for the work the category actually asks for.
                          "Investigation Notes" was the label on all eleven,
@@ -887,7 +930,7 @@
                          inspected, a counselling case is written up. --}}
                     <label for="investigation_notes">{{ $concern->handlingNoteLabel() }} *</label>
                     <textarea name="investigation_notes" id="investigation_notes" required minlength="3"
-                              placeholder="{{ $concern->handlingNoteHint() }}">{{ old('investigation_notes', $concern->investigation_notes) }}</textarea>
+                              placeholder="{{ $concern->handlingNoteHint() }}">{{ old('investigation_notes') }}</textarea>
                     @error('investigation_notes')
                         <p style="color: var(--danger-ink); font-size: 0.85rem; margin-top: 0.35rem;">{{ $message }}</p>
                     @enderror
@@ -896,13 +939,22 @@
                 <div class="form-group">
                     <label for="resolution_notes">Resolution Notes *</label>
                     <textarea name="resolution_notes" id="resolution_notes" required minlength="3"
-                              placeholder="What is being done about this?">{{ old('resolution_notes', $concern->resolution_notes) }}</textarea>
+                              placeholder="What is being done about this?">{{ old('resolution_notes') }}</textarea>
                     @error('resolution_notes')
                         <p style="color: var(--danger-ink); font-size: 0.85rem; margin-top: 0.35rem;">{{ $message }}</p>
                     @enderror
-                    <p style="color: var(--muted); font-size: 0.82rem; margin-top: 0.35rem;">
-                        The student reads both of these.
-                    </p>
+                    @if ($hasEarlierNotes)
+                        {{-- Said plainly, so an empty box does not read as
+                             the earlier work having gone missing. --}}
+                        <p style="color: var(--muted); font-size: 0.82rem; margin-top: 0.35rem;">
+                            The student reads both of these. What was written earlier is
+                            kept above &mdash; these boxes always start empty.
+                        </p>
+                    @else
+                        <p style="color: var(--muted); font-size: 0.82rem; margin-top: 0.35rem;">
+                            The student reads both of these.
+                        </p>
+                    @endif
                 </div>
 
                 <button type="submit" class="btn btn-success">Update Concern</button>
@@ -1036,12 +1088,12 @@
     @if ($canNotifyReporter)
         <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
         <div>
-            <h2 class="section-title" style="margin-bottom:.4rem;">Ask the student for something</h2>
+            <h2 class="section-title" style="margin-bottom:.4rem;">Write to someone on this concern</h2>
             <p style="color:var(--muted); font-size:.85rem; margin:0 0 1rem;">
-                They are notified in the app and by email. The email says only that a message is waiting
+                They are notified in the app. The student who filed it is emailed as well, and that email
                 {{-- The reason is worth stating on the form: a handler who
                      does not know it is omitted assumes it was sent. --}}
-                &mdash; what you write here stays behind the sign-in.
+                says only that a message is waiting &mdash; what you write here stays behind the sign-in.
                 @if ($concern->is_anonymous)
                     <br><strong>This concern is anonymous.</strong> You can write to them without learning who they are.
                 @endif
@@ -1049,6 +1101,35 @@
 
             <form action="{{ route('concerns.notify', $concern) }}" method="POST">
                 @csrf
+
+                @if ($concern->subjects->isNotEmpty())
+                    <div class="form-group">
+                        <label for="notice-to">Who is this for?</label>
+                        <select name="to" id="notice-to" required>
+                            <option value="reporter" @selected(old('to', 'reporter') === 'reporter')>
+                                The student who filed this{{ $concern->is_anonymous ? '' : ' — '.$concern->user->name }}
+                            </option>
+                            @foreach ($concern->subjects as $subject)
+                                <option value="subject:{{ $subject->id }}" @selected(old('to') === 'subject:'.$subject->id)>
+                                    {{ $subject->name }} — named on this concern
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('to')
+                            <div style="color:#dc3545; font-size:.85rem; margin-top:.25rem;">{{ $message }}</div>
+                        @enderror
+                        {{-- The wall is the system's to hold; the sentence is
+                             the handler's. Nothing here can stop somebody
+                             typing "about the complaint Lovella made", so the
+                             form says it where it will be read. --}}
+                        <div id="named-warning" style="display:none; margin-top:.5rem; padding:.6rem .8rem;
+                             border-left:3px solid #d97706; background:#fff8ed; font-size:.82rem; color:#7c4a03;">
+                            They cannot open this concern and are not told who raised it.
+                            Nothing you write here should say either &mdash; no names, and nothing
+                            that points at one person.
+                        </div>
+                    </div>
+                @endif
 
                 <div class="form-group">
                     <label for="notice-kind">What is this?</label>
@@ -1073,7 +1154,7 @@
                     @enderror
                 </div>
 
-                <button type="submit" class="btn btn-primary">Notify the student</button>
+                <button type="submit" class="btn btn-primary">Send it</button>
             </form>
 
             {{-- Inside the section on purpose. Anything outside one is
@@ -1099,6 +1180,25 @@
 
                     kind.addEventListener('change', followKind);
                     followKind();
+                })();
+
+                // The warning belongs to one recipient, so it appears with
+                // them and not before. Shown by script only -- the server
+                // rule is what actually keeps the two apart; this is the
+                // sentence that reaches the person doing the typing.
+                (function () {
+                    var to = document.getElementById('notice-to');
+                    var warning = document.getElementById('named-warning');
+
+                    if (!to || !warning) return;
+
+                    function followRecipient() {
+                        var chosen = to.value || '';
+                        warning.style.display = chosen.indexOf('subject:') === 0 ? 'block' : 'none';
+                    }
+
+                    to.addEventListener('change', followRecipient);
+                    followRecipient();
                 })();
             </script>
         </div>

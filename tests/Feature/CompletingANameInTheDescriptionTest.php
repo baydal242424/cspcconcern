@@ -67,8 +67,11 @@ class CompletingANameInTheDescriptionTest extends TestCase
         // break fell just after the part being asserted.
         $this->assertStringContainsString('before.match(/(?:^|\s)@([^@\n]{0,40})$/)', $html);
 
-        // And the form says it is there, or nobody finds it.
-        $this->assertStringContainsString('to name a staff member', $html);
+        // The line that advertised it under the box is gone -- the form had
+        // grown a sentence of guidance under every field. The completer
+        // itself is what this test guards; the hint was never what made it
+        // work.
+        $this->assertStringNotContainsString('to name a staff member', $html);
 
         fwrite(STDERR, "  [mention] the @ completer is on the form\n");
     }

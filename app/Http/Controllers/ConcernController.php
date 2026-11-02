@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Concern;
 use App\Models\ConcernDraft;
+use App\Models\ConcernNote;
 use App\Models\ConcernSummons;
 use App\Models\AuditLog;
 use App\Models\User;
@@ -611,32 +612,19 @@ class ConcernController extends Controller
             fn (User $u) => optional($u->role)->name === 'Instructor'
         );
 
-        // Their own class, so a concern about a classmate can say who.
+        // Classmates are NOT offered here. The picker names staff only.
         //
-        // Bullying and harassment are the categories most often about
-        // another student, and until now the picker held only staff --
-        // so the one kind of complaint where naming matters most could
-        // not name anybody, and the person complained of was never told.
+        // A student's whole section was briefly on this list, so a bullying
+        // report could say which classmate it was about. It put twenty-odd
+        // names on a form that is mostly about offices, under every
+        // category rather than only the ones where naming a classmate means
+        // anything -- a student filing about a mark scrolled past their
+        // entire class to reach the programme chair.
         //
-        // Their section, not the whole college: a complaint about a
-        // classmate is about somebody in the room, and eight hundred
-        // names is a directory rather than a picker.
-        $classmates = collect();
-
-        $me = auth()->user();
-
-        if (filled($me->course) && filled($me->section)) {
-            $classmates = User::with('role')
-                ->whereHas('role', fn ($q) => $q->where('name', 'Student'))
-                ->where('course', $me->course)
-                ->where('section', $me->section)
-                ->where('status', 'approved')
-                ->whereKeyNot($me->id)
-                ->orderBy('name')
-                ->get(['id', 'name', 'department', 'course', 'section', 'role_id']);
-        }
-
-        $otherStaff = $otherStaff->concat($classmates);
+        // What it costs is worth stating: naming somebody is what tells
+        // them a matter involving them is being looked into, so a concern
+        // about a classmate now reaches the office without the classmate
+        // being told anything. The office contacts them by hand instead.
 
         // What counts as a college, for "show me my own college's people".
         // COURSES_BY_COLLEGE names the six that enrol undergraduates; the
@@ -740,7 +728,17 @@ class ConcernController extends Controller
             // Named as it is built: the completer below reads the very
             // same list, rather than a second filter that drifts from it.
             'otherStaffByOffice' => $offerable = $otherStaff
-                ->reject(fn (User $u) => $adviser && $u->id === $adviser->id)
+                // The class adviser is in this list like anybody else.
+                //
+                // They used to be held out of it and given a box of their
+                // own, nested inside "I do not want this to go to my class
+                // adviser" -- so naming the one member of staff a student
+                // sees every day meant first ticking a routing preference,
+                // and the narrower, more serious answer was hidden behind
+                // the broader one. Routing already steps past an adviser
+                // the concern names, wherever the naming happened, so the
+                // separate box was asking the student to do by hand what
+                // the system does on its own.
                 // The people who run the system are not part of anybody's
                 // concern. A System Admin administers accounts and roles --
                 // naming one routes a case away from a person who was never
@@ -767,6 +765,24 @@ class ConcernController extends Controller
 
                     return $u->department === auth()->user()->department;
                 })
+                // The student's own class adviser is never filtered out,
+                // whatever else the rules above would have done with them.
+                //
+                // The filters are written for strangers: a Program Chair of
+                // another programme is noise, so chairs whose course differs
+                // are dropped. An adviser can be a chair of another
+                // programme and still be the person standing in front of
+                // this student's class every week -- and that rule quietly
+                // removed them, leaving a concern about their own adviser
+                // with nobody to name. The one member of staff a student
+                // certainly knows cannot be the one they cannot name.
+                ->pipe(function ($people) use ($adviser) {
+                    if ($adviser && ! $people->contains(fn (User $u) => $u->id === $adviser->id)) {
+                        return $people->push($adviser);
+                    }
+
+                    return $people;
+                })
                 ->groupBy(function (User $u) {
                     $role = optional($u->role)->name;
 
@@ -774,7 +790,6 @@ class ConcernController extends Controller
                         'Program Chair' => 'Program Chair',
                         'Dean' => 'Dean',
                         'Vice President for Academic Affairs' => 'Vice President for Academic Affairs',
-                        'Student' => 'Classmates',
                         default => 'Staff and offices',
                     };
                 })
@@ -785,9 +800,6 @@ class ConcernController extends Controller
                     'Dean',
                     'Vice President for Academic Affairs',
                     'Staff and offices',
-                    // Last: a concern about a classmate is the exception,
-                    // and the ladder above is what most students came for.
-                    'Classmates',
                 ], true)),
 
             // Name completion inside the description, built from the list
@@ -863,7 +875,7 @@ class ConcernController extends Controller
             // registration and again on every concern.
             // Length limits are enforced server-side too -- the form's
             // minlength/maxlength are advisory only.
-            'description' => 'required|string|min:20|max:2000',
+            'description' => 'required|string|min:20|max:'.config('concerns.max_description'),
             // Optional conflict-of-interest flag: the people this concern is
             // about. Each must be a real user holding a staff-type role.
             //
@@ -880,20 +892,13 @@ class ConcernController extends Controller
                     $person = User::with('role')->find($value);
                     $roleName = optional(optional($person)->role)->name;
 
-                    // Staff, or a fellow student.
-                    //
-                    // Students were refused here, which meant the one
-                    // kind of concern most often about a classmate --
-                    // bullying, harassment -- could never name who it
-                    // was about, and the person complained of was never
-                    // told anything. A named student is not a handler,
-                    // so nothing routes around them and the
-                    // conflict-of-interest rule has nothing to do;
-                    // being named simply means they are told it is
-                    // being looked into.
-                    $allowed = array_merge(self::STAFF_ROLES, ['Student']);
-
-                    if (! in_array($roleName, $allowed, true)) {
+                    // Staff only. Students were briefly allowed so a
+                    // bullying report could name the classmate it was
+                    // about; the picker no longer offers them, and a rule
+                    // looser than the form is how a hand-posted id gets
+                    // somebody named on a concern nobody could have
+                    // chosen them for.
+                    if (! in_array($roleName, self::STAFF_ROLES, true)) {
                         $fail('That person cannot be named on a concern.');
                     }
 
@@ -1193,6 +1198,13 @@ class ConcernController extends Controller
             ->orderBy('meet_at')
             ->get();
 
+        // The handling record in full, oldest first. Read here rather than
+        // from the two columns on the concern: those hold only the latest
+        // of each, which is what a case says now, not what it has been
+        // through.
+        $reviewNotes = $concern->reviewNotes()->with('author.role')->get();
+        $resolutionNotes = $concern->resolutionNotes()->with('author.role')->get();
+
         return view('concerns.show', compact(
             'concern',
             'referralCandidates',
@@ -1200,7 +1212,9 @@ class ConcernController extends Controller
             'notices',
             'canNotifyReporter',
             'canAddDocuments',
-            'summonses'
+            'summonses',
+            'reviewNotes',
+            'resolutionNotes'
         ));
     }
 
@@ -1325,21 +1339,15 @@ class ConcernController extends Controller
             'resolution_attachments.*.max' => 'Each file must be '.config('concerns.max_attachment_mb').' MB or smaller.',
         ]);
 
-        // Resolving takes proof. Required on the move TO resolved and not on
-        // later saves of an already resolved case, so correcting a typo a
-        // week afterwards does not ask for the receipt again.
-        //
-        // Checked here rather than with required_if so the message can say
-        // what is wanted: "a file" is not an instruction, and a handler who
-        // has just fixed an aircon needs to be told a photograph of it will
-        // do.
-        $isResolving = $validated['status'] === 'resolved' && $concern->status !== 'resolved';
-
-        if ($isResolving && empty($request->file('resolution_attachments'))) {
-            return redirect()->back()
-                ->withErrors(['resolution_attachments' => 'Attach something showing this was dealt with — a photo of the repair, a scan of the corrected record, a signed memo. The student sees it too.'])
-                ->withInput();
-        }
+        // Proof on resolving is offered, not demanded. It used to be
+        // required, which assumed every concern ends in something
+        // photographable: a repaired aircon, a corrected record, a signed
+        // memo. Most do not. A grade query settled by a conversation, a
+        // counselling case closed by agreement, a misunderstanding
+        // cleared up -- none of those produce a file, and refusing to let
+        // the handler resolve the case without one leaves it open on the
+        // queue, which is worse than resolving it with nothing attached.
+        // The written notes are the record in those cases.
 
         // When a concern is referred, a destination role is required.
         if ($validated['status'] === 'referred' && empty($validated['referred_to'])) {
@@ -1485,7 +1493,28 @@ class ConcernController extends Controller
         $proofFiles = $request->file('resolution_attachments', []);
         unset($validated['resolution_attachments']);
 
+        // The notes are added to the record, not written into it. Held
+        // back from the mass update so addNote() is the only thing that
+        // touches the two columns -- it appends the entry and then moves
+        // the column to match, and a plain update() here would move the
+        // column without the entry.
+        $newReview = $validated['investigation_notes'] ?? null;
+        $newResolution = $validated['resolution_notes'] ?? null;
+        unset($validated['investigation_notes'], $validated['resolution_notes']);
+
         $concern->update($validated);
+
+        // Only what is actually new. Both boxes are required on every
+        // save, so a handler changing nothing but the status would
+        // otherwise file the same two paragraphs again on each visit and
+        // bury the real entries in repeats.
+        if (filled($newReview) && $newReview !== $oldInvestigationNotes) {
+            $concern->addNote(ConcernNote::KIND_REVIEW, $newReview, Auth::id());
+        }
+
+        if (filled($newResolution) && $newResolution !== $oldNotes) {
+            $concern->addNote(ConcernNote::KIND_RESOLUTION, $newResolution, Auth::id());
+        }
 
         // Stored exactly like a student's evidence -- private disk, random
         // filename, original name kept only as a label -- and marked as
@@ -1506,10 +1535,13 @@ class ConcernController extends Controller
 
         $statusChanged = $oldStatus !== $validated['status'];
         $isReferral = $validated['status'] === 'referred' && ! empty($validated['referred_to']);
-        $notesChanged = array_key_exists('resolution_notes', $validated)
-            && $validated['resolution_notes'] !== $oldNotes;
-        $investigationNotesChanged = array_key_exists('investigation_notes', $validated)
-            && $validated['investigation_notes'] !== $oldInvestigationNotes;
+        // Read from the two held-back values, not from $validated: the
+        // notes are taken out of it above so that addNote() is the only
+        // thing that writes them. Asking $validated here would always say
+        // "unchanged" and quietly drop the timeline entry for every note
+        // anybody wrote.
+        $notesChanged = filled($newResolution) && $newResolution !== $oldNotes;
+        $investigationNotesChanged = filled($newReview) && $newReview !== $oldInvestigationNotes;
 
         // Log the status change with a human-readable description. A referral
         // is always logged (re-referring elsewhere keeps status 'referred' but
@@ -1620,6 +1652,17 @@ class ConcernController extends Controller
 
         // Redirect to the concern page (a fresh GET) so the view reloads clean
         // with the updated state, matching how the referral flow behaves.
+        //
+        // Unless the update closed that page behind them. Referring is a
+        // hand-off: the sender has just let go of the case and can no
+        // longer open it, so landing them on it answers a successful
+        // referral with a 403 and no sign the referral worked. Asked of
+        // the same rule that guards the page rather than special-cased to
+        // referrals, so anything else that removes access is covered too.
+        if (! $this->canViewConcern($concern->fresh(), $user)) {
+            return redirect()->route('concerns.index')->with('success', $message);
+        }
+
         return redirect()->route('concerns.show', $concern)->with('success', $message);
     }
 
@@ -1760,7 +1803,7 @@ class ConcernController extends Controller
             'category' => ['nullable', Rule::in(Concern::CATEGORIES)],
             'subcategory' => ['nullable', 'string', 'max:120'],
             'other_category' => ['nullable', 'string', 'max:120'],
-            'description' => ['nullable', 'string', 'max:2000'],
+            'description' => ['nullable', 'string', 'max:'.config('concerns.max_description')],
             'is_anonymous' => ['nullable', 'boolean'],
             'skip_adviser' => ['nullable', 'boolean'],
             'about_staff_id' => ['nullable', 'array', 'max:50'],
@@ -2019,29 +2062,62 @@ class ConcernController extends Controller
 
         $validated = $request->validate([
             'kind' => ['required', Rule::in(array_keys(Concern::NOTICE_KINDS))],
+            // Who it is for: the student who filed it, or somebody the
+            // concern names. Optional, and absent means the reporter --
+            // which is who this could reach before there was a choice.
+            'to' => ['nullable', 'string', 'max:40'],
             // Long enough to say what is wanted. "Send documents" with no
             // list of which ones is the message that gets sent twice.
             'message' => ['required', 'string', 'min:15', 'max:1000'],
         ], [
-            'message.required' => 'Write what you need from the student. They will see this.',
-            'message.min' => 'Say which documents, or where and when to come. The student will see this.',
+            'message.required' => 'Write what you need. They will see this.',
+            'message.min' => 'Say which documents, or where and when to come. They will see this.',
         ]);
 
-        $notifier->noticeFromHandler($concern, $validated['kind'], $validated['message'], $user);
+        // Resolved against the concern's own subject list, never trusted
+        // from the form: an id posted by hand would otherwise deliver a
+        // message about a case to somebody it never mentioned.
+        $recipient = null;
+
+        if (filled($validated['to'] ?? null) && $validated['to'] !== 'reporter') {
+            $wanted = (int) str_replace('subject:', '', $validated['to']);
+            $recipient = $concern->subjects->firstWhere('id', $wanted);
+
+            if (! $recipient) {
+                return redirect()->route('concerns.show', $concern)
+                    ->with('error', 'That person is not named on this concern.');
+            }
+        }
+
+        if ($recipient) {
+            $notifier->noticeToNamedPerson($concern, $recipient, $validated['kind'], $validated['message'], $user);
+        } else {
+            $notifier->noticeFromHandler($concern, $validated['kind'], $validated['message'], $user);
+        }
 
         // The audit entry carries the handler's words, so the request and
         // the case history are the same record. The student's timeline
         // shows it too -- see Concern::reporterMilestone().
+        //
+        // A message to a named person is logged under its own action, so
+        // the reporter's timeline does not show it: that timeline is what
+        // happened to THEIR report, and "we wrote to the person you named"
+        // is the office's business with somebody else.
         AuditLog::create([
             'user_id' => $user->id,
             'concern_id' => $concern->id,
-            'action' => 'reporter_notified',
-            'description' => Concern::noticeTitle($validated['kind']).': '.$validated['message'],
+            'action' => $recipient ? 'named_person_notified' : 'reporter_notified',
+            'description' => $recipient
+                ? 'Wrote to '.$recipient->name.' — '
+                    .Concern::noticeTitleForNamed($validated['kind']).': '.$validated['message']
+                : Concern::noticeTitle($validated['kind']).': '.$validated['message'],
             'ip_address' => $request->ip(),
         ]);
 
         return redirect()->route('concerns.show', $concern)
-            ->with('success', 'The student has been notified.');
+            ->with('success', $recipient
+                ? $recipient->name.' has been notified.'
+                : 'The student has been notified.');
     }
 
     /**

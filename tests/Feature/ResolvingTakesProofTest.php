@@ -13,15 +13,15 @@ use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
- * Marking a concern resolved takes something to show for it.
+ * Proof on resolving: offered, and never demanded.
  *
- * "Resolved" with nothing behind it asks the student to take somebody's word
- * that the aircon was repaired or the grade corrected. A photograph of the
- * repair or a scan of the corrected record is the difference between saying
- * it was fixed and showing them.
- *
- * Asked on the move TO resolved only. Correcting a typo on an already
- * settled case does not ask for the receipt again.
+ * "Resolved" with a photograph of the repair behind it is better than
+ * "resolved" alone, so the field is there and what is attached reaches the
+ * student. It is not required, because most concerns do not end in
+ * something photographable -- a grade query settled by a conversation, a
+ * counselling case closed by agreement -- and refusing to let those resolve
+ * leaves them open on the queue, which helps nobody. The written notes are
+ * the record there.
  */
 class ResolvingTakesProofTest extends TestCase
 {
@@ -66,18 +66,18 @@ class ResolvingTakesProofTest extends TestCase
         ], $overrides);
     }
 
-    /** Without proof, it does not resolve. */
-    public function test_resolving_without_proof_is_refused(): void
+    /** Nothing attached still resolves. Not every outcome has a file. */
+    public function test_resolving_without_proof_is_allowed(): void
     {
         $concern = $this->aConcern();
 
         $this->actingAs($this->handler())->from("/concerns/{$concern->id}")
             ->patch("/concerns/{$concern->id}", $this->payload())
-            ->assertSessionHasErrors('resolution_attachments');
+            ->assertSessionHasNoErrors();
 
-        $this->assertSame('in_progress', $concern->fresh()->status, 'it must not have resolved');
+        $this->assertSame('resolved', $concern->fresh()->status, 'it must have resolved');
 
-        fwrite(STDERR, "  [proof] resolving with nothing attached is refused\n");
+        fwrite(STDERR, "  [proof] resolving with nothing attached is allowed\n");
     }
 
     /** With it, the file is stored and marked as proof. */
@@ -163,9 +163,13 @@ class ResolvingTakesProofTest extends TestCase
 
         $this->actingAs($this->handler())->get("/concerns/{$open->id}")->assertOk()
             ->assertSee('Proof this was dealt with')
-            ->assertSee('enctype="multipart/form-data"', false);
+            ->assertSee('enctype="multipart/form-data"', false)
+            // Said on the label, not only enforced in the controller: a
+            // field marked with an asterisk is one handlers stop to hunt
+            // for a file they may not have.
+            ->assertSee('(optional)');
 
-        fwrite(STDERR, "  [proof] the field is on the update form\n");
+        fwrite(STDERR, "  [proof] the field is on the update form, marked optional\n");
     }
 
     /**

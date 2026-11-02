@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Notifications\ConcernAssigned;
 use App\Notifications\ConcernNoticeFromHandler;
 use App\Notifications\ConcernStatusUpdated;
+use App\Notifications\NamedInAConcern;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -122,9 +123,18 @@ class ConcernNotificationService
      * naming an instructor points at the one class they teach -- and a
      * section narrows it to forty people.
      *
-     * In-app only, deliberately. An email sitting in a mailbox is
-     * forwardable and quotable by anybody who later reads it, and this
-     * is the one notice whose whole value is in what it withholds.
+     * Emailed as well as shown in the app. This was in-app only, on the
+     * reasoning that a mailbox is outside everything the visibility rules
+     * can enforce -- but it put the whole guarantee behind a habit: a
+     * person who does not sign in was never told at all, which is the
+     * same as not telling them. Being told is the point.
+     *
+     * The mail is written to survive being read by the wrong person: no
+     * category, no description, no reporter, not even the concern number
+     * (see App\Notifications\NamedInAConcern). It says a matter involving
+     * them is being looked into and where to sign in. On a lock screen
+     * that is a sentence; "a bullying report naming you" would be an
+     * accusation.
      *
      * Sent once per person per concern: a case that goes in progress,
      * is referred, and comes back does not tell them twice. The caller
@@ -145,7 +155,7 @@ class ConcernNotificationService
                 continue;
             }
 
-            Notification::create([
+            $row = Notification::create([
                 'user_id' => $subject->id,
                 'type' => self::TYPE_NAMED_IN_CONCERN,
                 'concern_id' => $concern->id,
@@ -153,9 +163,11 @@ class ConcernNotificationService
                 'message' => 'A concern that names you has been taken up by the office'
                     .' handling it. You will be contacted if anything is needed from you.'
                     .' You cannot open the concern itself, and who raised it is not disclosed.',
-                // Not emailed: see the note above.
-                'email_sent' => false,
             ]);
+
+            // deliver() stamps email_sent and swallows a dead mail server,
+            // so a working status change is never lost to one.
+            $this->deliver($subject, new NamedInAConcern, $row);
         }
     }
 
@@ -229,6 +241,50 @@ class ConcernNotificationService
             // an open case and who is handling it; the handler sees this
             // the moment they next open the app, which is where the files
             // are anyway.
+            'email_sent' => false,
+        ]);
+    }
+
+    /** A handler writing to somebody the concern names. */
+    public const TYPE_NOTICE_TO_NAMED = 'notice_to_named';
+
+    /**
+     * Write to the person a concern NAMES, without calling them in.
+     *
+     * The gap this fills: the only thing that could reach a named person
+     * was a summons with a date and a place. Most of what an office
+     * actually needs to say is smaller than that -- send your written
+     * explanation, bring your registration form, the meeting has moved to
+     * Thursday -- and a formal letter for each of those is why handlers
+     * end up using a personal phone instead, leaving no record.
+     *
+     * It names the sender, because "report to the office" from nobody in
+     * particular is not something anybody can act on, and the sender is
+     * staff, not the complainant.
+     *
+     * It does NOT name the complainant, and the caller's own words are
+     * all it carries -- no category, no description, nothing read off the
+     * concern. The handler can still write something careless, which is
+     * why the form says so plainly above the box.
+     *
+     * In-app only, like every other notice to a named person: an email
+     * telling somebody to report to the Guidance Office is readable on a
+     * lock screen by anybody standing nearby.
+     */
+    public function noticeToNamedPerson(
+        Concern $concern,
+        User $person,
+        string $kind,
+        string $message,
+        User $sender
+    ): Notification {
+        return Notification::create([
+            'user_id' => $person->id,
+            'type' => self::TYPE_NOTICE_TO_NAMED,
+            'concern_id' => $concern->id,
+            'title' => Concern::noticeTitleForNamed($kind),
+            'message' => $message."\n\n— ".$sender->name
+                .($sender->role ? ', '.$sender->role->name : ''),
             'email_sent' => false,
         ]);
     }

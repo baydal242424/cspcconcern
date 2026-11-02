@@ -87,7 +87,10 @@ class ReportingYourOwnAdviserTest extends TestCase
             'The student\'s own class adviser must be offered, whatever role they hold'
         );
 
-        $resp->assertSee('This concern is about them');
+        // Nameable in the ordinary list of people, rather than in a box of
+        // their own nested inside the routing preference. The assertion is
+        // the selectable row, not the wording around it.
+        $resp->assertSee('name="about_staff_id[]" value="'.$adviser->id.'"', false);
         $resp->assertSee($adviser->name);
 
         fwrite(STDERR, "  [adviser] a Program Chair adviser is nameable: YES\n");
@@ -96,10 +99,11 @@ class ReportingYourOwnAdviserTest extends TestCase
     /**
      * Nobody should appear twice on one form -- it reads as two people.
      *
-     * This used to guard against the adviser sitting in the instructor picker
-     * as well as their own row. That picker is gone, so what is left to check
-     * is that an adviser who teaches does not turn up in the staff picker
-     * beside the deans and offices.
+     * This used to assert the opposite: that the adviser was NOT in the
+     * staff picker, because they had a row of their own nested inside the
+     * routing preference. That row is gone and the adviser is in the list
+     * with everybody else, so what is left to check is that putting them
+     * there did not also leave a second copy behind.
      */
     public function test_the_adviser_is_offered_once_and_only_once(): void
     {
@@ -107,9 +111,19 @@ class ReportingYourOwnAdviserTest extends TestCase
 
         $resp = $this->actingAs($this->student()->refresh())->get('/concerns/create');
 
-        $this->assertFalse(
-            $resp->viewData('otherStaffByOffice')->flatten()->contains('id', $adviser->id),
-            'The adviser has their own row; they must not also be in the staff picker'
+        $offered = $resp->viewData('otherStaffByOffice')->flatten();
+
+        $this->assertSame(
+            1,
+            $offered->where('id', $adviser->id)->count(),
+            'The adviser must be offered exactly once'
+        );
+
+        // And once on the page itself, not merely once in the data.
+        $this->assertSame(
+            1,
+            substr_count($resp->getContent(), 'name="about_staff_id[]" value="'.$adviser->id.'"'),
+            'One selectable row for the adviser, not two'
         );
 
         fwrite(STDERR, "  [adviser] listed once, not twice: YES\n");

@@ -214,6 +214,69 @@ class Concern extends Model
     }
 
     /**
+     * Everything ever written on this case, in the order it was written.
+     *
+     * The two columns hold only the latest of each kind, because each
+     * save wrote over the last. That made the handling record
+     * unrecoverable the moment a second person touched the case: the
+     * adviser's findings and the chair's shared one slot. These are
+     * append-only, so what a concern has been through survives.
+     */
+    public function notes()
+    {
+        return $this->hasMany(ConcernNote::class)->orderBy('id');
+    }
+
+    /** What was found, every time somebody looked. */
+    public function reviewNotes()
+    {
+        return $this->notes()->where('kind', ConcernNote::KIND_REVIEW);
+    }
+
+    /** What was being done about it, at each step. */
+    public function resolutionNotes()
+    {
+        return $this->notes()->where('kind', ConcernNote::KIND_RESOLUTION);
+    }
+
+    /**
+     * Add to the record. Nothing here replaces what is already written.
+     *
+     * The matching column is kept in step with the newest entry, so the
+     * half-dozen places that ask "what does this case say now" -- the
+     * student's view, the dashboard, exports -- carry on reading one
+     * value instead of each learning to walk a log.
+     */
+    public function addNote(string $kind, string $body, ?int $authorId): ConcernNote
+    {
+        $note = $this->notes()->create([
+            'user_id' => $authorId,
+            'kind' => $kind,
+            'body' => $body,
+        ]);
+
+        $this->forceFill([
+            $kind === ConcernNote::KIND_REVIEW ? 'investigation_notes' : 'resolution_notes' => $body,
+            'handling_notes_by' => $authorId,
+        ])->save();
+
+        return $note;
+    }
+
+    /**
+     * Who last wrote the review and resolution notes.
+     *
+     * A record only: the form's two boxes always open empty, for whoever
+     * is looking, so this decides nothing about what is shown. It is kept
+     * because "who wrote this" is a real question about a case file and
+     * the audit trail answers it only by inference.
+     */
+    public function handlingNotesAuthor()
+    {
+        return $this->belongsTo(User::class, 'handling_notes_by');
+    }
+
+    /**
      * What a handler can tell the student who filed a concern.
      *
      * Until now the only thing a case could say to a student was its
@@ -236,16 +299,25 @@ class Concern extends Model
     public const NOTICE_KINDS = [
         'documents' => [
             'title' => 'More documents are needed for your concern',
+            // What the same request is called when it goes to somebody the
+            // concern NAMES. They cannot open the case, so a heading
+            // saying "your concern" points at something they will never
+            // see -- and "the complaint about you" would hand them, in the
+            // one line they can read, what the conflict-of-interest wall
+            // exists to keep back.
+            'title_named' => 'You are asked to send something in',
             'prompt' => 'What do you need from them, and by when?',
             'cta' => 'Ask for documents',
         ],
         'meeting' => [
             'title' => 'You are asked to meet the person handling your concern',
+            'title_named' => 'You are asked to come in',
             'prompt' => 'Where should they go, and when? Say who to ask for.',
             'cta' => 'Ask them to come in',
         ],
         'update' => [
             'title' => 'A message about your concern',
+            'title_named' => 'A message for you',
             'prompt' => 'What do you want them to know?',
             'cta' => 'Send a message',
         ],
@@ -255,6 +327,13 @@ class Concern extends Model
     public static function noticeTitle(string $kind): string
     {
         return self::NOTICE_KINDS[$kind]['title'] ?? self::NOTICE_KINDS['update']['title'];
+    }
+
+    /** The heading somebody the concern names sees for the same notice. */
+    public static function noticeTitleForNamed(string $kind): string
+    {
+        return self::NOTICE_KINDS[$kind]['title_named']
+            ?? self::NOTICE_KINDS['update']['title_named'];
     }
 
     /**
@@ -545,6 +624,9 @@ class Concern extends Model
         'closed_at',
         'closure_reason',
         'resolution_notes',
+        // Who wrote the two note boxes last. The form only puts the saved
+        // text back for them; see handlingNotesBelongTo().
+        'handling_notes_by',
     ];
 
     protected $casts = [
@@ -1055,15 +1137,30 @@ class Concern extends Model
             return $query;
         }
 
-        // "Involvement history": a staff-type user stays able to see any concern
-        // they have personally acted on (submitted, triaged, referred, resolved),
-        // because every such action writes an audit log row with their user_id.
-        // This keeps handled concerns in their list/dashboard as a reference even
-        // after the concern is referred away or resolved -- without ever granting
-        // access to concerns they never touched.
+        // "Involvement history": a staff-type user stays able to see a concern
+        // they have personally acted on (triaged, noted, resolved), because
+        // every such action writes an audit log row with their user_id. That
+        // keeps their own finished work in their list and dashboard, rather
+        // than having a case vanish the moment they resolve it.
+        //
+        // It stops at the hand-off. Referring a case away used to leave it
+        // readable by whoever let go of it, for good -- so a bullying report
+        // that passed through an adviser, a chair and a dean on its way
+        // somewhere was afterwards readable by all three, and each of them
+        // went on seeing what the office that actually took it wrote. A
+        // referral is a hand-off, not a copy: once the case is on somebody
+        // else's desk it is theirs.
+        //
+        // "Still mine" is the current assignment, so this also puts a case
+        // back in view if it is ever referred back. A case with no handler at
+        // all stays visible to whoever last touched it, or an unrouted
+        // concern would be readable by nobody.
         $involved = function ($sub) use ($user) {
             $sub->whereHas('auditLogs', function ($log) use ($user) {
                 $log->where('user_id', $user->id);
+            })->where(function ($stillMine) use ($user) {
+                $stillMine->where('assigned_to', $user->id)
+                    ->orWhereNull('assigned_to');
             });
         };
 

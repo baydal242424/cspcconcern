@@ -69,6 +69,29 @@ return [
     'max_attachments' => (int) env('CONCERN_MAX_ATTACHMENTS', 5),
 
     /*
+    |--------------------------------------------------------------------------
+    | How long a description may be
+    |--------------------------------------------------------------------------
+    |
+    | In characters, not bytes. The column is TEXT, which holds 65,535 BYTES,
+    | and a character outside ASCII costs up to four of them -- so the useful
+    | ceiling is about 16,000 characters, not 65,535. Six thousand leaves the
+    | whole of that headroom unused even if every character is an emoji.
+    |
+    | Here rather than written out at each site. The number appeared in five
+    | places -- the filing rule, the draft rule, the textarea's maxlength, the
+    | counter's starting text and the counter's script -- and a limit that is
+    | written down five times is a limit that disagrees with itself the first
+    | time somebody changes four of them.
+    |
+    | The floor is 20 characters and lives with the rules; it is about whether
+    | a sentence says anything, not about what the server can hold.
+    |
+    */
+
+    'max_description' => (int) env('CONCERN_MAX_DESCRIPTION', 6000),
+
+    /*
     | What a student may attach.
     |
     | Broad on purpose -- a photograph of an injury, a phone video of a

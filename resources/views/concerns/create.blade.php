@@ -197,8 +197,8 @@
                  same words twice and a screen reader should hear them once. --}}
             <div id="mention-backdrop" class="mention-backdrop" aria-hidden="true"></div>
             <textarea name="description" id="description" rows="6"
-                minlength="20" maxlength="2000"
-                placeholder="Example: On March 3rd during our 9:00 AM class in Room 204, ... (describe the situation, dates, and people involved)."
+                minlength="20" maxlength="{{ config('concerns.max_description') }}"
+                placeholder="What happened?"
                 style="overflow-wrap:anywhere;" required>{{ old('description') }}</textarea>
 
             {{-- Name completion inside the description.
@@ -222,10 +222,7 @@
 
             <div style="display:flex; justify-content:space-between; margin-top:0.5rem; font-size:0.85rem;">
                 <span id="char-hint" style="color:#dc3545;">Please write at least 20 characters.</span>
-                {{-- Nothing else says the @ is there, and a feature nobody
-                     finds is a feature nobody has. --}}
-                <span style="color:#60708a;">Type <strong>&#64;</strong> to name a staff member.</span>
-                <span id="char-count" style="color:#60708a;">0 / 2000</span>
+                <span id="char-count" style="color:#60708a;">0 / {{ config('concerns.max_description') }}</span>
             </div>
             @error('description')
                 <div style="color: #dc3545; font-size: 0.85rem; margin-top: 0.25rem;">{{ $message }}</div>
@@ -311,6 +308,11 @@
             @endif
             <div id="about_staff_wrap" style="display:none; margin-top:0.6rem;">
                 <label style="font-size:0.9rem;">Who is this concern about? You can pick more than one.</label>
+                {{-- Whoever is ticked, shown here. The list scrolls, so a
+                     name chosen at the top is out of sight by the time you
+                     reach the bottom, and the only way to check what you had
+                     picked was to scroll back through it. --}}
+                <div id="people-chosen" class="people-chosen" aria-live="polite"></div>
                 <input type="search" class="people-filter" data-list="about_staff_id" placeholder="Type a name to narrow the list" aria-label="Search staff" style="width:100%; margin:0.4rem 0;">
                 <div id="about_staff_id" class="people-picker" data-name="about_staff_id[]">
                     {{-- Grouped by office: "Faculty/Staff" alone named no
@@ -361,7 +363,17 @@
                                         $bits[] = $member->department;
                                     }
                                 @endphp
-                                <span>{{ $member->name }}{{ $bits ? ' — '.implode(', ', $bits) : '' }}</span>
+                                {{-- Two lines, not one run-on sentence. The
+                                     name is the only thing anybody scans for;
+                                     on one line it carried the same weight as
+                                     six words of office that repeat down every
+                                     row, and the eye had nothing to catch on. --}}
+                                <span class="person-text">
+                                    <span class="person-name">{{ $member->name }}</span>
+                                    @if ($bits)
+                                        <span class="person-who">{{ implode(' · ', $bits) }}</span>
+                                    @endif
+                                </span>
                             </label>
                         @endforeach
                     @endforeach
@@ -377,27 +389,31 @@
             @enderror
         </div>
 
-        {{-- Not an accusation, a preference. Academic, Physical, Safety and
+        {{-- One box, and only for the thing a box is actually needed for.
+
+             Not an accusation, a preference. Academic, Physical, Safety and
              Others reach the class adviser first, which is right until the
              student does not want that particular person reading it -- and
-             the only way to say so was to report them, which is a far bigger
-             thing to write down than "send this to somebody else".
+             without this the only way to say so is to report them, which is
+             a far bigger thing to write down than "send this to somebody
+             else".
 
-             Hidden for the categories that never reach an adviser (Facilities
-             goes to General Services), and the server clears the flag for
-             those too, so a stale tick cannot travel with the form. --}}
-        {{-- Hidden until a category is chosen, the same way the naming group
-             is. Shown by default it flashed onto the page before the script
-             could decide, and a control that appears and then vanishes reads
-             as the form losing it. --}}
+             There used to be a second box nested inside this one, "This
+             concern is about them", so naming the one member of staff a
+             student sees every day meant first ticking a routing
+             preference. The adviser is in the list of people above now,
+             like everybody else, and routing steps past an adviser the
+             concern names wherever that naming happened -- so that box was
+             asking the student to do by hand what the system already does.
+
+             Hidden for the categories that never reach an adviser
+             (Facilities goes to General Services), and the server clears
+             the flag for those too, so a stale tick cannot travel with the
+             form. --}}
         <div class="form-group" id="skip-adviser-group" style="display:none;">
             <label style="display:block;">
-                {{-- Ticked on a failed submit when the adviser is still named
-                     below: the nested box cannot be the only thing holding that
-                     answer, or the form would reopen showing an accusation with
-                     nothing on screen saying where it routes. --}}
                 <input type="checkbox" name="skip_adviser" id="skip_adviser" value="1"
-                    {{ old('skip_adviser') || ($adviser && $namedSubjects->contains($adviser->id)) ? 'checked' : '' }}
+                    {{ old('skip_adviser') ? 'checked' : '' }}
                     @disabled($repeat)>
                 @if ($repeat && $followsUpOn->skip_adviser)
                     <input type="hidden" name="skip_adviser" value="1">
@@ -406,65 +422,13 @@
             </label>
             <p style="font-size: 0.82rem; color: #666; margin-top: 0.4rem; padding-left: 1.6rem;">
                 It goes to your <strong>Program Chair</strong> instead. You do not have to say why.
+                @if ($adviser)
+                    <br>Your class adviser is {{ $adviser->name }}. If this concern is
+                    <em>about</em> them, name them in the list above instead &mdash; it is kept
+                    from them either way, and naming them also stops it being referred back.
+                @endif
             </p>
-
-            @if ($adviser)
-                {{-- Reporting the adviser is the narrower case, so it sits
-                     inside the broader one. Ticking it also records them as a
-                     subject, which is the part routing alone does not do: it
-                     walls them off from reading the concern and stops anybody
-                     referring it back to them. --}}
-                <div id="adviser-subject-wrap" style="display:none; margin-top:0.7rem; padding-left:1.6rem;">
-                    <p style="margin:0; font-weight:600;">{{ $adviser->name }}</p>
-                    {{-- The student's section, not the adviser's own column,
-                         which is a student field and empty on staff. --}}
-                    <p style="margin:0.1rem 0 0; font-size:0.85rem; color:#555;">{{ $adviser->department }}@if (auth()->user()->section) · your adviser for section {{ auth()->user()->section }}@endif</p>
-
-                    <label style="display:block; margin-top:0.55rem;">
-                        <input type="checkbox" id="about_adviser_toggle" class="about-toggle" data-target="about_adviser_wrap" data-select="about_adviser_id">
-                        <span style="font-weight: normal; margin-left: 0.5rem;">This concern is about them</span>
-                    </label>
-                    <div id="about_adviser_wrap" style="display:none; padding-left:1.6rem;">
-                        {{-- No list to choose from: one adviser, held in a hidden
-                             field the shared toggle script fills from data-value
-                             while this row is open. --}}
-                        <input type="hidden" name="about_staff_id[]" id="about_adviser_id" data-value="{{ $adviser->id }}" value="{{ $namedSubjects->contains($adviser->id) ? $adviser->id : '' }}" disabled>
-                        <p style="font-size: 0.82rem; color: #666; margin-top: 0.4rem;">Recorded as a concern about {{ $adviser->name }}. They will not be able to read it, and nobody can refer it back to them.</p>
-                    </div>
-                </div>
-            @endif
         </div>
-
-        <script>
-            // The nested row follows the box it lives in, and unticks itself on
-            // the way closed -- a student who changed their mind about the
-            // routing would otherwise still have reported their adviser, with
-            // the row that said so hidden from them.
-            (function () {
-                const skip = document.getElementById('skip_adviser');
-                const wrap = document.getElementById('adviser-subject-wrap');
-                const about = document.getElementById('about_adviser_toggle');
-                if (!skip || !wrap) return;
-
-                function sync() {
-                    wrap.style.display = skip.checked ? 'block' : 'none';
-
-                    if (!skip.checked && about && about.checked) {
-                        about.checked = false;
-                        // Handed to the shared row script, which is what
-                        // disables the hidden field so it is not submitted.
-                        about.dispatchEvent(new Event('change'));
-                    }
-                }
-
-                skip.addEventListener('change', sync);
-                // Changing category can untick the box from updateHelpers(),
-                // and a property set by script fires no event of its own.
-                const category = document.getElementById('category');
-                if (category) category.addEventListener('change', sync);
-                sync();
-            })();
-        </script>
 
         <div class="form-group">
             <label for="attachments">Attach evidence <span style="font-weight:normal;color:#666;">(optional)</span></label>
@@ -492,7 +456,6 @@
             <ul class="file-list" id="file-list" hidden></ul>
             <p class="file-note" id="file-note" hidden></p>
 
-            <p style="font-size: 0.82rem; color: #666; margin-top: 0.4rem;">Optional. Up to {{ config('concerns.max_attachments') }} files, {{ config('concerns.max_attachment_mb') }}&nbsp;MB each. Only the staff handling this can open them.</p>
             @error('attachments')
                 <div style="color: #dc3545; font-size: 0.85rem; margin-top: 0.25rem;">{{ $message }}</div>
             @enderror
@@ -831,10 +794,39 @@
                 // Derived from CATEGORY_ROUTING rather than written out here.
                 // The form used to keep its own copy of the routing table and
                 // it drifted twice; this cannot, because there is only one.
+                // The one number, read from the server like everything else
+                // here. The counter used to carry its own copy, so raising
+                // the limit meant finding it in five places.
+                const MAX_DESCRIPTION = @json((int) config('concerns.max_description'));
+
                 const ADVISER_CATEGORIES = @json(array_keys(array_filter(
                     \App\Http\Controllers\ConcernController::CATEGORY_ROUTING,
                     fn ($role) => $role === 'Adviser'
                 )));
+
+                // What the student actually asked for, remembered across a
+                // change of category.
+                //
+                // The box is cleared whenever the category stops reaching an
+                // adviser, which is right -- the server clears the flag for
+                // those categories too, so leaving it ticked would show an
+                // answer that is not being sent. What was wrong is what
+                // happened on the way back: the box reappeared empty, looking
+                // exactly as it had when it was ticked, and a student who had
+                // already answered was silently asked again. Someone picking
+                // Academic, ticking it, glancing at Facilities and coming back
+                // filed a concern straight to the adviser they had just said
+                // they did not want.
+                let skipWanted = Boolean(@json((bool) old('skip_adviser')));
+
+                const skipBoxEl = document.getElementById('skip_adviser');
+                if (skipBoxEl) {
+                    // Only a real click counts. The restoring assignment
+                    // below fires no event, so it cannot overwrite this.
+                    skipBoxEl.addEventListener('change', function () {
+                        skipWanted = skipBoxEl.checked;
+                    });
+                }
 
                 // Who can be named, per category.
                 //
@@ -875,6 +867,56 @@
                 // Show only the people who have a part in this category, and
                 // untick anybody the change has just hidden -- a name left
                 // ticked in a row nobody can see would still be submitted.
+                // The chips above the box: one per ticked name, each with a
+                // cross that unticks it. Rebuilt from the checkboxes rather
+                // than kept as its own list, so the two cannot disagree --
+                // the checkboxes are what gets submitted.
+                function showChosen() {
+                    const picker = document.getElementById('about_staff_id');
+                    const tray = document.getElementById('people-chosen');
+
+                    if (!picker || !tray) return;
+
+                    tray.innerHTML = '';
+
+                    Array.prototype.forEach.call(
+                        picker.querySelectorAll('input[type="checkbox"]'),
+                        function (box) {
+                            if (!box.checked) return;
+
+                            const row = box.closest('.person');
+                            const nameEl = row ? row.querySelector('.person-name') : null;
+
+                            const chip = document.createElement('span');
+                            chip.className = 'chip';
+
+                            const label = document.createElement('span');
+                            label.textContent = nameEl ? nameEl.textContent.trim() : 'Selected';
+                            chip.appendChild(label);
+
+                            const drop = document.createElement('button');
+                            drop.type = 'button';
+                            drop.setAttribute('aria-label', 'Remove ' + label.textContent);
+                            drop.textContent = '×';
+                            drop.addEventListener('click', function () {
+                                box.checked = false;
+                                showChosen();
+                            });
+                            chip.appendChild(drop);
+
+                            tray.appendChild(chip);
+                        }
+                    );
+                }
+
+                (function () {
+                    const picker = document.getElementById('about_staff_id');
+                    if (!picker) return;
+
+                    picker.addEventListener('change', showChosen);
+                    showChosen();
+                })();
+
                 function narrowStaffPicker(cat) {
                     const picker = document.getElementById('about_staff_id');
 
@@ -907,6 +949,11 @@
 
                         heading.hidden = !anyLeft;
                     });
+
+                    // Changing category unticks anybody it just hid, so the
+                    // chips have to be rebuilt or they would go on showing a
+                    // name that is no longer being submitted.
+                    showChosen();
                 }
 
                 function updateHelpers() {
@@ -990,8 +1037,13 @@
                         // said nothing anywhere.
                         const adviserCategory = Boolean(cat) && ADVISER_CATEGORIES.indexOf(cat) !== -1;
                         skipGroup.style.display = adviserCategory ? 'block' : 'none';
-                        if (!adviserCategory) {
-                            document.getElementById('skip_adviser').checked = false;
+
+                        const skipBox = document.getElementById('skip_adviser');
+                        if (skipBox) {
+                            // Cleared while the category does not reach an
+                            // adviser, and put back as they left it when it
+                            // does. See skipWanted above for why.
+                            skipBox.checked = adviserCategory ? skipWanted : false;
                         }
                     }
 
@@ -1058,7 +1110,7 @@
 
                 function updateCharCount() {
                     const len = (descEl.value || '').trim().length;
-                    charCountEl.textContent = len + ' / 2000';
+                    charCountEl.textContent = len + ' / ' + MAX_DESCRIPTION;
                     const hintEl = document.getElementById('char-hint');
                     if (hintEl) {
                         if (len === 0) {

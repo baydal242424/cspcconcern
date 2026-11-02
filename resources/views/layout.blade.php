@@ -368,7 +368,7 @@
            Two problems, both only visible with real input rather than test
            input.
 
-           overflow-wrap:anywhere -- a description can be 2000 characters with
+           overflow-wrap:anywhere -- a description can run to thousands of characters with
            no spaces in it. Without a break opportunity the line does not wrap,
            it just keeps going, widening the page and pushing every other
            element sideways.
@@ -396,9 +396,35 @@
             padding:.35rem .75rem; border-bottom:1px solid var(--line);
         }
         .people-picker .person{
-            display:flex; align-items:flex-start; gap:.55rem;
-            padding:.45rem .75rem; font-weight:400; cursor:pointer;
+            display:flex; align-items:flex-start; gap:.6rem;
+            padding:.5rem .75rem; font-weight:400; cursor:pointer;
         }
+        /* Name on its own line, the rest under it in small grey.
+           These used to be one string -- "Ms. Rosel O. Onesa (OIC) — Dean,
+           College of Computer Studies" -- and the office repeated down every
+           row of a group, so the names all sat in the middle of identical
+           sentences with nothing to pick them out. */
+        .people-picker .person-text{display:flex; flex-direction:column; gap:.1rem; min-width:0}
+        .people-picker .person-name{font-size:.95rem; color:var(--ink); line-height:1.35}
+        .people-picker .person-who{
+            font-size:.78rem; color:var(--muted); line-height:1.3;
+            overflow-wrap:anywhere;
+        }
+        /* The chosen names, above the box, so what you have picked does not
+           need scrolling back for. */
+        .people-chosen{display:flex; flex-wrap:wrap; gap:.35rem; margin:.1rem 0 .45rem}
+        .people-chosen:empty{display:none}
+        .people-chosen .chip{
+            display:inline-flex; align-items:center; gap:.4rem;
+            background:var(--brand-50); color:var(--navy-900);
+            border:1px solid #d5dffb; border-radius:999px;
+            padding:.22rem .4rem .22rem .7rem; font-size:.82rem; line-height:1.4;
+        }
+        .people-chosen .chip button{
+            border:0; background:none; cursor:pointer; font:inherit;
+            color:var(--muted); line-height:1; padding:.1rem .25rem; border-radius:999px;
+        }
+        .people-chosen .chip button:hover{background:#dbe4fd; color:var(--ink)}
         /* The name filter and the "other colleges" fold both hide rows with
            row.hidden = true, and [hidden] only carries display:none from the
            user-agent stylesheet -- which the display:flex above outranks.
@@ -406,8 +432,11 @@
            368 instructors anyway. The headings are <p> elements, so they hide
            on their own; only the rows needed rescuing. */
         .people-picker .person[hidden]{display:none}
-        /* 44px of tappable height per row: a phone is the common case. */
-        .people-picker .person span{min-height:1.6rem; line-height:1.6}
+        /* 44px of tappable height per row: a phone is the common case.
+           Scoped to the row's own text wrapper -- as a bare "span" it also
+           hit the name and the office line inside it and stacked three lots
+           of minimum height on every row. */
+        .people-picker .person > .person-text{min-height:2.2rem; justify-content:center}
         .people-picker .person:hover{background:#f7f9ff}
         .people-picker .person input{margin-top:.25rem; flex:none}
         .show-all-people{

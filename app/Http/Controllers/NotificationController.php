@@ -25,8 +25,24 @@ class NotificationController extends Controller
      * third-party page must not be able to silently clear someone's unread
      * badge.
      */
-    public function read(Request $request, Notification $notification)
+    public function read(Request $request, string $notificationId)
     {
+        // Looked up rather than route-bound, so a row that is no longer
+        // there is something this can answer instead of a bare 404.
+        //
+        // The bell is the one part of the app people leave open. A tab
+        // from this morning still shows rows that the retention job has
+        // since purged along with their concern, and clicking one of
+        // those gave a blank Not Found. There is nothing to fail at:
+        // marking a notification read when it no longer exists has
+        // already achieved what it was for, so it ends where reading one
+        // normally ends.
+        $notification = Notification::find($notificationId);
+
+        if (! $notification) {
+            return redirect()->route('concerns.index');
+        }
+
         // Scoped, not just "does it exist" -- otherwise anyone could mark
         // (and by ID, enumerate) another user's notifications.
         if ($notification->user_id !== Auth::id()) {
