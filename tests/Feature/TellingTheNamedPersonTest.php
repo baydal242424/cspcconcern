@@ -158,6 +158,40 @@ class TellingTheNamedPersonTest extends TestCase
         fwrite(STDERR, "  [named] the email names nothing: not the case, not the number\n");
     }
 
+    /**
+     * Referring it counts as work starting.
+     *
+     * This used to fire on "in progress" and "resolved" only, so a case
+     * that went submitted, referred, referred and only then resolved told
+     * the person it named nothing until the very end -- the opposite of
+     * telling them at the start. A referral is not idle triage either:
+     * both note boxes are required to make one, so the referrer has
+     * written down what they found before the case moves.
+     */
+    public function test_referring_it_tells_the_named_person(): void
+    {
+        $named = $this->named();
+        $concern = $this->aConcernNaming($named);
+
+        $this->assertSame(0, Notification::where('user_id', $named->id)->count());
+
+        $this->actingAs($this->handler())->patch("/concerns/{$concern->id}", [
+            'investigation_notes' => 'Looked at this; it belongs with another office.',
+            'resolution_notes' => 'Sending it on.',
+            'status' => 'referred',
+            'referred_to' => 'Gender and Development',
+            'urgency' => 'High',
+        ])->assertRedirect();
+
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $named->id,
+            'concern_id' => $concern->id,
+            'type' => ConcernNotificationService::TYPE_NAMED_IN_CONCERN,
+        ]);
+
+        fwrite(STDERR, "  [named] a referral tells them too\n");
+    }
+
     /** They get a notice when work starts. */
     public function test_the_named_person_is_told_when_it_starts(): void
     {

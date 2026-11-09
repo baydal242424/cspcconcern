@@ -1633,7 +1633,14 @@ class ConcernController extends Controller
             // wall means they cannot read it, answer it, or learn who made
             // it. The service sends once per person, so a case that goes
             // in progress and is later resolved still tells them once.
-            if (in_array($validated['status'], ['in_progress', 'resolved'], true)) {
+            //
+            // "referred" as well. A case handed from one office to another
+            // is plainly being worked on -- the referrer cannot refer it
+            // without writing what they found first -- and leaving it out
+            // meant a concern that went submitted, referred, referred and
+            // only then resolved told the person it named nothing until
+            // the very end. Told at the start is the whole requirement.
+            if (in_array($validated['status'], ['in_progress', 'referred', 'resolved'], true)) {
                 $this->notifications->investigationBegun($concern);
             }
         }

@@ -619,6 +619,39 @@
             })();
         </script>
 
+        {{-- Typing @Somebody is not the same as naming them.
+
+             The @ writes text into the description so a name is spelled
+             right; the checkbox above is what records who the concern is
+             ABOUT, which is what walls them out of the case, routes it over
+             their head, and tells them it is being looked into. Nothing on
+             the form said so, and the two read as one thing: the first
+             bullying report filed here said "bullying behavior from @Glaiza
+             Pocaan" and named nobody at all, so nobody was ever told.
+
+             Asked rather than assumed. Naming somebody carries consequences,
+             and a student who meant only to spell a name should not have
+             them applied by a guess. --}}
+        <div id="mention-check" hidden
+             style="border:1px solid #f0c36d; background:#fffaf0; border-radius:.6rem;
+                    padding:.9rem 1rem; margin-bottom:1rem;">
+            <p style="margin:0 0 .5rem; font-weight:650; color:#7c4a03;">
+                You mentioned somebody by name.
+            </p>
+            <p style="margin:0 0 .6rem; font-size:.88rem; color:#7c4a03;">
+                Writing a name in the description does not tell us the concern is
+                <em>about</em> them. Tick anyone this concern is actually about &mdash;
+                they will be told it is being looked into, and it will not be handled
+                by them.
+            </p>
+            <div id="mention-check-list" style="display:flex; flex-direction:column; gap:.35rem;"></div>
+            <div style="display:flex; gap:.6rem; flex-wrap:wrap; margin-top:.8rem;">
+                <button type="button" id="mention-check-go" class="btn btn-primary" style="font-size:.88rem;">
+                    Continue
+                </button>
+            </div>
+        </div>
+
         <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
             <button type="submit" class="btn btn-primary">Send ✈</button>
             {{-- Inside the same form, so everything typed so far goes with
@@ -634,6 +667,125 @@
                     formnovalidate>Save as draft</button>
             <a href="{{ route('concerns.index') }}" class="btn btn-muted">Cancel</a>
         </div>
+
+        <script>
+            // Catch a name written with @ that nobody has ticked.
+            //
+            // Runs on submit, once. If the description mentions somebody who
+            // is in the picker but not selected, the send is held and the
+            // panel above asks whether the concern is about them. Answering
+            // ticks the real checkbox, so there is one source of truth for
+            // what gets submitted.
+            //
+            // A prompt, not a rule: the server does not depend on it, and a
+            // student who means only to spell a name says so and carries on.
+            (function () {
+                const form = document.querySelector('form[action$="/concerns"]');
+                const desc = document.getElementById('description');
+                const picker = document.getElementById('about_staff_id');
+                const panel = document.getElementById('mention-check');
+                const list = document.getElementById('mention-check-list');
+                const go = document.getElementById('mention-check-go');
+
+                if (!form || !desc || !picker || !panel || !list || !go) return;
+
+                let asked = false;
+
+                // Everyone the form can name, longest name first so "Ma.
+                // Lovella Brondial" is matched before any shorter name that
+                // happens to start the same way.
+                function offered() {
+                    return Array.prototype.slice
+                        .call(picker.querySelectorAll('.person'))
+                        .filter(function (row) { return !row.hidden; })
+                        .map(function (row) {
+                            return {
+                                name: row.querySelector('.person-name').textContent.trim(),
+                                box: row.querySelector('input[type="checkbox"]'),
+                            };
+                        })
+                        .sort(function (a, b) { return b.name.length - a.name.length; });
+                }
+
+                function mentionedButNotTicked() {
+                    const text = desc.value || '';
+
+                    if (text.indexOf('@') === -1) return [];
+
+                    return offered().filter(function (person) {
+                        if (!person.box || person.box.checked) return false;
+
+                        return text.indexOf('@' + person.name) !== -1;
+                    });
+                }
+
+                form.addEventListener('submit', function (event) {
+                    // Saving a draft is not filing, so it is never questioned.
+                    if (event.submitter && event.submitter.hasAttribute('formaction')) return;
+
+                    if (asked) return;
+
+                    const unticked = mentionedButNotTicked();
+
+                    if (!unticked.length) return;
+
+                    event.preventDefault();
+                    asked = true;
+
+                    list.innerHTML = '';
+
+                    unticked.forEach(function (person) {
+                        const row = document.createElement('label');
+                        row.style.cssText = 'display:flex; gap:.5rem; align-items:center; font-size:.9rem; color:#7c4a03;';
+
+                        const tick = document.createElement('input');
+                        tick.type = 'checkbox';
+                        tick.addEventListener('change', function () {
+                            // The real checkbox is what submits; this one
+                            // only drives it.
+                            person.box.checked = tick.checked;
+                            person.box.dispatchEvent(new Event('change', { bubbles: true }));
+                        });
+
+                        const text = document.createElement('span');
+                        text.textContent = 'This concern is about ' + person.name;
+
+                        row.appendChild(tick);
+                        row.appendChild(text);
+                        list.appendChild(row);
+                    });
+
+                    panel.hidden = false;
+
+                    // Guarded: showing the question is the job, scrolling to
+                    // it is a courtesy, and a courtesy must not throw out of
+                    // the handler that just held the student's send back.
+                    if (typeof panel.scrollIntoView === 'function') {
+                        panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                });
+
+                go.addEventListener('click', function () {
+                    panel.hidden = true;
+
+                    // Opening the naming section, if a name was just ticked
+                    // in here while it was closed -- the picker is inside a
+                    // block that only shows when the student opened it.
+                    if (picker.querySelector('input[type="checkbox"]:checked')) {
+                        const opener = document.getElementById('about_staff_toggle');
+
+                        if (opener && !opener.checked) {
+                            opener.checked = true;
+                            opener.dispatchEvent(new Event('change', { bubbles: true }));
+                        }
+                    }
+
+                    form.requestSubmit
+                        ? form.requestSubmit()
+                        : form.submit();
+                });
+            })();
+        </script>
 
         <script>
             // The three "this concern is about..." rows. They are independent,
