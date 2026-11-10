@@ -228,19 +228,49 @@ class CompletingANameInTheDescriptionTest extends TestCase
         fwrite(STDERR, "  [mention] the page ships no roster\n");
     }
 
-    /** Anyone registered can be found, students included. */
-    public function test_any_registered_account_can_be_found(): void
+    /**
+     * It offers exactly the people the form can name, and nobody else.
+     *
+     * This used to search every approved account. The picker below holds
+     * staff and the writer's own class, so the completer was offering
+     * names that could not be ticked -- somebody chose one, watched it
+     * appear in their description and reasonably took that for having
+     * named them. It is not: the @ writes text, the checkbox records the
+     * subject. A completer that offers what cannot be ticked is how the
+     * two get confused, and a real bullying report was filed naming
+     * nobody because of it.
+     */
+    public function test_it_offers_only_people_who_can_be_named(): void
     {
+        $me = $this->student();
+
         $staff = User::where('email', 'counselor@cspc.edu.ph')->firstOrFail();
+
         $classmate = User::where('email', 'student2@my.cspc.edu.ph')->firstOrFail();
+        $classmate->update(['course' => $me->course, 'section' => $me->section]);
+
+        // Same programme, a different section: not somebody this student
+        // can name, so not somebody the completer should offer.
+        $stranger = User::factory()->create([
+            'name' => 'Quirino Faraway',
+            'role_id' => $classmate->role_id,
+            'status' => 'approved',
+            'course' => $me->course,
+            'section' => $me->section === '4A' ? '3B' : '4A',
+        ]);
 
         foreach ([$staff, $classmate] as $person) {
             $found = collect($this->lookup(mb_substr($person->name, 0, 4)))->pluck('name');
-
-            $this->assertTrue($found->contains($person->name), $person->name.' was not found');
+            $this->assertTrue($found->contains($person->name), $person->name.' should be findable');
         }
 
-        fwrite(STDERR, "  [mention] staff and students are both findable\n");
+        $found = collect($this->lookup('Quirino'))->pluck('name');
+        $this->assertFalse(
+            $found->contains($stranger->name),
+            'somebody who cannot be named must not be offered'
+        );
+
+        fwrite(STDERR, "  [mention] staff and own classmates only\n");
     }
 
     /**
@@ -269,7 +299,10 @@ class CompletingANameInTheDescriptionTest extends TestCase
         foreach ($tiers as $name) {
             User::factory()->create([
                 'name' => $name,
-                'role_id' => $this->student()->role_id,
+                // Staff: the completer offers staff and the writer's own
+                // class, and these fixtures are here to test ordering, not
+                // who may be named.
+                'role_id' => \App\Models\Role::where('name', 'Faculty/Staff')->firstOrFail()->id,
                 'status' => 'approved',
             ]);
         }
@@ -291,7 +324,7 @@ class CompletingANameInTheDescriptionTest extends TestCase
     {
         User::factory()->create([
             'name' => 'Pedro Aquilino',
-            'role_id' => $this->student()->role_id,
+            'role_id' => \App\Models\Role::where('name', 'Faculty/Staff')->firstOrFail()->id,
             'status' => 'approved',
         ]);
 
@@ -428,6 +461,14 @@ class CompletingANameInTheDescriptionTest extends TestCase
     public function test_a_result_identifies_without_oversharing(): void
     {
         $person = User::where('email', 'student2@my.cspc.edu.ph')->firstOrFail();
+
+        // A classmate, so the completer offers them at all: it now holds
+        // staff and the writer's own class, which is exactly the set the
+        // picker below can tick.
+        $person->update([
+            'course' => $this->student()->course,
+            'section' => $this->student()->section,
+        ]);
 
         $row = collect($this->lookup(mb_substr($person->name, 0, 4)))
             ->firstWhere('name', $person->name);

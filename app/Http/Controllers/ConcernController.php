@@ -498,10 +498,37 @@ class ConcernController extends Controller
 
         $escaped = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $term);
 
+        $me = $request->user();
+
         $people = User::query()
             ->with('role')
             ->where('status', 'approved')
             ->whereRaw("name LIKE ? ESCAPE '!'", ['%'.$escaped.'%'])
+            // Only people this form can actually name.
+            //
+            // It used to search every approved account, so the completer
+            // offered names the picker below does not hold -- a student
+            // from another section, an administrator. Somebody chose one,
+            // watched it appear in their description, and reasonably took
+            // that for having named them. It is not: the @ writes text and
+            // the checkbox records the subject, and a completer that
+            // offers what cannot be ticked is how the two get confused.
+            //
+            // Staff, plus the writer's own classmates -- the same set the
+            // picker is built from, so what can be mentioned and what can
+            // be named stay one list.
+            ->where(function ($q) use ($me) {
+                $q->whereHas('role', fn ($r) => $r->whereIn('name', self::STAFF_ROLES));
+
+                if ($me && filled($me->course) && filled($me->section)) {
+                    $q->orWhere(function ($mate) use ($me) {
+                        $mate->whereHas('role', fn ($r) => $r->where('name', 'Student'))
+                            ->where('course', $me->course)
+                            ->where('section', $me->section)
+                            ->whereKeyNot($me->id);
+                    });
+                }
+            })
             // Where the match falls decides the order, because only eight
             // rows are shown and alphabetical order filled all eight with
             // the wrong thing. "ch" matches 42 accounts; sorted by name the
@@ -612,19 +639,33 @@ class ConcernController extends Controller
             fn (User $u) => optional($u->role)->name === 'Instructor'
         );
 
-        // Classmates are NOT offered here. The picker names staff only.
+        // Their own class, so a concern about a classmate can say who.
         //
-        // A student's whole section was briefly on this list, so a bullying
-        // report could say which classmate it was about. It put twenty-odd
-        // names on a form that is mostly about offices, under every
-        // category rather than only the ones where naming a classmate means
-        // anything -- a student filing about a mark scrolled past their
-        // entire class to reach the programme chair.
+        // Bullying and harassment are mostly about another student, and
+        // naming somebody is what tells them a matter involving them is
+        // being looked into. Taking classmates off this list to shorten it
+        // took that with them: the one kind of complaint the notice exists
+        // for had nobody to name, so nobody was ever told.
         //
-        // What it costs is worth stating: naming somebody is what tells
-        // them a matter involving them is being looked into, so a concern
-        // about a classmate now reaches the office without the classmate
-        // being told anything. The office contacts them by hand instead.
+        // Their section, not the whole college: a complaint about a
+        // classmate is about somebody in the room, and eight hundred names
+        // is a directory rather than a picker.
+        $classmates = collect();
+
+        $me = auth()->user();
+
+        if (filled($me->course) && filled($me->section)) {
+            $classmates = User::with('role')
+                ->whereHas('role', fn ($q) => $q->where('name', 'Student'))
+                ->where('course', $me->course)
+                ->where('section', $me->section)
+                ->where('status', 'approved')
+                ->whereKeyNot($me->id)
+                ->orderBy('name')
+                ->get(['id', 'name', 'department', 'course', 'section', 'role_id']);
+        }
+
+        $otherStaff = $otherStaff->concat($classmates);
 
         // What counts as a college, for "show me my own college's people".
         // COURSES_BY_COLLEGE names the six that enrol undergraduates; the
@@ -790,6 +831,7 @@ class ConcernController extends Controller
                         'Program Chair' => 'Program Chair',
                         'Dean' => 'Dean',
                         'Vice President for Academic Affairs' => 'Vice President for Academic Affairs',
+                        'Student' => 'Classmates',
                         default => 'Staff and offices',
                     };
                 })
@@ -800,6 +842,9 @@ class ConcernController extends Controller
                     'Dean',
                     'Vice President for Academic Affairs',
                     'Staff and offices',
+                    // Last: a concern about a classmate is the exception,
+                    // and the ladder above is what most students came for.
+                    'Classmates',
                 ], true)),
 
             // Name completion inside the description, built from the list
@@ -892,13 +937,15 @@ class ConcernController extends Controller
                     $person = User::with('role')->find($value);
                     $roleName = optional(optional($person)->role)->name;
 
-                    // Staff only. Students were briefly allowed so a
-                    // bullying report could name the classmate it was
-                    // about; the picker no longer offers them, and a rule
-                    // looser than the form is how a hand-posted id gets
-                    // somebody named on a concern nobody could have
-                    // chosen them for.
-                    if (! in_array($roleName, self::STAFF_ROLES, true)) {
+                    // Staff, or a fellow student. Bullying and harassment
+                    // are mostly about a classmate, and a named student is
+                    // not a handler -- nothing routes around them and the
+                    // conflict-of-interest rule has nothing to do. Being
+                    // named simply means they are told it is being looked
+                    // into, which is the whole point of the notice.
+                    $allowed = array_merge(self::STAFF_ROLES, ['Student']);
+
+                    if (! in_array($roleName, $allowed, true)) {
                         $fail('That person cannot be named on a concern.');
                     }
 
@@ -1085,6 +1132,22 @@ class ConcernController extends Controller
 
         // Category picks the handling role; the college narrows it to a person.
         $this->routeConcern($concern);
+
+        // Anybody the concern names is told now, as it is filed.
+        //
+        // This used to wait for a handler to pick the case up, on the
+        // reasoning that an unreviewed accusation should not reach the
+        // person it accuses -- nobody has judged it yet, and in a bullying
+        // case between classmates the two may meet before the office ever
+        // sees it. That is a real cost, and it is the trade accepted here:
+        // a case can sit at "submitted" for days, and somebody named in
+        // one deserves to know it exists rather than to find out when it
+        // is already half decided.
+        //
+        // After routing, so the concern has a handler by the time anybody
+        // is told there is one. Sent once per person per concern, so the
+        // later move to in progress adds nothing.
+        $this->notifications->investigationBegun($concern);
 
         // Create notification for relevant department
         $this->notifyDepartment($concern);

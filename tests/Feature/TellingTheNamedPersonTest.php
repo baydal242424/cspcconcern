@@ -159,6 +159,91 @@ class TellingTheNamedPersonTest extends TestCase
     }
 
     /**
+     * Filing it is enough. Nobody has to touch the case first.
+     *
+     * This waited for a handler to pick the concern up, so a case sitting
+     * at "submitted" for days told the person it named nothing at all --
+     * and a report filed about somebody on Friday reached them on Monday
+     * at the earliest, if anybody opened it. Being told is the point, and
+     * a notice that depends on somebody else's diary is not dependable.
+     *
+     * What it costs is real and accepted: the notice goes out before any
+     * member of staff has judged the report.
+     */
+    public function test_filing_it_tells_the_named_person_straight_away(): void
+    {
+        \Illuminate\Support\Facades\Notification::fake();
+
+        $named = $this->named();
+
+        $this->actingAs($this->reporter())->post('/concerns', [
+            'category' => 'Bullying',
+            'subcategory' => 'Verbal',
+            'description' => 'A full account of what happened, written out at length.',
+            'about_staff_id' => [$named->id],
+        ])->assertRedirect();
+
+        $concern = Concern::latest('id')->firstOrFail();
+
+        $this->assertTrue(
+            $concern->subjects->contains('id', $named->id),
+            'the person should have been recorded as a subject'
+        );
+
+        $this->assertSame('submitted', $concern->status, 'nobody has picked it up yet');
+
+        $notice = Notification::where('user_id', $named->id)
+            ->where('concern_id', $concern->id)
+            ->where('type', ConcernNotificationService::TYPE_NAMED_IN_CONCERN)
+            ->first();
+
+        $this->assertNotNull($notice, 'they should have been told as it was filed');
+        $this->assertTrue((bool) $notice->email_sent, 'and emailed');
+
+        \Illuminate\Support\Facades\Notification::assertSentTo(
+            $named,
+            \App\Notifications\NamedInAConcern::class
+        );
+
+        fwrite(STDERR, "  [named] filing alone tells them, and emails them\n");
+    }
+
+    /**
+     * Told once, however many times it then moves.
+     *
+     * Filing tells them; the later move to in progress must not tell them
+     * again, or a case that is worked on properly becomes the one that
+     * pesters the person it named.
+     */
+    public function test_filing_then_working_on_it_tells_them_only_once(): void
+    {
+        $named = $this->named();
+
+        $this->actingAs($this->reporter())->post('/concerns', [
+            'category' => 'Bullying',
+            'subcategory' => 'Verbal',
+            'description' => 'A full account of what happened, written out at length.',
+            'about_staff_id' => [$named->id],
+        ])->assertRedirect();
+
+        $concern = Concern::latest('id')->firstOrFail();
+        $concern->update(['assigned_to' => $this->handler()->id]);
+
+        $this->beginInvestigation($concern->fresh());
+
+        $this->assertSame(
+            1,
+            Notification::where('user_id', $named->id)
+                ->where('concern_id', $concern->id)
+                ->where('type', ConcernNotificationService::TYPE_NAMED_IN_CONCERN)
+                ->count(),
+            'one notice, not two'
+        );
+
+        fwrite(STDERR, "  [named] filed then taken up: still one notice\n");
+    }
+
+    /**
      * Referring it counts as work starting.
      *
      * This used to fire on "in progress" and "resolved" only, so a case
@@ -251,14 +336,19 @@ class TellingTheNamedPersonTest extends TestCase
     }
 
     /**
-     * Closed without action tells them nothing.
+     * Closing without action adds nothing of its own.
      *
-     * The line is whether anything was found. A complaint reviewed and
-     * dismissed is one nobody acted on, and telling somebody "a complaint
-     * naming you was looked into" when the answer was that there was
-     * nothing in it does them no good -- it hands them an accusation, and
-     * the conflict-of-interest wall means they cannot read it, answer it
-     * or find out who made it.
+     * This used to be a real protection: a complaint reviewed and
+     * dismissed never reached the person it named, because nothing was
+     * sent until a handler took the case up. It no longer protects
+     * anything for a report filed through the form, which tells them as
+     * it is submitted -- before anybody can dismiss it. What is left is
+     * narrower and still worth holding: closing a case is not itself an
+     * occasion to tell somebody about it, so a concern that reached them
+     * no other way is not announced by being thrown out.
+     *
+     * The concern here is written straight to the table rather than
+     * filed, which is the only way to reach that state now.
      */
     public function test_closing_without_action_tells_them_nothing(): void
     {

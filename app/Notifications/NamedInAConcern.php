@@ -51,7 +51,7 @@ class NamedInAConcern extends Notification
             // screen by people the notice is not for.
             ->subject('A notice is waiting for you')
             ->greeting("Hi {$notifiable->name},")
-            ->line('A matter involving you is being looked into by the office concerned.')
+            ->line('A matter involving you has been raised with the office that handles it.')
             ->line('You are being told now, at the start, rather than after it is over.')
             ->action('Sign in to read the notice', $this->dashboard())
             ->line('Who raised it is not disclosed, and what it is about is never included in this email.')

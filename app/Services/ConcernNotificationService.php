@@ -159,9 +159,14 @@ class ConcernNotificationService
                 'user_id' => $subject->id,
                 'type' => self::TYPE_NAMED_IN_CONCERN,
                 'concern_id' => $concern->id,
-                'title' => 'A concern naming you is being looked into',
-                'message' => 'A concern that names you has been taken up by the office'
-                    .' handling it. You will be contacted if anything is needed from you.'
+                // Worded for the moment it is actually sent: filing. It
+                // said "has been taken up by the office handling it",
+                // which was true while this waited for a handler to pick
+                // the case up and became a small lie the moment it fired
+                // on submission instead.
+                'title' => 'A concern naming you has been filed',
+                'message' => 'A concern that names you has been received by the office'
+                    .' that handles it. You will be contacted if anything is needed from you.'
                     .' You cannot open the concern itself, and who raised it is not disclosed.',
             ]);
 
