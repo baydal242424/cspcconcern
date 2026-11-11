@@ -74,6 +74,12 @@ class AnAccidentalDeletionCanBeUndoneTest extends TestCase
             'description' => 'Something I reported before my account was deleted.',
             'status' => 'submitted',
             'is_anonymous' => false,
+            // On somebody's desk. Visibility follows the assignment now, so
+            // a concern nobody holds is in nobody's list -- including before
+            // the deletion this file is about, which would make the test
+            // prove nothing.
+            'assigned_to' => User::whereHas('role', fn ($q) => $q->where('name', 'Head of School'))
+                ->firstOrFail()->id,
         ]);
 
         return [$student, $concern];

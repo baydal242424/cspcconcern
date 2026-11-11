@@ -12,20 +12,23 @@ use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
 /**
- * A college-bound role reads its own college, and no further.
+ * A concern is read by the desk it sits on, and by nobody else.
  *
- * Two windows had no college in them at all.
+ * This file used to guard a narrower rule: that a college-bound role read
+ * its own college and no further. That rule existed because there were
+ * standing queues to narrow -- every submitted teaching concern was open to
+ * every Adviser, Program Chair and Dean in the student's college, a case
+ * referred to "Faculty/Staff" was open to all nine of them, and the Head of
+ * School read everything.
  *
- * The standing academic queue -- every SUBMITTED teaching concern -- was open
- * to every Adviser, Program Chair and Dean in the institution. The Dean of
- * Health Sciences could open a Computer Studies concern that had been
- * assigned to a Computer Studies chair, about a Computer Studies adviser.
+ * The queues are gone. A Dean opening a report meant for a class adviser is
+ * what settled it: nothing was leaking by accident, and a student's account
+ * of being bullied was still readable by people they never wrote to. So the
+ * college boundary no longer narrows a queue; there is no queue to narrow,
+ * and what is left is stronger than the boundary ever was.
  *
- * The referral window had the same hole: "referred to Dean" matched on the
- * word alone, so a hand-off meant for one college was readable by all seven.
- *
- * Being assigned a concern, or having handled one, still shows it whatever
- * the college says. Those are facts about the person, not about a queue.
+ * What the tests below now check is that the old windows really are shut,
+ * including for the people they were built for.
  */
 class ACollegeOnlyReadsItsOwnConcernsTest extends TestCase
 {
@@ -67,7 +70,8 @@ class ACollegeOnlyReadsItsOwnConcernsTest extends TestCase
     }
 
     /**
-     * The roles bound to a college, and what each one needs recorded.
+     * The roles that used to be bound to a college, and what each needs
+     * recorded.
      *
      * @return array<string, array{0: string, 1: string|null}>
      */
@@ -82,10 +86,7 @@ class ACollegeOnlyReadsItsOwnConcernsTest extends TestCase
         ];
     }
 
-    /**
-     * The reported bug, checked for every college-bound role rather than
-     * only the dean it was noticed on.
-     */
+    /** The original bug, checked for every role it could have applied to. */
     #[\PHPUnit\Framework\Attributes\DataProvider('collegeBoundRoles')]
     public function test_another_colleges_staff_cannot_read_it(string $role, ?string $course): void
     {
@@ -101,70 +102,67 @@ class ACollegeOnlyReadsItsOwnConcernsTest extends TestCase
         // Not just the query -- the page refuses them too.
         $this->actingAs($outsider)->get("/concerns/{$concern->id}")->assertForbidden();
 
-        fwrite(STDERR, "  [college] {$role} from another college: cannot read it\n");
+        fwrite(STDERR, "  [desk] {$role} from another college: cannot read it\n");
     }
 
-    /** Their own college still works, which is the point of the queue. */
+    /**
+     * Nor can their own college's staff, which is the part that changed.
+     *
+     * This asserted the opposite: that the student's own college could read
+     * the case, because that was the queue. A concern not yet picked up is
+     * now readable by its handler and its author, and by no one else in the
+     * building.
+     */
     #[\PHPUnit\Framework\Attributes\DataProvider('collegeBoundRoles')]
-    public function test_their_own_colleges_staff_still_read_it(string $role, ?string $course): void
+    public function test_their_own_colleges_staff_cannot_read_it_either(string $role, ?string $course): void
     {
         $concern = $this->aComputerStudiesCase();
 
         $insider = $this->person('Insider '.$role, $role, 'College of Computer Studies', $course);
 
-        // Instructor and Faculty/Staff have no standing academic window at
-        // all -- they work what is sent to them -- so the case has to be
-        // referred before either can read it.
-        if (in_array($role, ['Instructor', 'Faculty/Staff'], true)) {
-            $concern->forceFill(['status' => 'referred', 'referred_to' => $role])->save();
-        }
-
-        $this->assertTrue(
+        $this->assertFalse(
             Concern::visibleTo($insider)->where('id', $concern->id)->exists(),
-            "a {$role} in the student's own college should see this concern"
+            "a {$role} in the student's own college must not read a case that is not theirs"
         );
 
-        fwrite(STDERR, "  [college] {$role} from their own college: reads it\n");
+        $this->actingAs($insider)->get("/concerns/{$concern->id}")->assertForbidden();
+
+        fwrite(STDERR, "  [desk] {$role} from their own college: cannot read it either\n");
     }
 
     /**
-     * A referral names a role, and used to reach everybody holding it.
+     * A referral is a hand-off to a person, not a posting to a role.
      *
-     * "Referred to Dean" is a hand-off to one dean, in one college. It was
-     * matching on the word, so the other six read it too.
+     * "Referred to Dean" once reached every dean in the institution, then
+     * every dean in one college. It now reaches the one who was given it.
      */
-    public function test_a_referral_reaches_one_college_not_all_of_them(): void
+    public function test_a_referral_reaches_the_person_it_was_handed_to(): void
     {
+        $theirs = $this->person('Their Dean', 'Dean', 'College of Computer Studies');
+        $other = $this->person('Another Dean', 'Dean', 'College of Computer Studies');
+
         $concern = $this->aComputerStudiesCase([
             'status' => 'referred',
             'referred_to' => 'Dean',
+            'assigned_to' => $theirs->id,
         ]);
-
-        $theirs = $this->person('Their Dean', 'Dean', 'College of Computer Studies');
-        $other = $this->person('Another Dean', 'Dean', 'College of Engineering and Architecture');
 
         $this->assertTrue(Concern::visibleTo($theirs)->where('id', $concern->id)->exists());
         $this->assertFalse(
             Concern::visibleTo($other)->where('id', $concern->id)->exists(),
-            'a referral to "Dean" must not be readable by every dean in the institution'
+            'a referral must reach the dean it was handed to, not everyone holding the role'
         );
 
-        fwrite(STDERR, "  [college] a referral reaches one college, not all seven\n");
+        fwrite(STDERR, "  [desk] a referral reaches one person, not a role\n");
     }
 
-    /**
-     * Inside one college, a chair reads their own programme.
-     *
-     * Computer Studies has four chairs. A chair of Computer Science has no
-     * standing over an Information Systems student, which is the same rule
-     * the referral picker already applies when choosing who to hand a case to.
-     */
+    /** Two chairs of one college, and the case belongs to one of them. */
     public function test_a_chair_of_another_programme_cannot_read_it(): void
     {
-        $concern = $this->aComputerStudiesCase();
-
         $theirs = $this->person('IS Chair', 'Program Chair', 'College of Computer Studies', 'BS Information Systems');
         $other = $this->person('CS Chair', 'Program Chair', 'College of Computer Studies', 'BS Computer Science');
+
+        $concern = $this->aComputerStudiesCase(['assigned_to' => $theirs->id]);
 
         $this->assertTrue(Concern::visibleTo($theirs)->where('id', $concern->id)->exists());
         $this->assertFalse(
@@ -172,17 +170,15 @@ class ACollegeOnlyReadsItsOwnConcernsTest extends TestCase
             'a chair of another programme must not read this student\'s concern'
         );
 
-        fwrite(STDERR, "  [college] a chair of another programme cannot read it\n");
+        fwrite(STDERR, "  [desk] a chair of another programme cannot read it\n");
     }
 
     /**
-     * The college boundary narrows a queue, never a person's own work.
-     *
-     * A concern handed to somebody stays readable by them wherever it came
-     * from -- otherwise referring across colleges, which the system does on
-     * purpose, would hand people cases they cannot open.
+     * Being handed the case is what grants the reading, wherever it came
+     * from -- the system refers across colleges on purpose, and a recipient
+     * who cannot open what they were given would make that useless.
      */
-    public function test_being_given_the_case_beats_the_college_boundary(): void
+    public function test_being_given_the_case_is_what_opens_it(): void
     {
         $concern = $this->aComputerStudiesCase();
 
@@ -197,17 +193,11 @@ class ACollegeOnlyReadsItsOwnConcernsTest extends TestCase
             'a concern assigned to somebody must be readable by them'
         );
 
-        fwrite(STDERR, "  [college] being given the case beats the college boundary\n");
+        fwrite(STDERR, "  [desk] being given the case is what opens it\n");
     }
 
-    /**
-     * The VPAA is institution-wide on purpose.
-     *
-     * There is one of her, and escalation is the whole of her queue, so
-     * narrowing her to a college would leave escalated cases with nobody
-     * above them.
-     */
-    public function test_the_vpaa_still_reads_escalations_from_every_college(): void
+    /** An escalation reaches the VPAA from any college, once it is hers. */
+    public function test_the_vpaa_reads_escalations_handed_to_her_from_any_college(): void
     {
         $vpaa = User::whereHas('role', fn ($q) => $q->where('name', 'Vice President for Academic Affairs'))
             ->first() ?? $this->person('The VPAA', 'Vice President for Academic Affairs', 'Academic Affairs');
@@ -218,35 +208,41 @@ class ACollegeOnlyReadsItsOwnConcernsTest extends TestCase
                 'course' => null,
                 'status' => 'referred',
                 'referred_to' => 'Vice President for Academic Affairs',
+                'assigned_to' => $vpaa->id,
             ]);
 
             $this->assertTrue(
                 Concern::visibleTo($vpaa)->where('id', $concern->id)->exists(),
-                "the VPAA should read an escalation from {$college}"
+                "the VPAA should read an escalation handed to her from {$college}"
             );
         }
 
-        fwrite(STDERR, "  [college] the VPAA still reads escalations from every college\n");
+        fwrite(STDERR, "  [desk] the VPAA reads escalations handed to her, from any college\n");
     }
 
     /**
-     * A concern with no college recorded stays reachable.
+     * A concern with no college recorded is still reachable by its handler.
      *
-     * Closing the window on missing data would make such a concern private
-     * rather than safe: it would sit in a queue nobody can open, looking
-     * handled.
+     * The worry this guarded against was a concern the data could not place
+     * falling out of every queue and sitting unread. There are no queues
+     * now, so what keeps it reachable is the same thing that keeps any case
+     * reachable: somebody holds it.
      */
-    public function test_a_concern_with_no_college_is_not_hidden_from_everybody(): void
+    public function test_a_concern_with_no_college_is_still_reachable(): void
     {
-        $concern = $this->aComputerStudiesCase(['department' => null, 'course' => null]);
-
         $dean = $this->person('Some Dean', 'Dean', 'College of Health Sciences');
+
+        $concern = $this->aComputerStudiesCase([
+            'department' => null,
+            'course' => null,
+            'assigned_to' => $dean->id,
+        ]);
 
         $this->assertTrue(
             Concern::visibleTo($dean)->where('id', $concern->id)->exists(),
-            'a concern the data cannot place must not become unreadable'
+            'a concern the data cannot place must still be readable by whoever holds it'
         );
 
-        fwrite(STDERR, "  [college] a concern with no college recorded stays reachable\n");
+        fwrite(STDERR, "  [desk] a concern with no college recorded is still reachable\n");
     }
 }

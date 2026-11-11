@@ -45,7 +45,10 @@ class RefFixesTest extends TestCase {
     public function test_reveal_reason_validation(): void {
         $head=$this->u('head@cspc.edu.ph');
         $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Bullying',
-            'department'=>'Guidance Office','description'=>'x','urgency'=>null,'status'=>'submitted','is_anonymous'=>true]);
+            'department'=>'Guidance Office','description'=>'x','urgency'=>null,'status'=>'submitted','is_anonymous'=>true,
+            // revealIdentity() checks the Head of School may view the
+            // concern first, and they now read what is on their own desk.
+            'assigned_to'=>$head->id]);
         // too short
         $r1=$this->actingAs($head)->post("/concerns/{$c->id}/reveal-identity",['identity_reveal_reason'=>'dsadasda']);
         $r1->assertSessionHasErrors('identity_reveal_reason');

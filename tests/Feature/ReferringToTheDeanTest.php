@@ -211,10 +211,14 @@ class ReferringToTheDeanTest extends TestCase
         ])->assertRedirect();
 
 
-        // While it is open, the office it was referred to can see it.
-        $this->assertTrue(
+        // Not even while it is open. A referral names a role, but it is
+        // handed to a person: the colleague beside them in the same office
+        // never sees it. This asserted the opposite, back when a referral
+        // to "Faculty/Staff" was readable by all of them so whoever was
+        // free could pick it up.
+        $this->assertFalse(
             Concern::whereKey($concern->id)->visibleTo($counsellor)->exists(),
-            'An open referral should be visible to the office it went to'
+            'a referral is handed to one person, not posted to an office'
         );
 
         $holder = User::findOrFail($concern->fresh()->assigned_to);
@@ -222,14 +226,21 @@ class ReferringToTheDeanTest extends TestCase
             'investigation_notes' => 'Looked into this and spoke with the people involved.',
             'resolution_notes' => 'Recorded what is being done about it.','status' => 'resolved','resolution_attachments'=>[\Illuminate\Http\UploadedFile::fake()->create('proof.jpg', 50, 'image/jpeg')]])->assertRedirect();
 
-        // Once finished, the standing window closes again even though the
-        // column still names them.
+        // And it stays shut once the case is finished, with the column
+        // still naming the office it went to. The record outlives the
+        // referral; there is no access for it to outlive.
         $this->assertSame('Faculty/Staff', $concern->fresh()->referred_to);
         $this->assertFalse(
             Concern::whereKey($concern->id)->visibleTo($counsellor)->exists(),
-            'A finished referral must not stay in another office\'s list'
+            'A finished referral must not appear in another office\'s list'
         );
 
-        fwrite(STDERR, "  [refer] the record outlives the referral; the access does not\n");
+        // The person who was actually handed it keeps it, as their own work.
+        $this->assertTrue(
+            Concern::whereKey($concern->id)->visibleTo($holder)->exists(),
+            'whoever handled it keeps it afterwards'
+        );
+
+        fwrite(STDERR, "  [refer] a referral reaches one desk, and the record outlives it\n");
     }
 }

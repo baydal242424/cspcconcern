@@ -186,9 +186,17 @@ class AdviserRoutingTest extends TestCase
             'assigned_to' => null,
         ]);
 
+        // Neither, now. The open queue is gone: a concern nobody holds is
+        // read by nobody but its author. routeConcern() always assigns
+        // somebody, so this unassigned state is one only a test can make.
+        $this->assertFalse(Concern::whereKey($unclaimed->id)->visibleTo($adviser)->exists());
+        $this->assertFalse(Concern::whereKey($unclaimed->id)->visibleTo($instructor)->exists());
+
+        // Hand it over and it opens -- for the one who was handed it.
+        $unclaimed->forceFill(['assigned_to' => $adviser->id])->save();
         $this->assertTrue(Concern::whereKey($unclaimed->id)->visibleTo($adviser)->exists());
         $this->assertFalse(Concern::whereKey($unclaimed->id)->visibleTo($instructor)->exists());
 
-        fwrite(STDERR, "  [queue] the adviser works it; the instructor is referral-gated\n");
+        fwrite(STDERR, "  [queue] no open queue: the desk it sits on is what opens it\n");
     }
 }

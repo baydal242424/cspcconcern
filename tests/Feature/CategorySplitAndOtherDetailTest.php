@@ -105,14 +105,16 @@ class CategorySplitAndOtherDetailTest extends TestCase
             );
         }
 
-        // What the adviser does still hold a standing claim on.
+        // Academic is still the adviser's work, but a standing claim is no
+        // longer how anybody reads a case: it has to be on their desk.
         $academic = Concern::create([
             'user_id' => $this->student()->id,
             'category' => 'Academic',
             'department' => 'College of Computer Studies',
-            'description' => 'Unclaimed, sitting in the queue.',
+            'description' => 'Assigned to the adviser who handles it.',
             'status' => 'submitted',
             'is_anonymous' => false,
+            'assigned_to' => $adviser->id,
         ]);
 
         $this->assertTrue(Concern::visibleTo($adviser)->pluck('id')->contains($academic->id));

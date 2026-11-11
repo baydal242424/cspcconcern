@@ -501,13 +501,14 @@ class ReferralsStayInTheCollegeTest extends TestCase
 
         $concern = Concern::latest('id')->firstOrFail();
 
-        // Read by the Head of School, who can act on anything anywhere
-        // -- so what is missing from the list is missing because of a
-        // scoping rule, not because of who is looking.
-        $head = User::where('email', 'head@cspc.edu.ph')->firstOrFail();
+        // Read by whoever the routing gave it to. This used to open the
+        // case as the Head of School, on the grounds that they could act
+        // on anything anywhere; they read what reaches them now, so the
+        // only person who can open this one is the person holding it.
+        $handler = User::findOrFail($concern->assigned_to);
 
         $offered = collect(
-            $this->actingAs($head)->get("/concerns/{$concern->id}")
+            $this->actingAs($handler)->get("/concerns/{$concern->id}")
                 ->assertOk()->viewData('referralCandidates')
         )->flatten();
 

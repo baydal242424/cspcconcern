@@ -139,13 +139,15 @@ class WhenTheHandlerReceivedItTest extends TestCase
         $this->actingAs($this->u('student@my.cspc.edu.ph'))
             ->get("/concerns/{$concern->id}")->assertOk()->assertDontSee('Received');
 
-        // Somebody who may read the case but is not working it. The category
-        // is what lets an administrator open this one at all.
-        $concern->forceFill(['category' => 'Administrative'])->save();
-
+        // There used to be a third reader here: an administrator who could
+        // open the case because its category routed to their office. That
+        // standing window is gone -- a concern is now readable by the person
+        // holding it and the person who filed it, and by nobody else -- so
+        // the case of "can read it but is not working it" no longer exists
+        // for anyone except the reporter, who is covered above.
         $this->flushSession();
         $this->actingAs($this->u('admin@cspc.edu.ph'))
-            ->get("/concerns/{$concern->id}")->assertOk()->assertDontSee('Received');
+            ->get("/concerns/{$concern->id}")->assertForbidden();
 
         fwrite(STDERR, "  [received] only the desk holding it sees when it arrived\n");
     }

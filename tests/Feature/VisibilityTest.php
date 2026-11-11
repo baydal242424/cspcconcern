@@ -88,7 +88,7 @@ class VisibilityTest extends TestCase
         // The window moved here with the category. The Administrative Office
         // held it while the category meant enrolment, records and fees; it now
         // means "this website is broken", which that office cannot act on.
-        $a = $this->makeConcern(['category'=>'Administrative']);
+        $a = $this->makeConcern(['category'=>'Administrative', 'assigned_to'=>$this->u('admin@cspc.edu.ph')->id]);
 
         $this->assertTrue(
             Concern::whereKey($a->id)->visibleTo($this->u('admin@cspc.edu.ph'))->exists(),
@@ -129,8 +129,12 @@ class VisibilityTest extends TestCase
     /** Counselor sees Mental Health automatically */
     public function test_counselor_sees_mental_health(): void
     {
-        $mh = $this->makeConcern(['category'=>'Mental Health']);
+        // Assigned to her, which is what visibility now turns on: the
+        // standing window that let the Guidance Office read every Mental
+        // Health concern in the college is gone, and what is left is the
+        // guarantee that matters -- whoever holds a case can open it.
         $c = $this->u('counselor@cspc.edu.ph');
+        $mh = $this->makeConcern(['category'=>'Mental Health', 'assigned_to'=>$c->id]);
         $this->assertTrue(Concern::whereKey($mh->id)->visibleTo($c)->exists());
         fwrite(STDERR, "  [counselor] sees Mental Health: YES\n");
     }

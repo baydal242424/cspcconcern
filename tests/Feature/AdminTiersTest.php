@@ -190,18 +190,18 @@ class AdminTiersTest extends TestCase
                 'is_anonymous' => false,
             ]);
 
-            $theirs = $category === 'Administrative';
-
-            $this->assertSame(
-                $theirs,
+            // Not one category, including their own. The standing window
+            // on Administrative is gone with the other three: visibility
+            // follows the desk a concern sits on, so a category routing
+            // somewhere no longer lets anybody read it before it is
+            // actually handed to them.
+            $this->assertFalse(
                 Concern::whereKey($concern->id)->visibleTo($this->systemAdmin())->exists(),
-                $theirs
-                    ? 'A System Admin must be able to read the reports that route to them'
-                    : "A System Admin must not have a standing view of {$category}"
+                "A System Admin must not have a standing view of {$category}"
             );
         }
 
-        fwrite(STDERR, '  [tiers] a System Admin reads 1 of the '
+        fwrite(STDERR, '  [tiers] a System Admin reads 0 of the '
             .count(Concern::CATEGORIES)." categories by default: YES\n");
     }
 

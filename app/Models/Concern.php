@@ -1129,233 +1129,71 @@ class Concern extends Model
             $subject->where('users.id', $user->id);
         });
 
-        // Head of School: highest authority. Can read ALL concern CONTENT so
-        // they can adjudicate escalations and suspected false reports. They do
-        // NOT see reporter identities by default -- that requires an explicit,
-        // logged break-glass reveal (see ConcernController@revealIdentity).
-        if ($role === 'Head of School') {
-            return $query;
-        }
 
-        // "Involvement history": a staff-type user stays able to see a concern
-        // they have personally acted on (triaged, noted, resolved), because
-        // every such action writes an audit log row with their user_id. That
-        // keeps their own finished work in their list and dashboard, rather
-        // than having a case vanish the moment they resolve it.
+        // One rule for every staff role: you see the concerns on your own
+        // desk, and nothing else.
         //
-        // It stops at the hand-off. Referring a case away used to leave it
-        // readable by whoever let go of it, for good -- so a bullying report
-        // that passed through an adviser, a chair and a dean on its way
-        // somewhere was afterwards readable by all three, and each of them
-        // went on seeing what the office that actually took it wrote. A
-        // referral is a hand-off, not a copy: once the case is on somebody
-        // else's desk it is theirs.
+        // What this replaces is worth writing down, because each piece of it
+        // was put there for a reason and each reason has now been weighed
+        // against confidentiality and lost.
         //
-        // "Still mine" is the current assignment, so this also puts a case
-        // back in view if it is ever referred back. A case with no handler at
-        // all stays visible to whoever last touched it, or an unrouted
-        // concern would be readable by nobody.
-        $involved = function ($sub) use ($user) {
-            $sub->whereHas('auditLogs', function ($log) use ($user) {
-                $log->where('user_id', $user->id);
-            })->where(function ($stillMine) use ($user) {
-                $stillMine->where('assigned_to', $user->id)
-                    ->orWhereNull('assigned_to');
-            });
-        };
+        //  - A STANDING CATEGORY WINDOW. The Guidance Counselor could read
+        //    every Mental Health, Personal, Bullying and Harassment concern;
+        //    General Services every Facilities and Equipment one; the System
+        //    Administrator every Administrative one. It meant an office could
+        //    always see its own work even before anybody was assigned.
+        //  - THE OPEN ACADEMIC QUEUE. Every Adviser, Program Chair and Dean
+        //    in a college could read any submitted Academic or Others concern
+        //    filed in it, so a new report was visible to somebody even if the
+        //    adviser it landed on never signed in.
+        //  - A REFERRAL TO A ROLE. A case referred to "Faculty/Staff" was
+        //    readable by all nine of them in the college, so whoever was free
+        //    could pick it up.
+        //  - THE HEAD OF SCHOOL READING EVERYTHING, to adjudicate escalations
+        //    and suspected false reports.
+        //
+        // All four widened who could read a student's concern beyond the one
+        // person handling it. A Dean opening a report meant for a class
+        // adviser is the case that settled it: nothing was leaking by
+        // accident, and it still meant a student's account of being bullied
+        // was readable by people the student never wrote to.
+        //
+        // The cost is real and was accepted deliberately: a concern whose
+        // handler is away, inactive or simply not looking is now invisible to
+        // every other member of staff. Nobody can notice it and pick it up.
+        // routeConcern() always assigns somebody, so no concern is left with
+        // no reader at all -- but it may be left with a reader who is not
+        // reading, and no second pair of eyes behind them.
+        //
+        // The reporter still sees their own concern throughout (the Student
+        // branch above), and the conflict-of-interest exclusion above still
+        // wins over everything here.
+        return $query->where(function ($mine) use ($user, $role) {
+            $mine->where('assigned_to', $user->id)
+                // A concern with no handler at all, that this person has
+                // acted on. Without it an unrouted case they triaged would
+                // be readable by nobody but its author.
+                ->orWhere(function ($orphan) use ($user) {
+                    $orphan->whereNull('assigned_to')
+                        ->whereHas('auditLogs', function ($log) use ($user) {
+                            $log->where('user_id', $user->id);
+                        });
+                });
 
-        if ($role === 'Guidance Counselor') {
-            return $query->where(function ($q) use ($user, $involved) {
-                // Natural domain: always visible.
-                $q->whereIn('category', self::GUIDANCE_CATEGORIES)
-                  // Currently referred to her (open case she must act on).
-                  ->orWhere(function ($sub) {
-                      $sub->where('referred_to', 'Guidance Counselor')
-                          ->whereNotIn('status', self::TERMINAL_STATUSES);
-                  })
-                  // Currently assigned to her (open case she must act on).
-                  ->orWhere(function ($sub) use ($user) {
-                      $sub->where('assigned_to', $user->id)
-                          ->whereNotIn('status', self::TERMINAL_STATUSES);
-                  })
-                  // Anything she has personally handled (history / reference).
-                  ->orWhere($involved);
-            });
-        }
-
-        // Gender and Development. Deliberately has NO category of its own:
-        // unlike every other staff role below, GAD sees only what has been
-        // explicitly referred or assigned to it, plus its own handling
-        // history. A harassment concern still reaches the Guidance Counselor
-        // first, who assesses it and refers it on if it is a CMO No. 3
-        // sexual-harassment case. Giving GAD blanket access to the Bullying /
-        // Harassment category instead would widen who can read those reports
-        // by default, which is the opposite of what a referral gate is for.
-        if ($role === 'Gender and Development') {
-            return $query->where(function ($q) use ($user, $involved) {
-                $q->where(function ($sub) {
-                    $sub->where('referred_to', 'Gender and Development')
+            // The Head of School keeps what is escalated or referred TO
+            // them, and nothing else. Cutting this to "assigned only" also
+            // cut the break-glass reveal, which is the one way an anonymous
+            // reporter's name can ever be recovered: revealIdentity() asks
+            // whether they may view the concern first, so a Head of School
+            // who can see nothing can reveal nothing, and the safeguard
+            // stops existing rather than becoming stricter.
+            if ($role === 'Head of School') {
+                $mine->orWhere(function ($escalated) {
+                    $escalated->where('referred_to', 'Head of School')
                         ->whereNotIn('status', self::TERMINAL_STATUSES);
-                })
-                  ->orWhere(function ($sub) use ($user) {
-                      $sub->where('assigned_to', $user->id)
-                          ->whereNotIn('status', self::TERMINAL_STATUSES);
-                  })
-                  ->orWhere($involved);
-            });
-        }
-
-        // Legal Affairs. Referral-gated, exactly like GAD: no category of its
-        // own, because a student does not file "a legal matter" -- a handler
-        // decides a case needs legal counsel and sends it here.
-        if ($role === 'Legal Affairs') {
-            return $query->where(function ($q) use ($user, $involved) {
-                $q->where(function ($sub) {
-                    $sub->where('referred_to', 'Legal Affairs')
-                        ->whereNotIn('status', self::TERMINAL_STATUSES);
-                })
-                  ->orWhere(function ($sub) use ($user) {
-                      $sub->where('assigned_to', $user->id)
-                          ->whereNotIn('status', self::TERMINAL_STATUSES);
-                  })
-                  ->orWhere($involved);
-            });
-        }
-
-        // General Services. Facilities and Equipment are its natural domain, the
-        // way Administrative is Admin's -- routeConcern() sends every one of
-        // them here, so the office must be able to see them without waiting
-        // for a referral.
-        if ($role === 'General Services') {
-            return $query->where(function ($q) use ($user, $involved) {
-                $q->whereIn('category', self::FACILITIES_CATEGORIES)
-                  ->orWhere(function ($sub) {
-                      $sub->where('referred_to', 'General Services')
-                          ->whereNotIn('status', self::TERMINAL_STATUSES);
-                  })
-                  ->orWhere(function ($sub) use ($user) {
-                      $sub->where('assigned_to', $user->id)
-                          ->whereNotIn('status', self::TERMINAL_STATUSES);
-                  })
-                  ->orWhere($involved);
-            });
-        }
-
-        // The administrative office. Administrative concerns -- enrolment,
-        // records, ID, clearance, fees -- route here, so it has to be able to
-        // SEE that category: a concern assigned to an office that cannot read
-        // it is worse than one nobody was assigned, because the queue looks
-        // handled.
-        //
-        // That is the whole of its window. Facilities still goes to General
-        // Services, and everything confidential -- mental health, harassment --
-        // stays out of reach unless a counsellor deliberately refers it here.
-        if ($role === 'Staff Admin') {
-            return $query->where(function ($q) use ($user, $involved) {
-                // No standing category any more. This office read every
-                // Administrative concern while that category meant enrolment,
-                // records and fees -- the work it actually does. The category
-                // now means "this website is broken", which belongs to the
-                // people who run the website, so the window moved with it.
-                $q->where(function ($sub) {
-                    $sub->where('referred_to', 'Staff Admin')
-                        ->whereNotIn('status', self::TERMINAL_STATUSES);
-                })
-                  ->orWhere(function ($sub) use ($user) {
-                      $sub->where('assigned_to', $user->id)
-                          ->whereNotIn('status', self::TERMINAL_STATUSES);
-                  })
-                  ->orWhere($involved);
-            });
-        }
-
-        // One standing category, and only one: reports that this website is
-        // broken, which routeConcern() sends here. An office that cannot read
-        // what is assigned to it is worse than one nobody was assigned,
-        // because the queue looks handled.
-        //
-        // Everything else stays out of reach. Managing accounts and roles
-        // needs no view of students' complaints, so mental health, harassment
-        // and the rest arrive only by a deliberate referral.
-        if ($role === 'System Admin') {
-            return $query->where(function ($q) use ($user, $involved) {
-                $q->where('category', 'Administrative')   // a fault in the system
-                  ->orWhere(function ($sub) {
-                      $sub->where('referred_to', 'System Admin')
-                          ->whereNotIn('status', self::TERMINAL_STATUSES);
-                  })
-                  ->orWhere(function ($sub) use ($user) {
-                      $sub->where('assigned_to', $user->id)
-                          ->whereNotIn('status', self::TERMINAL_STATUSES);
-                  })
-                  ->orWhere($involved);
-            });
-        }
-
-        // Instructor, Program Chair and Dean all work the same academic queue --
-        // the chair sits between the other two in authority, not in what they
-        // may read, so splitting the rule would only create a gap where an
-        // escalated concern is visible to neither.
-        //
-        // Faculty/Staff is in this list for what it can still reach: anything
-        // assigned or referred to it, and its own history. It no longer sees
-        // the open academic queue, because nothing routes there any more --
-        // office staff were being shown every academic complaint in the college
-        // on the strength of sharing a role name with the teachers.
-        // Referral-gated, both of them. The VPAA oversees the Administration
-        // rather than working a queue, so she sees what is escalated or
-        // referred to her and nothing else -- an oversight role with a standing
-        // window into every student's concern would be the opposite of the
-        // point.
-        // Referral-gated. Instructor is here rather than on the academic queue
-        // because Academic, Physical, Safety and Others now reach the Adviser
-        // first -- an instructor works what is sent to them, and what routing
-        // falls back to them when a college has named no adviser yet.
-        if (in_array($role, ['Instructor', 'Faculty/Staff', 'Vice President for Academic Affairs'], true)) {
-            return $query->where(function ($q) use ($user, $role, $involved) {
-                $q->where('assigned_to', $user->id)
-                  ->orWhere(function ($sub) use ($role, $user) {
-                      $sub->where('referred_to', $role)
-                          ->whereNotIn('status', self::TERMINAL_STATUSES);
-
-                      // "Referred to Instructor" used to match on the word
-                      // alone, so a hand-off inside one college was readable
-                      // by every instructor in the institution. The VPAA is
-                      // left institution-wide on purpose: there is one of
-                      // her, and escalation is the whole of her queue.
-                      self::narrowToTheirCollege($sub, $user, $role);
-                  })
-                  ->orWhere($involved);
-            });
-        }
-
-        if (in_array($role, ['Adviser', 'Program Chair', 'Dean'], true)) {
-            return $query->where(function ($q) use ($user, $role, $involved) {
-                $q->where('assigned_to', $user->id)
-                  ->orWhere(function ($sub) use ($role, $user) {
-                      $sub->where('referred_to', $role)
-                          ->whereNotIn('status', self::TERMINAL_STATUSES);
-
-                      self::narrowToTheirCollege($sub, $user, $role);
-                  })
-                  ->orWhere(function ($sub) use ($user, $role) {
-                      $sub->where('status', 'submitted')
-                          ->whereIn('category', self::TEACHING_CATEGORIES);
-
-                      // The standing academic queue, which had no college in
-                      // it. Every Adviser, Chair and Dean in the institution
-                      // could read every submitted teaching concern filed
-                      // anywhere -- a Health Sciences dean opening a Computer
-                      // Studies case is how it was noticed.
-                      self::narrowToTheirCollege($sub, $user, $role);
-                  })
-                  // Anything they have personally handled (history / reference).
-                  ->orWhere($involved);
-            });
-        }
-
-        // Unknown role: see nothing.
-        return $query->whereRaw('1 = 0');
+                });
+            }
+        });
     }
 
     /**

@@ -81,7 +81,13 @@ class ConfidentialityMatrixTest extends TestCase
                     ->visibleTo($this->holderOf($roleName))
                     ->exists();
 
-                $shouldSee = in_array($roleName, ['Guidance Counselor', 'Head of School'], true);
+                // Nobody, including Guidance and the Head of School. An
+                // untouched concern is one nobody has been given, and
+                // visibility now follows the desk a case sits on rather
+                // than the office its category belongs to. Stricter than
+                // what this matrix used to assert, which is the direction
+                // a confidentiality matrix should move in.
+                $shouldSee = false;
 
                 $this->assertSame(
                     $shouldSee,
@@ -131,6 +137,9 @@ class ConfidentialityMatrixTest extends TestCase
             'description' => 'An anonymous report the Head of School may adjudicate.',
             'status' => 'submitted',
             'is_anonymous' => true,
+            // Escalated to them. They read what reaches them now, not
+            // every concern in the college.
+            'assigned_to' => $head->id,
         ]);
 
         $resp = $this->actingAs($head)->get("/concerns/{$concern->id}");

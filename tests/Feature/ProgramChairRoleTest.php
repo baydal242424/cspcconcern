@@ -74,11 +74,20 @@ class ProgramChairRoleTest extends TestCase
     public function test_chair_sees_the_shared_academic_queue(): void
     {
         $chair = $this->chair();
-        $concern = $this->makeConcern();
+
+        // The shared academic queue is gone: a chair reads the cases on
+        // their own desk, not every submitted one in the college.
+        $notTheirs = $this->makeConcern();
+        $this->assertFalse(
+            Concern::whereKey($notTheirs->id)->visibleTo($chair)->exists(),
+            'A Program Chair must not read a submitted concern nobody handed them'
+        );
+
+        $concern = $this->makeConcern(['assigned_to' => $chair->id]);
 
         $this->assertTrue(
             Concern::whereKey($concern->id)->visibleTo($chair)->exists(),
-            'A submitted Academic concern should be visible to a Program Chair'
+            'A Program Chair should read an Academic concern assigned to them'
         );
 
         // ...but not somebody else's mental health case.

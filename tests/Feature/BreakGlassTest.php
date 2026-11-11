@@ -9,7 +9,17 @@ class BreakGlassTest extends TestCase {
     protected function setUp():void{parent::setUp();$this->seed([RoleSeeder::class,UserSeeder::class]);}
     private function u($e){return User::where('email',$e)->firstOrFail();}
     private function line($t){fwrite(STDERR,"  $t\n");}
-    private function anon(){return Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Bullying','department'=>'Guidance Office','description'=>'sensitive','urgency'=>null,'status'=>'submitted','is_anonymous'=>true]);}
+    /**
+     * An anonymous concern that has reached the Head of School.
+     *
+     * assigned_to matters now. Visibility is the desk a concern sits on,
+     * so the Head of School reads what is escalated to them rather than
+     * everything -- and revealIdentity() checks they may view the concern
+     * before it will unmask anybody. A concern they do not hold is one
+     * they cannot reveal, which is the point: the safeguard follows the
+     * case instead of the rank.
+     */
+    private function anon(){return Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Bullying','department'=>'Guidance Office','description'=>'sensitive','urgency'=>null,'status'=>'submitted','is_anonymous'=>true,'assigned_to'=>$this->u('head@cspc.edu.ph')->id]);}
 
     public function test_head_can_reveal_with_reason_and_it_is_logged(): void {
         $c=$this->anon();
@@ -56,12 +66,30 @@ class BreakGlassTest extends TestCase {
         $this->assertFalse($leak,'Reveal must not expose identity to handlers');
     }
 
-    public function test_head_sees_content_of_all_concerns(): void {
-        // Head of School can read content (to adjudicate) but that is separate from identity
-        $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Mental Health','department'=>'Guidance Office','description'=>'HEADCANREAD','urgency'=>null,'status'=>'submitted','is_anonymous'=>true]);
-        $resp=$this->actingAs($this->u('head@cspc.edu.ph'))->get("/concerns/{$c->id}");
+    /**
+     * The Head of School reads what reaches them, not everything.
+     *
+     * This asserted the opposite: that the rank could open any concern in
+     * the college, so that escalations and suspected false reports could be
+     * adjudicated. It was one of four standing windows that let staff read
+     * concerns they were not handling, and it was the widest -- every
+     * student's mental health and bullying report, in full.
+     *
+     * Content is still readable once a case is theirs, which is what
+     * adjudicating actually needs, and the identity behind an anonymous
+     * report is still separate from the content either way.
+     */
+    public function test_head_reads_a_concern_on_their_own_desk_and_not_others(): void {
+        $head=$this->u('head@cspc.edu.ph');
+
+        $theirs=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Mental Health','department'=>'Guidance Office','description'=>'HEADCANREAD','urgency'=>null,'status'=>'submitted','is_anonymous'=>true,'assigned_to'=>$head->id]);
+        $resp=$this->actingAs($head)->get("/concerns/{$theirs->id}");
         $resp->assertOk();
         $resp->assertSee('HEADCANREAD');
-        $this->line("[content] head reads MH content: yes");
+
+        $somebodyElses=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Mental Health','department'=>'Guidance Office','description'=>'NOTTHEIRS','urgency'=>null,'status'=>'submitted','is_anonymous'=>true,'assigned_to'=>$this->u('counselor@cspc.edu.ph')->id]);
+        $this->actingAs($head)->get("/concerns/{$somebodyElses->id}")->assertForbidden();
+
+        $this->line("[content] head reads their own case, not the counsellor's");
     }
 }

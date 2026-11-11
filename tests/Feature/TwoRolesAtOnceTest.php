@@ -108,25 +108,33 @@ class TwoRolesAtOnceTest extends TestCase
             'is_anonymous' => false,
         ], $extra));
 
-        // Faculty/Staff sees what is referred to Faculty/Staff.
+        // Referred to the role each hat holds -- but referred to the role
+        // is no longer a way in. A referral is handed to a person.
         $theirs = $make(['referred_to' => 'Faculty/Staff', 'status' => 'referred']);
-
-        // Staff Admin sees what is referred to Staff Admin.
         $adminsOwn = $make(['referred_to' => 'Staff Admin', 'status' => 'referred']);
-
-        // Neither sees a counselling case nobody sent them.
         $counselling = $make(['category' => 'Harassment']);
+
+        // And one that was actually given to them.
+        $onTheirDesk = $make(['assigned_to' => $user->id]);
 
         $this->give($user, 'Staff Admin');
         $user = $user->fresh();
 
         $visible = Concern::visibleTo($user)->pluck('id');
 
-        $this->assertTrue($visible->contains($theirs->id), 'what their own role is sent');
-        $this->assertTrue($visible->contains($adminsOwn->id), 'and what the second role is sent');
-        $this->assertFalse($visible->contains($counselling->id), 'but not a case neither role may read');
+        // A second hat widens what they may DO -- the destinations they can
+        // be referred, the actions they can take. It no longer widens what
+        // they may READ, because reading follows the desk a case sits on
+        // and not the roles a person holds. This asserted the union of two
+        // roles' standing windows; those windows are gone for one role, so
+        // there is nothing for a second one to add.
+        $this->assertFalse($visible->contains($theirs->id), 'a role is not a mailbox');
+        $this->assertFalse($visible->contains($adminsOwn->id), 'nor is a second role');
+        $this->assertFalse($visible->contains($counselling->id), 'and certainly not a counselling case');
 
-        fwrite(STDERR, "  [two hats] they read the union of both roles, and nothing beyond it\n");
+        $this->assertTrue($visible->contains($onTheirDesk->id), 'what they were actually given');
+
+        fwrite(STDERR, "  [two hats] a second role adds nothing to what they may read\n");
     }
 
     /**

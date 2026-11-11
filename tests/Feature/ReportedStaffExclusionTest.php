@@ -51,7 +51,11 @@ class ReportedStaffExclusionTest extends TestCase {
         $staff=$this->u('staff@cspc.edu.ph');
         $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Academic',
             'department'=>'College of Computer Studies','description'=>'about juan','urgency'=>null,
-            'status'=>'submitted','is_anonymous'=>true,'about_staff_id'=>$staff->id]);
+            'status'=>'submitted','is_anonymous'=>true,'about_staff_id'=>$staff->id,
+            // On their desk. The Head of School reads what reaches them
+            // now rather than everything, so escalating it is what makes
+            // this readable -- the conflict wall is what the test is for.
+            'assigned_to'=>$this->u('head@cspc.edu.ph')->id]);
         $sees=Concern::whereKey($c->id)->visibleTo($this->u('head@cspc.edu.ph'))->exists();
         $this->line("[coi] Head of School sees conflict concern: ".($sees?'yes (good)':'NO'));
         $this->assertTrue($sees);
