@@ -1,0 +1,104 @@
+# The two containers the hosting request asks for.
+#
+#   cspcconcern-app  nginx + PHP-FPM serving the application
+#   cspcconcern-db   MySQL holding accounts, concerns, notes and the audit trail
+#
+# Start it with:  docker compose up -d --build
+# Then open:      http://localhost:8080
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cspcconcern-app
+    restart: unless-stopped
+
+    # Read from a .env file that is NOT the one the application uses on this
+    # machine: DB_HOST has to be the service name below, not 127.0.0.1, and
+    # overwriting the local .env would break XAMPP the moment this starts.
+    env_file:
+      - .env.docker
+
+    ports:
+      # Host 8001, which is the address already registered with Google as an
+      # authorised redirect. Sign-in is the only way into this application,
+      # so a port Google does not know about means a working container that
+      # nobody can get into -- and registering another one needs access to
+      # the Cloud console that made the client.
+      #
+      # It is the port `php artisan serve` uses, so the two cannot run at
+      # once. Stop the serve before starting these containers.
+      - "8001:80"
+
+    volumes:
+      # Uploaded evidence. This is the one directory whose contents must
+      # survive the container: everything else in the image is rebuilt, and
+      # a student's attachment that lives only inside a layer is gone with
+      # the next deploy.
+      - concern-storage:/var/www/html/storage/app
+
+    # Start order only, with no wait on the database being healthy.
+    #
+    # `condition: service_healthy` was here, and it broke the play button in
+    # Docker Desktop: that button runs `docker compose start`, which checks
+    # the condition at once instead of waiting on it the way `up` does.
+    # MySQL takes about fifteen seconds to answer, so the check failed, the
+    # stack was torn down again, and the error named a dependency rather
+    # than the timing.
+    #
+    # Nothing is lost by dropping it. docker/entrypoint.sh opens a socket to
+    # the database and waits up to two minutes before it runs a migration --
+    # the compose-level gate was the same wait written twice, and the second
+    # copy is the one that could fail.
+    depends_on:
+      - db
+
+    networks:
+      - cspcconcern
+
+  db:
+    image: mysql:8.0
+    container_name: cspcconcern-db
+    restart: unless-stopped
+
+    environment:
+      MYSQL_DATABASE: "${DB_DATABASE:-cspcconcern}"
+      MYSQL_USER: "${DB_USERNAME:-cspcconcern}"
+      MYSQL_PASSWORD: "${DB_PASSWORD:-secret}"
+      MYSQL_ROOT_PASSWORD: "${DB_ROOT_PASSWORD:-root}"
+
+    # utf8mb4 end to end. The default collation would mangle a name with an
+    # ñ in it, and this roster is full of them.
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+
+    volumes:
+      - concern-db:/var/lib/mysql
+
+    # The app waits on this rather than on the port opening: MySQL listens
+    # for several seconds before it will accept a query.
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p${DB_ROOT_PASSWORD:-root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+    networks:
+      - cspcconcern
+
+    # Published only so a client like phpMyAdmin or Workbench can reach it
+    # while you are working. Remove this block on a real host: a database
+    # that answers the internet is a database somebody else is reading.
+    ports:
+      - "3307:3306"
+
+volumes:
+  concern-storage:
+  concern-db:
+
+networks:
+  cspcconcern:
+    driver: bridge

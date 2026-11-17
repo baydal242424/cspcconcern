@@ -56,6 +56,9 @@ class ConcernController extends Controller
         'Gender and Development',
         'Legal Affairs',
         'General Services',
+        // Computers, printers, projectors. Split from General Services,
+        // who keep the building and everything fixed to it.
+        'ICT Unit',
     ];
 
 
@@ -109,7 +112,9 @@ class ConcernController extends Controller
         // destination beats making a student decide which of two maintenance
         // offices owns their problem.
         'Facilities' => 'General Services',
-        'Equipment' => 'General Services',
+        // ICT, not General Services: a dead lab PC and a blocked fire
+        // exit are different work, and one person was receiving both.
+        'Equipment' => 'ICT Unit',
         // Not the class adviser. An injury that has already happened and
         // a hazard that has not hurt anybody yet are not teaching
         // matters: the first needs somebody trained to sit with the
@@ -152,6 +157,9 @@ class ConcernController extends Controller
         'Gender and Development',
         'Legal Affairs',
         'General Services',
+        // Computers, printers, projectors. Split from General Services,
+        // who keep the building and everything fixed to it.
+        'ICT Unit',
     ];
 
     /**
@@ -197,7 +205,7 @@ class ConcernController extends Controller
         // Maintenance. A dead lab PC is ICT's, but students report it to
         // General Services, who own the queue.
         'Facilities' => ['General Services', 'Faculty/Staff'],
-        'Equipment' => ['General Services', 'Faculty/Staff', 'System Admin'],
+        'Equipment' => ['ICT Unit', 'General Services', 'Faculty/Staff', 'System Admin'],
         // An injury that happened: somebody to sit with the student, and
         // the office that owns whatever caused it.
         'Physical' => ['Guidance Counselor', 'General Services', 'Legal Affairs'],

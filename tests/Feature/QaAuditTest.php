@@ -94,7 +94,10 @@ class QaAuditTest extends TestCase
             'Harassment'               => 'Guidance Counselor',
             'Administrative'           => 'System Admin',
             'Facilities'               => 'General Services',
-            'Equipment'                => 'General Services',
+            // Equipment left General Services for the ICT Unit. A dead lab
+            // PC and a blocked fire exit are different work, and one person
+            // was receiving both queues.
+            'Equipment'                => 'ICT Unit',
             // Physical and Safety go to Guidance now: an injury that has
             // happened and a hazard that has not hurt anybody yet are not
             // teaching matters.

@@ -1,0 +1,41 @@
+# What never belongs in the image.
+#
+# The build copies the project in wholesale, so anything left out here is
+# shipped: the local database credentials, the evidence students have
+# uploaded, and a vendor/ compiled against Windows.
+
+.env
+.env.*
+!.env.example
+
+# Installed inside the image against the container's own PHP, not copied
+# from a Windows host.
+vendor/
+node_modules/
+
+# Student evidence and framework scratch. The running container mounts a
+# volume over storage/app; the rest is rebuilt on boot.
+storage/app/private/
+storage/app/public/
+storage/framework/cache/data/
+storage/framework/sessions/
+storage/framework/testing/
+storage/framework/views/
+storage/logs/
+storage/debugbar/
+
+bootstrap/cache/*.php
+
+.git/
+.github/
+.idea/
+.vscode/
+*.log
+
+# Local working files that are not the application.
+hosting-technical-specification.pdf
+tests/
+phpunit.xml
+.phpunit.result.cache
+README.md
+CHANGELOG.md

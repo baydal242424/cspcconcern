@@ -150,6 +150,7 @@ class User extends Authenticatable
         // in pickers that were meant to be empty.
         'Legal Affairs',
         'General Services',
+        'ICT Unit',
     ];
 
     /**

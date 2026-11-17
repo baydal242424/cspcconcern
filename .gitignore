@@ -4,6 +4,10 @@
 .env.backup
 .env.backup*
 .env.production
+# Holds the same mail password and Google client secret as .env, pointed at
+# the database container instead of the local one. The .example beside it is
+# the one that belongs in the repository.
+.env.docker
 .phpactor.json
 .phpunit.result.cache
 /.codex
