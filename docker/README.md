@@ -23,7 +23,7 @@ containers run on has to be registered too. In the Google Cloud console,
 add this to the OAuth client's **Authorized redirect URIs**:
 
 ```
-http://localhost:8080/auth/google/callback
+http://localhost:8002/auth/google/callback
 ```
 
 Without it, the sign-in page loads and the sign-in fails.
@@ -35,7 +35,7 @@ Without it, the sign-in page loads and the sign-in fails.
 docker compose --env-file .env.docker up -d
 
 # open
-# http://localhost:8080
+# http://localhost:8002
 
 # stop (the data stays)
 docker compose --env-file .env.docker stop
@@ -120,5 +120,5 @@ prints why; it is usually the last line before the stack trace.
 **"Docker Desktop is unable to start."** Usually WSL. `wsl --update`, then
 quit Docker Desktop from the tray and open it again.
 
-**Port 8080 is taken.** Change the left-hand number in `docker-compose.yml`
+**Port 8002 is taken.** Change the left-hand number in `docker-compose.yml`
 under `ports`, and `APP_URL` with it.

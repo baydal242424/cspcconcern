@@ -4,7 +4,7 @@
 #   cspcconcern-db   MySQL holding accounts, concerns, notes and the audit trail
 #
 # Start it with:  docker compose up -d --build
-# Then open:      http://localhost:8080
+# Then open:      http://localhost:8002
 
 services:
   app:
@@ -21,15 +21,20 @@ services:
       - .env.docker
 
     ports:
-      # Host 8001, which is the address already registered with Google as an
-      # authorised redirect. Sign-in is the only way into this application,
-      # so a port Google does not know about means a working container that
-      # nobody can get into -- and registering another one needs access to
-      # the Cloud console that made the client.
+      # Host 8002, leaving 8001 to `php artisan serve`.
       #
-      # It is the port `php artisan serve` uses, so the two cannot run at
-      # once. Stop the serve before starting these containers.
-      - "8001:80"
+      # It sat on 8001 for a while, because that is the address registered
+      # with Google as an authorised redirect and sign-in is the only way
+      # into this application. It also meant the containers answered every
+      # time the local address was opened, which is the address the day's
+      # work is done on.
+      #
+      # So the trade runs the other way: Google sign-in works against
+      # `artisan serve` on 8001 and not against these containers, which are
+      # for trying the deployment shape rather than for signing in. To sign
+      # in here instead, add http://localhost:8002/auth/google/callback to
+      # the OAuth client's authorised redirect URIs.
+      - "8002:80"
 
     volumes:
       # Uploaded evidence. This is the one directory whose contents must

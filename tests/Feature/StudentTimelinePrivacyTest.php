@@ -104,10 +104,15 @@ class StudentTimelinePrivacyTest extends TestCase
     }
 
     /**
-     * The student is told who holds their case, and not the route it
-     * took to get there.
+     * The student is told who holds their case, and where it has been.
+     *
+     * The route used to be hidden -- every hand-off read "Referred to
+     * another office" -- because a student who can watch a report pass
+     * from the chair to the dean to Guidance can work out who read it.
+     * Against that: being told a concern has moved and not where leaves
+     * the person waiting on it with nobody to ask.
      */
-    public function test_the_student_is_told_who_holds_it_but_not_the_route(): void
+    public function test_the_student_is_told_who_holds_it_and_where_it_has_been(): void
     {
         $concern = $this->aConcern();
         $staff = $this->u('staff@cspc.edu.ph');
@@ -123,16 +128,19 @@ class StudentTimelinePrivacyTest extends TestCase
         $resp->assertSee('Being handled by');
         $resp->assertSee($counselor->name);
 
-        // What they do not get is the ROUTE. The timeline says the case moved
-        // on, not which desks it crossed to get here -- that is what would
-        // let a reporter work out who has read it.
-        $resp->assertSee('Referred to another office');
-        $resp->assertDontSee('Referred to Guidance Counselor');
+        // And the hand-off that put it there, named.
+        $resp->assertSee('Referred to Guidance Counselor');
+        $resp->assertDontSee('Referred to another office');
 
-        // And the staff-only phrasing stays staff-only.
+        // The staff-only phrasing stays staff-only.
         $resp->assertDontSee('Assigned to');
 
-        fwrite(STDERR, "  [timeline] the student is told who holds it, not the route it took\n");
+        // Triage and working notes are still internal: naming the offices
+        // a case crossed is not the same as opening the whole audit log.
+        $resp->assertDontSee('Urgency auto-assigned');
+        $resp->assertDontSee('Investigation notes updated');
+
+        fwrite(STDERR, "  [timeline] the student is told who holds it and where it has been\n");
     }
 
     /**
@@ -163,39 +171,48 @@ class StudentTimelinePrivacyTest extends TestCase
     }
 
     /**
-     * A run of hand-offs is one line.
+     * Every hand-off is its own line.
      *
-     * Being passed from the chair to the dean to a staff member to Guidance is
-     * one thing happening to the student: their concern is somewhere else. The
-     * entry keeps the time of the first hand-off -- the moment it left the desk
-     * they were told about.
+     * A run of them used to collapse into one, on the reasoning that being
+     * passed from desk to desk is one thing happening to the student:
+     * their concern is somewhere else. But the chain is the part worth
+     * reading -- a case that crossed three offices in a week and a case
+     * that moved once are different situations, and one collapsed line
+     * showed them identically.
      */
-    public function test_consecutive_hand_offs_collapse_into_one_entry(): void
+    public function test_every_hand_off_is_its_own_entry(): void
     {
         $concern = $this->aConcern();
+
+        // Somebody for the second hand-off to land on. A Personal concern
+        // reaches the Guidance Counselor or an adviser and nowhere else,
+        // and a referral to a role nobody holds is refused.
+        User::factory()->create([
+            'name' => 'A Class Adviser',
+            'role_id' => \App\Models\Role::where('name', 'Adviser')->value('id'),
+            'department' => 'College of Computer Studies',
+            'status' => 'approved',
+        ]);
 
         $this->refer($concern, $this->u('staff@cspc.edu.ph'), 'Guidance Counselor');
         $concern->refresh();
         $firstReferralAt = $concern->auditLogs()->where('action', 'status_updated')->oldest('id')->first();
 
-        $this->refer($concern, $concern->fresh()->assignedUser, 'Dean');
-        $this->refer($concern, $concern->fresh()->assignedUser, 'Guidance Counselor');
+        $this->refer($concern, $concern->fresh()->assignedUser, 'Adviser');
 
         $html = $this->studentView($concern)->getContent();
 
-        $this->assertSame(
-            1,
-            substr_count($html, 'Referred to another office'),
-            'three hand-offs are one thing happening to the student'
-        );
+        $this->assertSame(1, substr_count($html, 'Referred to Guidance Counselor'));
+        $this->assertSame(1, substr_count($html, 'Referred to Adviser'));
 
-        // And it is the first one that is shown.
+        // The first hand-off is still on the page, with its own time: the
+        // chain reads from the beginning, not from the latest move.
         $this->assertStringContainsString(
             $firstReferralAt->created_at->local()->format('M d, Y \a\t g:i A'),
             $html
         );
 
-        fwrite(STDERR, "  [timeline] three hand-offs collapse to one entry\n");
+        fwrite(STDERR, "  [timeline] each hand-off is its own entry\n");
     }
 
     /**
@@ -235,13 +252,12 @@ class StudentTimelinePrivacyTest extends TestCase
 
         $html = $this->studentView($concern)->getContent();
 
-        $this->assertSame(
-            2,
-            substr_count($html, 'Referred to another office'),
-            'a referral after real progress is a separate event'
-        );
+        // Both hand-offs, each named, with the pick-up between them.
+        $this->assertSame(1, substr_count($html, 'Referred to Guidance Counselor'));
+        $this->assertSame(1, substr_count($html, 'Referred to Adviser'));
+        $this->assertStringContainsString('Status changed to in progress', $html);
 
-        fwrite(STDERR, "  [timeline] a milestone between hand-offs starts a new entry\n");
+        fwrite(STDERR, "  [timeline] work between two hand-offs shows between them\n");
     }
 
     /** Triage and the handlers' own notes are not the student's business. */

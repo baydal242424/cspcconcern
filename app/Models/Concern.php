@@ -863,11 +863,17 @@ class Concern extends Model
      * touched. That record is what makes the handling of a case answerable
      * afterwards, and nothing here trims it.
      *
-     * The reporter sees the same case from outside. They are told what state
-     * their concern is in and when it got there -- referred, being worked on,
-     * resolved -- and never which desk it is sitting on. Who is holding a
-     * report is the staff's business; a student who can watch it being passed
-     * from the chair to the dean to Guidance can work out who read it.
+     * The reporter sees the same case from outside: what state their concern
+     * is in, when it got there, and which office it was handed to at each
+     * step. Triage and working notes stay internal.
+     *
+     * The hand-offs used to be unnamed -- "Referred to another office" --
+     * because a student who can watch a report pass from the chair to the
+     * dean to Guidance can work out who read it. That is true, and it was
+     * weighed against the student being told their concern had moved and
+     * not where. Who holds a complaint now is the thing a person waiting on
+     * one actually needs, and an office with no name cannot be followed up
+     * with.
      *
      * Returns entries, not logs: each is the log, the line to print, and
      * whether the actor's name may be shown beside it.
@@ -985,10 +991,21 @@ class Concern extends Model
 
         $description = (string) $log->description;
 
-        // "Referred to Dean (Ms. Rosel O. Onesa (OIC), College of Computer
-        // Studies)" becomes the fact without the address.
+        // Every hand-off, named, exactly as it was recorded: "Referred to
+        // Dean (Ms. Rosel O. Onesa (OIC), College of Computer Studies)".
+        //
+        // This read "Referred to another office", on the reasoning that a
+        // student who can watch a report pass from the chair to the dean to
+        // Guidance can work out who read it. The cost of that was a student
+        // being told their concern had moved and not where: the one thing a
+        // person waiting on a complaint actually wants to know is who has it
+        // now, and an unnamed office cannot be followed up with.
+        //
+        // The key is per-entry, so three referrals are three lines. Under
+        // one shared key a run collapsed into a single "referred", which is
+        // what made the chain invisible even in outline.
         if (str_starts_with($description, 'Referred to')) {
-            return ['key' => 'referred', 'label' => 'Referred to another office'];
+            return ['key' => 'referred-'.$log->id, 'label' => $description];
         }
 
         if ($description === 'Marked as resolved') {
