@@ -186,7 +186,10 @@ class CategorySplitAndOtherDetailTest extends TestCase
         // could be a fight, a disability or a broken wall, and "Facilities"
         // and "Equipment" both sound like the home for a dead lab computer.
         $renamed = [
-            'Administrative' => 'System Problem',
+            // 'Administrative' => 'System Problem' is NOT here any more: it
+            // is no longer offered on this form at all, and is reached from
+            // the bug link in the footer instead. Its label is covered by
+            // TheBugLinkFilesASiteProblemTest.
             'Personal' => 'Personal Problem',
             'Physical' => 'Physical Injury',
             'Safety' => 'Safety Hazard',

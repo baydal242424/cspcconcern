@@ -453,6 +453,17 @@
         .footer-link:hover{color:var(--ink)}
         .footer-link.is-here{color:var(--ink); font-weight:600}
         .footer-sep{margin:0 .55rem; color:var(--line)}
+
+        /* The bug link.
+           A fault in this website is no longer one of the categories the
+           filing form offers, so this is the way to it. It sits in the
+           footer because that is where it is wanted: on whatever page has
+           just misbehaved, rather than three clicks away on a form about
+           the college. The underline is on the label and not the anchor, or
+           the icon gets a line under it too. */
+        .footer-bug{display:inline-flex; align-items:center; gap:.3rem; text-decoration:none}
+        .footer-bug span{text-decoration:underline; text-underline-offset:3px}
+        .footer-bug svg{width:14px; height:14px; flex:none}
         @media(max-width:520px){
             .footer-sep{display:block; visibility:hidden; height:.35rem}
         }
@@ -717,6 +728,36 @@
     <footer>
         <a href="{{ route('policy') }}" class="footer-link {{ request()->routeIs('policy') ? 'is-here' : '' }}">Data Privacy &amp; Confidentiality Policy</a>
         <span class="footer-sep">|</span>
+        {{-- Something wrong with the site itself.
+             Signed-in only: the form it opens is behind auth, and offering a
+             guest a link that bounces them to the sign-in page is no help to
+             somebody whose problem IS the sign-in page. They have no account
+             to file from either -- that one goes to the ICT Unit in person.
+
+             The category rides in the query string because the filing form no
+             longer offers it; see Concern::WEBSITE_FAULT. --}}
+        @auth
+            <a href="{{ route('concerns.create', ['category' => \App\Models\Concern::WEBSITE_FAULT]) }}"
+               class="footer-link footer-bug"
+               title="Report a problem with this website">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                    <path d="m8 2 1.88 1.88"/>
+                    <path d="M14.12 3.88 16 2"/>
+                    <path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"/>
+                    <path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"/>
+                    <path d="M12 20v-9"/>
+                    <path d="M6.53 9C4.6 8.8 3 7.1 3 5"/>
+                    <path d="M6 13H2"/>
+                    <path d="M3 21c0-2.1 1.7-3.9 3.8-4"/>
+                    <path d="M20.97 5c0 2.1-1.6 3.8-3.5 4"/>
+                    <path d="M22 13h-4"/>
+                    <path d="M17.2 17c2.1.1 3.8 1.9 3.8 4"/>
+                </svg>
+                <span>Report a site problem</span>
+            </a>
+            <span class="footer-sep">|</span>
+        @endauth
         © {{ date('Y') }} Camarines Sur Polytechnic Colleges. All Rights Reserved.
     </footer>
 

@@ -104,6 +104,43 @@ class Concern extends Model
     ];
 
     /**
+     * The one category that is not about the college at all.
+     *
+     * Stored as 'Administrative' -- 48 concerns carry that value, routing
+     * matches on it and the staff filter lists it, so the stored name does
+     * not change. What it means is a fault in THIS WEBSITE: cannot sign in,
+     * page will not load, wrong information shown.
+     *
+     * It is kept out of the filing form's category list. A student opening
+     * that form has something to report about the college, and asking them
+     * to scroll past "System Problem" to reach Bullying puts a broken page
+     * on the same footing as being hurt. It is reached instead from the bug
+     * link in the footer, which is where a fault is noticed -- on whatever
+     * page misbehaved -- and which opens this form with the category already
+     * chosen.
+     */
+    public const WEBSITE_FAULT = 'Administrative';
+
+    /**
+     * The categories the filing form offers, in order.
+     *
+     * CATEGORIES is still the contract the server validates against, so a
+     * concern may legitimately arrive carrying the website fault: this is
+     * the shorter list a student chooses from, not a list of what is
+     * allowed. Keeping the two apart is what lets the bug link work without
+     * reopening the category to everybody who opens the form.
+     *
+     * @return list<string>
+     */
+    public static function pickerCategories(): array
+    {
+        return array_values(array_filter(
+            self::CATEGORIES,
+            fn (string $category) => $category !== self::WEBSITE_FAULT
+        ));
+    }
+
+    /**
      * How a category is written for a student, where that differs from the
      * value stored on the row.
      *

@@ -87,12 +87,29 @@
                  this is only what the student sees. --}}
             <select name="category" id="category" required @disabled($repeat)>
                 <option value="">-- Select a category --</option>
-                {{-- Looped from Concern::CATEGORIES rather than written out,
-                     so the form cannot offer a category the server rejects or
-                     miss one that was added. The VALUE is the stored contract
-                     that routing matches on; the label is what a student
-                     reads, and the two differ where CATEGORY_LABELS says so. --}}
-                @foreach (\App\Models\Concern::CATEGORIES as $category)
+                {{-- Looped from the model rather than written out, so the form
+                     cannot offer a category the server rejects or miss one
+                     that was added. The VALUE is the stored contract that
+                     routing matches on; the label is what a student reads,
+                     and the two differ where CATEGORY_LABELS says so.
+
+                     pickerCategories() and not CATEGORIES: the website fault
+                     is still a valid category -- the server accepts it and 48
+                     concerns carry it -- but it is reached from the bug link
+                     in the footer, not from this list. When that is the
+                     category in hand it is added back below, so the <select>
+                     can show what is being filed. --}}
+                @php
+                    $categoryOptions = \App\Models\Concern::pickerCategories();
+                    $chosenCategory = old('category', $repeat ? $followsUpOn->category : null);
+
+                    if ($chosenCategory
+                        && ! in_array($chosenCategory, $categoryOptions, true)
+                        && in_array($chosenCategory, \App\Models\Concern::CATEGORIES, true)) {
+                        $categoryOptions[] = $chosenCategory;
+                    }
+                @endphp
+                @foreach ($categoryOptions as $category)
                     {{-- The plain label. It used to carry a clarifier after a
                          dash -- "Academic — grades, subjects, schedules,
                          teaching" -- because the category alone did not say
@@ -104,7 +121,7 @@
                          The one-line explanation under the select stays: it
                          is about the ONE category chosen, not all eleven at
                          once. --}}
-                    <option value="{{ $category }}" {{ old('category') === $category ? 'selected' : '' }}>
+                    <option value="{{ $category }}" {{ $chosenCategory === $category ? 'selected' : '' }}>
                         {{ \App\Models\Concern::categoryLabel($category) }}
                     </option>
                 @endforeach

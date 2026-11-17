@@ -622,6 +622,24 @@ class ConcernController extends Controller
             ]);
         }
 
+        // Arriving from the bug link in the footer.
+        //
+        // A fault in this website is not one of the categories the form
+        // offers -- see Concern::WEBSITE_FAULT -- so the only way to file one
+        // is to arrive with the category already decided. The link carries
+        // it, and it is flashed into old input so the form fills it through
+        // the same old('category') the repeat and the draft already use.
+        //
+        // Whitelisted against the one value rather than trusting the query
+        // string: ?category= is a public parameter, and this must not become
+        // a way to open the form on a category the picker deliberately
+        // withholds, should there ever be another.
+        if (! $followsUpOn
+            && ! $request->old()
+            && $request->query('category') === Concern::WEBSITE_FAULT) {
+            $request->session()->flashInput(['category' => Concern::WEBSITE_FAULT]);
+        }
+
         // Staff-type users the student can name as the subject of a
         // conflict-of-interest concern (so it is routed away from them).
         // Split into two pickers: students looking for "my teacher" should not
