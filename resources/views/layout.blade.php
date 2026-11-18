@@ -448,6 +448,14 @@
             font:inherit; color:var(--ink); background:#fff;
         }
 
+        /* The asterisk on a required field.
+           It was the same near-black as the label it follows, so the one
+           character carrying "you have to fill this in" read as punctuation.
+           --danger-ink is the red the validation messages under these same
+           fields already use, so a field that is required and a field that
+           has just been refused speak in one colour. */
+        .req{color:var(--danger-ink); font-weight:700}
+
         footer{text-align:center; color:var(--muted); padding:2rem 1rem 3rem; font-size:.85rem}
         .footer-link{color:var(--muted); text-decoration:underline; text-underline-offset:3px}
         .footer-link:hover{color:var(--ink)}

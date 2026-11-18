@@ -74,7 +74,7 @@
         @endif
 
         <div class="form-group">
-            <label for="category">Concern Category *</label>
+            <label for="category">Concern Category <span class="req">*</span></label>
             {{-- Fixed on a repeat: it is the category of the thing
                  being reported again, and the banner above has just
                  said so. Offering it as a question invites an answer
@@ -146,7 +146,7 @@
              Others is the one category with no list, and it has its own
              question below instead. --}}
         <div class="form-group" id="subcategory-group" style="display:none;">
-            <label for="subcategory">What is it about? *</label>
+            <label for="subcategory">What is it about? <span class="req">*</span></label>
             <select name="subcategory" id="subcategory"
                     data-old="{{ old('subcategory') }}" @disabled($lockSub)>
                 <option value="">-- Select --</option>
@@ -165,7 +165,7 @@
              and the dashboard counts every unlike thing as one bucket. --}}
         <div class="form-group" id="other-category-group"
              @unless (old('category') === 'Others') style="display:none;" @endunless>
-            <label for="other_category">What is this about? *</label>
+            <label for="other_category">What is this about? <span class="req">*</span></label>
             <input type="text" name="other_category" id="other_category" maxlength="120"
                    value="{{ old('other_category') }}"
                    placeholder="A few words, e.g. lost locker key, lost ID at the gym">
@@ -187,7 +187,7 @@
              the sentence answered a question the form never put to them. --}}
 
         <div class="form-group">
-            <label for="description">Detailed Description *</label>
+            <label for="description">Detailed Description <span class="req">*</span></label>
             <details style="margin:0 0 0.7rem; border:1px solid #e2e8f0; border-radius:10px; background:#f8fafc;">
                 <summary style="cursor:pointer; padding:0.6rem 0.9rem; font-size:0.85rem; font-weight:600; color:#2f5bea; list-style:none;">
                     💡 Not sure what to write? Tips for a good report

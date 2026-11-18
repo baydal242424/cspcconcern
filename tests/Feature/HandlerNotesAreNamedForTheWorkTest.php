@@ -87,7 +87,9 @@ class HandlerNotesAreNamedForTheWorkTest extends TestCase
         ]);
 
         $this->actingAs($staff)->get("/concerns/{$concern->id}")->assertOk()
-            ->assertSee('Inspection Notes *')
+            // The asterisk is its own element now -- it is drawn red, so it
+            // cannot be a bare character in the label text any more.
+            ->assertSee('Inspection Notes <span class="req">*</span>', false)
             ->assertDontSee('Investigation Notes');
 
         // Still required: this renamed the field, it did not relax it.

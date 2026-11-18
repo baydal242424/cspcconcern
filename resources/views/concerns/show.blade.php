@@ -668,7 +668,7 @@
                 {{-- Shown only when closing without action. Required, and the
                      student reads it verbatim, so it is not an internal note. --}}
                 <div class="form-group" id="closure-group" @if ($concern->status !== 'closed_no_action') style="display:none;" @endif>
-                    <label for="closure_reason">Reason for closing without action *</label>
+                    <label for="closure_reason">Reason for closing without action <span class="req">*</span></label>
                     <textarea name="closure_reason" id="closure_reason" rows="3"
                               style="min-height:auto;"
                               placeholder="Explain why no action is being taken. The student will see this.">{{ old('closure_reason', $concern->closure_reason) }}</textarea>
@@ -928,7 +928,7 @@
                          and most of them are not investigations: a grade
                          query is a record being checked, a dead lab PC is
                          inspected, a counselling case is written up. --}}
-                    <label for="investigation_notes">{{ $concern->handlingNoteLabel() }} *</label>
+                    <label for="investigation_notes">{{ $concern->handlingNoteLabel() }} <span class="req">*</span></label>
                     <textarea name="investigation_notes" id="investigation_notes" required minlength="3"
                               placeholder="{{ $concern->handlingNoteHint() }}">{{ old('investigation_notes') }}</textarea>
                     @error('investigation_notes')
@@ -937,7 +937,7 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="resolution_notes">Resolution Notes *</label>
+                    <label for="resolution_notes">Resolution Notes <span class="req">*</span></label>
                     <textarea name="resolution_notes" id="resolution_notes" required minlength="3"
                               placeholder="What is being done about this?">{{ old('resolution_notes') }}</textarea>
                     @error('resolution_notes')
