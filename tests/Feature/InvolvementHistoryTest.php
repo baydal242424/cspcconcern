@@ -12,15 +12,27 @@ class InvolvementHistoryTest extends TestCase
     private function u($e){ return User::where('email',$e)->firstOrFail(); }
 
     /**
-     * Referring a case away hands it over. It does not keep a copy.
+     * Referring a case away hands over the DESK. The record stays.
      *
-     * This used to assert the opposite -- that whoever let go of a concern
-     * went on reading it for good. That made a referral a copy rather than
-     * a hand-off: a report that passed through three desks on its way
-     * somewhere was afterwards readable by all three, and each of them kept
-     * watching what the office that actually took it wrote on it.
+     * This assertion has now been written three ways, and the third is the
+     * one that holds both halves apart.
+     *
+     * It first said the referrer went on reading the case for good. That
+     * made a referral a copy rather than a hand-off: a report that passed
+     * three desks was afterwards readable by all three, each watching the
+     * office that actually took it.
+     *
+     * So it was cut to nothing -- referred away, gone. That went too far in
+     * the other direction. The person who referred it handled it too, and
+     * losing the case took their own account of it with them: a student who
+     * comes back to the adviser they first told, or a panel asking why a
+     * complaint went to the Dean, met somebody with nothing to show.
+     *
+     * The line sits between the work and the record. They keep the record
+     * -- their own notes, the evidence as it stood, and the state the case
+     * has reached since -- and they lose every power to act on it.
      */
-    public function test_staff_loses_a_concern_they_referred_away(): void
+    public function test_staff_keeps_a_copy_but_loses_the_desk(): void
     {
         $staff=$this->u('staff@cspc.edu.ph'); $counselor=$this->u('counselor@cspc.edu.ph');
         $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Personal',
@@ -32,12 +44,28 @@ class InvolvementHistoryTest extends TestCase
             'investigation_notes' => 'Looked into this and spoke with the people involved.',
             'resolution_notes' => 'Recorded what is being done about it.','status'=>'referred','referred_to'=>'Guidance Counselor','urgency'=>'Low']);
         $c->refresh();
-        $staffSees = Concern::whereKey($c->id)->visibleTo($staff)->exists();
-        fwrite(STDERR,"\n  [history] staff sees referred-away concern: ".($staffSees?'YES (BAD)':'NO (good, handed over)')."\n");
-        $this->assertFalse($staffSees, 'A referral is a hand-off: the sender lets go of it');
 
-        // And having let go, they cannot act on it either.
-        $this->actingAs($staff)->get("/concerns/{$c->id}")->assertForbidden();
+        // The desk moved.
+        $this->assertSame($counselor->id, $c->assigned_to, 'the case is on the counsellor\'s desk now');
+
+        // The record stayed.
+        $staffSees = Concern::whereKey($c->id)->visibleTo($staff)->exists();
+        fwrite(STDERR,"\n  [history] staff keeps a copy of what they referred: ".($staffSees?'YES (good)':'NO (BAD)')."\n");
+        $this->assertTrue($staffSees, 'The referrer keeps their copy of a case they handled');
+
+        // It opens, and says what it is.
+        $this->actingAs($staff)->get("/concerns/{$c->id}")
+            ->assertOk()
+            ->assertSee('Your copy of this concern')
+            ->assertDontSee('Update Concern Status');
+
+        // And it is a record, not a desk: they cannot resolve it.
+        $this->actingAs($staff)->patch("/concerns/{$c->id}",[
+            'investigation_notes' => 'Taking this back off them.',
+            'resolution_notes' => 'Marking it done myself.','status'=>'resolved','urgency'=>'Low']);
+
+        $this->assertNotSame('resolved', $c->fresh()->status,
+            'a case handed on cannot be resolved by the person who handed it on');
     }
 
     /**
@@ -47,8 +75,14 @@ class InvolvementHistoryTest extends TestCase
      * referral became a real hand-off, that page was shut to the person
      * who had just referred it -- so the reward for referring correctly
      * was a Forbidden screen with no sign the referral had worked.
+     *
+     * The fix at the time was to send them to the list instead. Now that
+     * the referrer keeps a readable copy, the concern page opens again and
+     * is the better place to land: it shows the hand-off that just
+     * happened. What is under test is unchanged -- wherever they are sent,
+     * it must be somewhere they can actually go.
      */
-    public function test_referring_lands_on_the_list_not_a_forbidden_page(): void
+    public function test_referring_lands_on_a_page_that_opens(): void
     {
         $staff=$this->u('staff@cspc.edu.ph');
         $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Personal',
@@ -59,10 +93,10 @@ class InvolvementHistoryTest extends TestCase
             'investigation_notes' => 'Looked into this and spoke with the people involved.',
             'resolution_notes' => 'Recorded what is being done about it.',
             'status'=>'referred','referred_to'=>'Guidance Counselor','urgency'=>'Low'])
-            ->assertRedirect(route('concerns.index'));
+            ->assertRedirect(route('concerns.show', $c->id));
 
         // And the page they land on actually opens, with the confirmation.
-        $this->actingAs($staff)->get(route('concerns.index'))
+        $this->actingAs($staff)->get(route('concerns.show', $c->id))
             ->assertOk()
             ->assertSee('Referred successfully', false);
     }
@@ -99,8 +133,14 @@ class InvolvementHistoryTest extends TestCase
             ->assertSee('Spoke to the student on Tuesday.');
     }
 
-    /** Referred back, it is visible again -- it is their desk once more. */
-    public function test_a_concern_referred_back_returns_to_view(): void
+    /**
+     * Referred back, it is a desk again and not just a copy.
+     *
+     * Visibility no longer tells these two apart -- the referrer can see it
+     * either way -- so what is tested is the thing that actually changes:
+     * whether they may act on it.
+     */
+    public function test_a_concern_referred_back_becomes_theirs_again(): void
     {
         $staff=$this->u('staff@cspc.edu.ph'); $counselor=$this->u('counselor@cspc.edu.ph');
         $c=Concern::create(['user_id'=>$this->u('student@my.cspc.edu.ph')->id,'category'=>'Personal',
@@ -110,7 +150,10 @@ class InvolvementHistoryTest extends TestCase
         $this->actingAs($staff)->patch("/concerns/{$c->id}",[
             'investigation_notes' => 'Looked into this and spoke with the people involved.',
             'resolution_notes' => 'Recorded what is being done about it.','status'=>'referred','referred_to'=>'Guidance Counselor','urgency'=>'Low']);
-        $this->assertFalse(Concern::whereKey($c->id)->visibleTo($staff)->exists());
+
+        // Readable, but handed on: a copy.
+        $this->assertTrue(Concern::whereKey($c->id)->visibleTo($staff)->exists());
+        $this->assertNotNull($c->fresh()->handoverLogFor($staff), 'handed on, so a copy');
 
         // The counsellor hands it back.
         $c->refresh()->update(['assigned_to'=>$staff->id,'referred_to'=>'Instructor']);
@@ -119,6 +162,17 @@ class InvolvementHistoryTest extends TestCase
             Concern::whereKey($c->id)->visibleTo($staff)->exists(),
             'Back on their desk, back in their list'
         );
+
+        $this->assertNull(
+            $c->fresh()->handoverLogFor($staff),
+            'Back on their desk: live again, not a copy'
+        );
+
+        // Which means the form is back.
+        $this->actingAs($staff)->get("/concerns/{$c->id}")
+            ->assertOk()
+            ->assertSee('Update Concern Status')
+            ->assertDontSee('Your copy of this concern');
     }
 
     /** Counselor can update->resolved without 403, and it stays in her history after */

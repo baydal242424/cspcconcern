@@ -24,14 +24,36 @@
                  than adding to it, so without this line a page showing only
                  finished cases looks like a page that has lost the rest. --}}
             <p style="color:#64748b; font-size:0.85rem; margin-top:0.25rem;">
-                {{ $showResolved ? 'Finished — resolved and closed' : 'Active — still being handled' }}
+                @if ($handedOver ?? false)
+                    Referred — passed to another office, kept for your record
+                @elseif ($showResolved)
+                    Finished — resolved and closed
+                @else
+                    Active — still being handled
+                @endif
             </p>
         </div>
         <div style="display: flex; gap: 0.6rem; align-items: center;">
-            @if ($showResolved)
+            {{-- Three piles, and the buttons swap between them rather than
+                 adding to each other. Whichever one is on screen is the one
+                 with no button, so there is never a button that does
+                 nothing. --}}
+            @if (($handedOver ?? false) || $showResolved)
                 <a href="{{ route('concerns.index') }}" class="btn btn-muted">Show active</a>
-            @else
+            @endif
+
+            @if (! $showResolved)
                 <a href="{{ route('concerns.index', ['show_resolved' => 1]) }}" class="btn btn-muted">Show finished</a>
+            @endif
+
+            {{-- Only for somebody who has actually referred something. For
+                 every student and most staff the count is nought, and a
+                 button leading to an empty page is a question about a
+                 feature that does not apply to them. --}}
+            @if (! ($handedOver ?? false) && ($handedOverCount ?? 0) > 0)
+                <a href="{{ route('concerns.index', ['handed_over' => 1]) }}" class="btn btn-muted">
+                    Referred by me ({{ $handedOverCount }})
+                </a>
             @endif
             {{-- Only once there is a list to sit above. With nothing filed,
                  the empty state below has its own button, and two identical
@@ -68,6 +90,7 @@
     @php
         $currentFilters = array_filter([
             'show_resolved' => $showResolved ? 1 : null,
+            'handed_over' => ($handedOver ?? false) ? 1 : null,
             'q' => $filters['q'],
             'category' => $filters['category'],
             'status' => $filters['status'],
@@ -89,6 +112,12 @@
     <form method="GET" action="{{ route('concerns.index') }}" class="filters">
         @if ($showResolved)
             <input type="hidden" name="show_resolved" value="1">
+        @endif
+        {{-- Filtering inside a pile has to stay inside it. Without this the
+             form submits without the flag and drops the reader back into
+             Active, which reads as the filter having found nothing. --}}
+        @if ($handedOver ?? false)
+            <input type="hidden" name="handed_over" value="1">
         @endif
 
         <input type="text" name="q" value="{{ $filters['q'] }}" class="search"
@@ -173,7 +202,7 @@
             </div>
 
             <div class="fd-foot">
-                <a href="{{ route('concerns.index', $showResolved ? ['show_resolved' => 1] : []) }}">Clear</a>
+                <a href="{{ route('concerns.index', ($handedOver ?? false) ? ['handed_over' => 1] : ($showResolved ? ['show_resolved' => 1] : [])) }}">Clear</a>
                 <button type="submit" class="btn btn-primary" style="padding:.55rem 1.5rem; font-size:.9rem;">Done</button>
             </div>
         </dialog>
@@ -198,7 +227,7 @@
                 <span class="filter-chip">Until {{ $filters['to']->format('M j, Y') }}
                     <a href="{{ $withoutFilter('to') }}" title="Remove this date" aria-label="Remove the end date">&times;</a></span>
             @endif
-            <a href="{{ route('concerns.index', $showResolved ? ['show_resolved' => 1] : []) }}" style="color:var(--muted); text-decoration:underline;">Clear all</a>
+            <a href="{{ route('concerns.index', ($handedOver ?? false) ? ['handed_over' => 1] : ($showResolved ? ['show_resolved' => 1] : [])) }}" style="color:var(--muted); text-decoration:underline;">Clear all</a>
         </div>
     @endif
 
@@ -267,7 +296,7 @@
                 <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 1.25rem;">
                     Try a wider date range, or clear the filters to see everything you can read.
                 </p>
-                <a href="{{ route('concerns.index', $showResolved ? ['show_resolved' => 1] : []) }}" class="btn btn-primary">Clear filters</a>
+                <a href="{{ route('concerns.index', ($handedOver ?? false) ? ['handed_over' => 1] : ($showResolved ? ['show_resolved' => 1] : [])) }}" class="btn btn-primary">Clear filters</a>
             {{-- Nothing finished yet is not the same as nothing filed. The two
                  buttons swap the list, so an empty finished pile must say so
                  and offer the way back. --}}

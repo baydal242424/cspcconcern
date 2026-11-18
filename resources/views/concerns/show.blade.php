@@ -28,6 +28,20 @@
         </div>
     </div>
 
+    {{-- A case this viewer handed on. Said plainly and at the top, because
+         everything below it is a copy: without the line, a handler reading
+         notes that stop halfway and no Update form would think the page was
+         broken or the case abandoned. --}}
+    @if ($handedOverAt ?? null)
+        <div class="alert alert-info" role="status" style="margin-bottom:1.5rem;">
+            <strong>Your copy of this concern.</strong>
+            You referred it on {{ $handedOverAt->local()->format('M d, Y \a\t g:i A') }},
+            and this is the case as it stood then &mdash; the report, the evidence
+            and your own notes. What the office holding it has written since is
+            theirs; you see only where the case has got to.
+        </div>
+    @endif
+
     <div class="grid-2">
         <div>
             <h2 class="section-title">Concern Details</h2>
@@ -583,7 +597,12 @@
          entries), which is the single faithful record of every hand-off. --}}
 
     @php $viewerRole = optional(Auth::user()->role)->name; @endphp
-    @if ($concern->status !== 'resolved' && (Auth::user()->id === $concern->assigned_to || in_array($viewerRole, ['System Admin', 'Staff Admin', 'Dean'], true) || ($concern->referred_to !== null && $viewerRole === $concern->referred_to)))
+    {{-- `! $handedOverAt` first: a case this viewer referred away is theirs
+         to read and not to touch. update() refuses it anyway -- that is the
+         gate -- but a form that is drawn and then rejected on submit reads
+         as a bug, and a Dean passes the three rules after it on any concern
+         they can see. --}}
+    @if (! ($handedOverAt ?? null) && $concern->status !== 'resolved' && (Auth::user()->id === $concern->assigned_to || in_array($viewerRole, ['System Admin', 'Staff Admin', 'Dean'], true) || ($concern->referred_to !== null && $viewerRole === $concern->referred_to)))
         <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
         <div>
             <h2 class="section-title" style="margin-bottom: 1.5rem;">Update Concern Status</h2>

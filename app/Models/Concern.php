@@ -894,6 +894,92 @@ class Concern extends Model
     }
 
     /**
+     * The moment this viewer handed the case on, if they did and it has not
+     * come back to them.
+     *
+     * A referral is a hand-off: the next desk works the case, and what they
+     * write is theirs. But the person who referred it worked it too, and
+     * cutting them off completely took their own record with it -- their
+     * notes, the evidence they saw, the fact that they looked at it at all.
+     * Somebody asked six months later why a case was passed to the Dean had
+     * nothing to answer with.
+     *
+     * So they keep a copy, frozen at this moment. Everything up to here is
+     * theirs to read in full. After it they get the state of the case and
+     * nothing else: whether it is being worked on, whether it was passed on
+     * again, and to whom. Not the next desk's notes.
+     *
+     * Null when the case is still theirs -- a handler holding a concern reads
+     * it live, and a case referred back to them is theirs again.
+     *
+     * Returns the log rather than the time, because the timeline needs the id
+     * to split on: two entries written in the same second cannot be told
+     * apart by their timestamps, and the referral itself belongs on the near
+     * side of the line.
+     */
+    public function handoverLogFor(User $viewer): ?AuditLog
+    {
+        if ((int) $this->assigned_to === (int) $viewer->id) {
+            return null;
+        }
+
+        return $this->auditLogs
+            ->where('user_id', $viewer->id)
+            ->where('action', 'status_updated')
+            ->filter(fn (AuditLog $log) => str_starts_with((string) $log->description, 'Referred to'))
+            ->sortByDesc('id')
+            ->first();
+    }
+
+    /** When this viewer handed the case on, or null if they still hold it. */
+    public function handedOverAt(User $viewer)
+    {
+        return optional($this->handoverLogFor($viewer))->created_at;
+    }
+
+    /**
+     * The cases this person referred to somebody else and no longer holds.
+     *
+     * Their own pile on the concerns list. Without one the copies sit in
+     * the active list among the cases actually waiting on them, and the
+     * list stops answering "what is on my desk" -- which is the only
+     * question it is there to answer. An adviser who has referred thirty
+     * cases over a term would read thirty rows they can do nothing about
+     * before reaching the one they can.
+     *
+     * The query mirrors handoverLogFor() exactly: a referral logged by this
+     * person, on a case that is not theirs now. Written twice because one
+     * is SQL over many rows and the other reads a loaded collection for a
+     * single concern; they must be kept in step.
+     */
+    public function scopeHandedOverBy($query, User $user)
+    {
+        return $query
+            ->where(function ($elsewhere) use ($user) {
+                $elsewhere->whereNull('assigned_to')
+                    ->orWhere('assigned_to', '!=', $user->id);
+            })
+            ->whereHas('auditLogs', function ($handover) use ($user) {
+                $handover->where('user_id', $user->id)
+                    ->where('action', 'status_updated')
+                    ->where('description', 'like', 'Referred to%');
+            });
+    }
+
+    /** Everything except those: the cases still to do something about. */
+    public function scopeNotHandedOverBy($query, User $user)
+    {
+        return $query->where(function ($live) use ($user) {
+            $live->where('assigned_to', $user->id)
+                ->orWhereDoesntHave('auditLogs', function ($handover) use ($user) {
+                    $handover->where('user_id', $user->id)
+                        ->where('action', 'status_updated')
+                        ->where('description', 'like', 'Referred to%');
+                });
+        });
+    }
+
+    /**
      * The activity timeline, as this viewer is allowed to read it.
      *
      * Staff see the audit log in full: every hand-off, every name, every note
@@ -920,18 +1006,65 @@ class Concern extends Model
     public function timelineFor(User $viewer)
     {
         if ($viewer->isEmployee()) {
-            return $this->auditLogs->sortByDesc('id')->values()->map(fn (AuditLog $log) => [
-                'log' => $log,
-                'label' => self::fullLabel($log),
-                'showActor' => true,
-            ]);
+            $handover = $this->handoverLogFor($viewer);
+
+            // Whoever is holding it now, and anybody who never held it,
+            // reads the log in full.
+            if (! $handover) {
+                return $this->auditLogs->sortByDesc('id')->values()->map(fn (AuditLog $log) => [
+                    'log' => $log,
+                    'label' => self::fullLabel($log),
+                    'showActor' => true,
+                ]);
+            }
+
+            // Somebody who handed this case on. Their own stretch of it is
+            // theirs in full -- up to and INCLUDING the referral, which is
+            // the last thing they did to it.
+            $upToTheHandover = $this->auditLogs
+                ->filter(fn (AuditLog $log) => $log->id <= $handover->id)
+                ->sortByDesc('id')
+                ->values()
+                ->map(fn (AuditLog $log) => [
+                    'log' => $log,
+                    'label' => self::fullLabel($log),
+                    'showActor' => true,
+                ]);
+
+            // After it, the same reading the reporter gets: where the case
+            // stands and who it went to next. Being able to tell whether a
+            // case you passed on is being worked, stalled or settled is
+            // the point of keeping the copy at all -- a record that stops
+            // dead at your own last entry cannot answer "did anything come
+            // of it". What the next desk WROTE stays theirs.
+            $since = self::milestoneEntries(
+                $this->auditLogs->filter(fn (AuditLog $log) => $log->id > $handover->id)
+            );
+
+            return $since->concat($upToTheHandover)->values();
         }
 
+        return self::milestoneEntries($this->auditLogs);
+    }
+
+    /**
+     * Logs read as milestones: the state of the case, not the work on it.
+     *
+     * Shared by the reporter's timeline and the part of a past handler's
+     * timeline that falls after they let the case go. Both are reading the
+     * same thing from outside -- where it is now -- and writing it twice
+     * would let the two drift.
+     *
+     * @param  \Illuminate\Support\Collection<int, AuditLog>  $logs
+     * @return \Illuminate\Support\Collection<int, array{log: AuditLog, label: string, showActor: bool}>
+     */
+    private static function milestoneEntries($logs)
+    {
         $entries = collect();
         $previous = null;
 
         // Oldest first, so a run of hand-offs can be collapsed as it is read.
-        foreach ($this->auditLogs->sortBy('id') as $log) {
+        foreach ($logs->sortBy('id') as $log) {
             $milestone = self::reporterMilestone($log);
 
             if (! $milestone) {
@@ -1232,6 +1365,21 @@ class Concern extends Model
                         ->whereHas('auditLogs', function ($log) use ($user) {
                             $log->where('user_id', $user->id);
                         });
+                })
+                // A case they handed on themselves. They keep their copy of
+                // it -- see handoverLogFor() -- frozen at the moment they
+                // passed it over, plus the state it is in now. They cannot
+                // act on it: canActOn() refuses a past handler, so this
+                // opens a record and not a desk.
+                //
+                // Only a referral THEY made. Merely having touched a case is
+                // not enough, or the orphan rule above would be the whole
+                // rule and every concern anybody ever triaged would stay
+                // readable by them forever.
+                ->orWhereHas('auditLogs', function ($handover) use ($user) {
+                    $handover->where('user_id', $user->id)
+                        ->where('action', 'status_updated')
+                        ->where('description', 'like', 'Referred to%');
                 });
 
             // The Head of School keeps what is escalated or referred TO

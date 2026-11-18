@@ -342,6 +342,20 @@ class ConcernController extends Controller
         // clogged. A "Show resolved" toggle (?show_resolved=1) brings them back.
         $showResolved = $request->boolean('show_resolved');
 
+        // The third pile: cases this person referred to somebody else.
+        //
+        // They keep a readable copy of each one, which means the copies
+        // landed in the active list beside the cases actually waiting on
+        // them. An adviser who has referred thirty cases over a term read
+        // thirty rows they can do nothing about before reaching one they
+        // can, and the list stopped answering "what is on my desk".
+        //
+        // So the three piles are exclusive: active, finished, handed over.
+        // A case they referred that the next office later resolved belongs
+        // here and not under Finished -- it is theirs to look back on, not
+        // theirs to have finished.
+        $handedOver = $request->boolean('handed_over');
+
         // Filters. Every one of these is read from the query string and
         // whitelisted against the model's own constants: an unknown value is
         // dropped rather than passed to the query, so a hand-edited URL cannot
@@ -373,7 +387,16 @@ class ConcernController extends Controller
         $statusChosen = $filters['status'] !== null;
 
         $concerns = Concern::visibleTo($user)
-            ->when($showResolved && ! $statusChosen, function ($q) {
+            // Which pile. Handed-over cases are shown in theirs and nowhere
+            // else, whatever state they have since reached.
+            ->when($handedOver, fn ($q) => $q->handedOverBy($user))
+            ->when(! $handedOver, fn ($q) => $q->notHandedOverBy($user))
+            // The two clauses below carry `! $handedOver` because that pile
+            // has no active/finished split: the whole point of it is to see
+            // what became of these, and hiding the settled ones would hide
+            // the answer. An explicit status filter still applies to it --
+            // that is a question the reader asked for.
+            ->when(! $handedOver && $showResolved && ! $statusChosen, function ($q) {
                 // The finished pile, on its own. This used to ADD the
                 // finished ones to the open ones, which answered a question
                 // nobody asks: "show me everything, mixed". Somebody looking
@@ -381,7 +404,7 @@ class ConcernController extends Controller
                 // past every live one to find it.
                 $q->whereIn('status', Concern::TERMINAL_STATUSES);
             })
-            ->when(! $showResolved && ! $statusChosen, function ($q) {
+            ->when(! $handedOver && ! $showResolved && ! $statusChosen, function ($q) {
                 // Hides finished cases of BOTH kinds -- resolved and closed
                 // without action. A closed concern is just as done as a
                 // resolved one, so leaving it in the active list would keep
@@ -451,7 +474,20 @@ class ConcernController extends Controller
             ->filter->hasContent()
             ->count();
 
-        return view('concerns.index', compact('concerns', 'showResolved', 'filters', 'activeFilterCount', 'draftCount'));
+        // How many they have handed on, so the button can say -- and so it
+        // can be left out entirely for somebody who has never referred
+        // anything, which is every student and most staff.
+        $handedOverCount = Concern::visibleTo($user)->handedOverBy($user)->count();
+
+        return view('concerns.index', compact(
+            'concerns',
+            'showResolved',
+            'handedOver',
+            'handedOverCount',
+            'filters',
+            'activeFilterCount',
+            'draftCount'
+        ));
     }
 
     /**
@@ -1294,6 +1330,74 @@ class ConcernController extends Controller
         $reviewNotes = $concern->reviewNotes()->with('author.role')->get();
         $resolutionNotes = $concern->resolutionNotes()->with('author.role')->get();
 
+        // Somebody reading a case they handed on.
+        //
+        // They keep a copy of it, frozen at the moment they referred it. The
+        // timeline splits itself (Concern::timelineFor); everything else on
+        // this page is a list that has grown since, and each one has to be
+        // cut back to what was there when they let go. Notes written by the
+        // next desk, evidence it collected, letters it issued and what it
+        // has asked the student for are its work, not theirs.
+        //
+        // Cut here rather than in the view: a page that receives the whole
+        // record and remembers not to print part of it leaks the first time
+        // somebody adds a section.
+        $handedOverAt = $concern->handedOverAt($user);
+
+        if ($handedOverAt) {
+            // The cut needs a tie-break, because these timestamps are stored
+            // to the second and the hand-off shares its second with the notes
+            // written in the same request. A plain `created_at <= handover`
+            // let the NEXT desk's first note through whenever it landed in
+            // that same second -- rare in use, routine in a test, and a leak
+            // either way.
+            //
+            // So: strictly before, keep. Strictly after, drop. In the
+            // hand-off second itself, keep only what this viewer wrote --
+            // addNote() runs before the audit entry in the same request, so
+            // their own last words are always on the near side of the line.
+            $mine = (int) $user->id;
+
+            $before = function ($row, string $authorKey) use ($handedOverAt, $mine) {
+                if ($row->created_at < $handedOverAt) {
+                    return true;
+                }
+
+                if ($row->created_at > $handedOverAt) {
+                    return false;
+                }
+
+                return (int) $row->{$authorKey} === $mine;
+            };
+
+            $reviewNotes = $reviewNotes->filter(fn ($n) => $before($n, 'user_id'))->values();
+            $resolutionNotes = $resolutionNotes->filter(fn ($n) => $before($n, 'user_id'))->values();
+
+            // These two carry the RECIPIENT, not the sender, so there is no
+            // author to tie-break on. Anything in the hand-off second is
+            // dropped: hiding one of their own is a smaller wrong than
+            // showing one of the next desk's.
+            $notices = $notices->filter(fn ($n) => $n->created_at < $handedOverAt)->values();
+            $summonses = $summonses->filter(fn ($s) => $s->created_at < $handedOverAt)->values();
+
+            $concern->setRelation(
+                'attachments',
+                $concern->attachments->filter(fn ($a) => $before($a, 'uploaded_by'))->values()
+            );
+
+            // The two note COLUMNS hold the latest of each, which after a
+            // hand-off is the next desk's writing. The page falls back to
+            // them whenever the kept history is empty -- which is how cases
+            // filed before that history existed still show their notes -- so
+            // leaving them would print back exactly what the filtering above
+            // just took out. Set to this viewer's own last entry instead of
+            // emptied, so their copy still reads as their copy.
+            //
+            // In memory only: nothing in show() saves the model.
+            $concern->investigation_notes = optional($reviewNotes->last())->body;
+            $concern->resolution_notes = optional($resolutionNotes->last())->body;
+        }
+
         return view('concerns.show', compact(
             'concern',
             'referralCandidates',
@@ -1303,7 +1407,8 @@ class ConcernController extends Controller
             'canAddDocuments',
             'summonses',
             'reviewNotes',
-            'resolutionNotes'
+            'resolutionNotes',
+            'handedOverAt'
         ));
     }
 
@@ -1357,6 +1462,16 @@ class ConcernController extends Controller
         // outside their visibility.
         if (! $this->canViewConcern($concern, $user)) {
             abort(403, 'Unauthorized');
+        }
+
+        // A case they handed on. They can open it -- they keep a copy -- but
+        // the copy is a record, not a desk. Checked here as well as in
+        // canActOn() because this gate is written out longhand rather than
+        // calling it, and the three rules below would otherwise hand a Dean
+        // back a case they themselves referred to Guidance.
+        if ($concern->handoverLogFor($user)) {
+            return redirect()->route('concerns.show', $concern)
+                ->with('error', 'You referred this concern to another office, so you can no longer update it. Your copy of it stays on your list.');
         }
 
         $role = optional($user->role)->name;
@@ -2110,6 +2225,20 @@ class ConcernController extends Controller
     private function canActOn(Concern $concern, User $user): bool
     {
         if (! $this->canViewConcern($concern, $user)) {
+            return false;
+        }
+
+        // A case they handed on is theirs to read and not to touch.
+        //
+        // This has to be said explicitly now that a past handler can open
+        // the concern again. The two rules below are generous -- any System
+        // Admin, Staff Admin or Dean who can SEE a concern may act on it,
+        // as may anybody standing in the office it was referred to -- and
+        // they were safe only because such a person could not see a case
+        // they had let go. Keeping the copy without this would hand a Dean
+        // back the power to resolve a case they themselves passed to
+        // Guidance, which is the hand-off undone.
+        if ($concern->handoverLogFor($user)) {
             return false;
         }
 

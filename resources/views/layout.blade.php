@@ -221,6 +221,10 @@
         .alert-success::before{content:"✓"}
         .alert-error{background:var(--danger-bg); color:var(--danger-ink); border-color:#f6c9cf}
         .alert-error::before{content:"!"}
+        /* Neither good news nor bad: a standing fact about what is on the
+           page, such as "this is your copy of a case you handed on". */
+        .alert-info{background:var(--brand50); color:var(--ink); border-color:#c7d4fb; font-weight:400}
+        .alert-info::before{content:"i"; font-weight:700; color:var(--brand)}
 
         .status-badge,.urgency-badge{
             display:inline-flex; align-items:center; padding:.32rem .8rem; border-radius:999px;
