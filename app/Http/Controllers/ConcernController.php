@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Concern;
+use App\Models\ConcernCategory;
 use App\Models\ConcernDraft;
 use App\Models\ConcernNote;
 use App\Models\ConcernSummons;
@@ -366,7 +367,7 @@ class ConcernController extends Controller
         // see, never reach past it. "Show me Harassment" from an Instructor
         // returns their own visible rows, not the Guidance Office's.
         $filters = [
-            'category' => in_array($request->query('category'), Concern::CATEGORIES, true)
+            'category' => in_array($request->query('category'), Concern::categoryNames(), true)
                 ? $request->query('category')
                 : null,
             'status' => array_key_exists($request->query('status'), Concern::STATUS_LABELS)
@@ -1025,7 +1026,7 @@ class ConcernController extends Controller
         ]);
 
         $validated = $request->validate([
-            'category' => ['required', Rule::in(Concern::CATEGORIES)],
+            'category' => ['required', Rule::in(Concern::categoryNames())],
             // "Others" is the one category that does not say what it is, so it
             // has to say here. Required for that alone; ignored for the rest.
             'other_category' => ['nullable', 'required_if:category,Others', 'string', 'min:3', 'max:120'],
@@ -1150,7 +1151,7 @@ class ConcernController extends Controller
         // Only meaningful where the adviser is the first handler. Cleared
         // everywhere else so a hand-posted form cannot mark a Facilities
         // concern as skipping a tier it never had.
-        $validated['skip_adviser'] = (self::CATEGORY_ROUTING[$validated['category']] ?? 'Adviser') === 'Adviser'
+        $validated['skip_adviser'] = (ConcernCategory::routingFor($validated['category']) ?? 'Adviser') === 'Adviser'
             ? (bool) ($validated['skip_adviser'] ?? false)
             : false;
 
@@ -2091,7 +2092,7 @@ class ConcernController extends Controller
         $user = Auth::user();
 
         $validated = $request->validate([
-            'category' => ['nullable', Rule::in(Concern::CATEGORIES)],
+            'category' => ['nullable', Rule::in(Concern::categoryNames())],
             'subcategory' => ['nullable', 'string', 'max:120'],
             'other_category' => ['nullable', 'string', 'max:120'],
             'description' => ['nullable', 'string', 'max:'.config('concerns.max_description')],
@@ -2605,7 +2606,10 @@ class ConcernController extends Controller
      */
     private function routeConcern(Concern $concern)
     {
-        $targetRoleName = self::CATEGORY_ROUTING[$concern->category] ?? 'Adviser';
+        // From the categories table now, not the constant: a category the
+        // office added after deployment has to route somewhere too, and a
+        // constant cannot know about it.
+        $targetRoleName = ConcernCategory::routingFor($concern->category) ?? 'Adviser';
 
         // The Adviser role never reaches outside the student's own college.
         // findHandler()'s last tier is "anybody in the role": with a single

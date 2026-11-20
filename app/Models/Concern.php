@@ -134,10 +134,40 @@ class Concern extends Model
      */
     public static function pickerCategories(): array
     {
-        return array_values(array_filter(
-            self::CATEGORIES,
-            fn (string $category) => $category !== self::WEBSITE_FAULT
-        ));
+        return ConcernCategory::offered();
+    }
+
+    /**
+     * Every stored name the server will accept, retired ones included.
+     *
+     * This and pickerCategories() are deliberately different lists. A
+     * concern filed under a category the office has since taken off the
+     * form must still load, still filter and still be acted on -- the
+     * stored value is a contract with 800-odd rows, not a menu.
+     *
+     * The CATEGORIES constant above is now the SEED for these rows rather
+     * than the live list: see the concern_categories migration. It is kept
+     * because the table is seeded from it and because it is what answers
+     * when the table is not there yet.
+     *
+     * @return list<string>
+     */
+    public static function categoryNames(): array
+    {
+        return ConcernCategory::names();
+    }
+
+    /**
+     * Every category's sub-categories, for the filing form's script.
+     *
+     * @return array<string, list<string>>
+     */
+    public static function subcategoryMap(): array
+    {
+        return ConcernCategory::cached()
+            ->mapWithKeys(fn (ConcernCategory $c) => [$c->name => $c->subcategories ?? []])
+            ->filter(fn (array $subs) => $subs !== [])
+            ->all();
     }
 
     /**
@@ -500,7 +530,7 @@ class Concern extends Model
      */
     public static function subcategoriesFor(?string $category): array
     {
-        return self::SUBCATEGORIES[$category] ?? [];
+        return ConcernCategory::subcategoriesFor((string) $category);
     }
 
     /**
@@ -522,7 +552,7 @@ class Concern extends Model
     /** What a student should see for a category. */
     public static function categoryLabel(?string $category): string
     {
-        return self::CATEGORY_LABELS[$category] ?? (string) $category;
+        return ConcernCategory::labelFor((string) $category);
     }
 
     /** Convenience for views: {{ $concern->category_label }}. */

@@ -135,6 +135,12 @@ Route::middleware(['auth', 'track.last_seen', 'profile.complete', 'policy.accept
         ->name('notifications.readAll');
 
     // Admin: view all accounts, ban/unban, change role, delete (authorization checked inside the controller)
+    // The kinds of concern the college accepts. Rows rather than a constant,
+    // so a category can be added without a deployment.
+    Route::get('/admin/categories', [AdminController::class, 'categories'])->name('admin.categories');
+    Route::post('/admin/categories', [AdminController::class, 'storeCategory'])->name('admin.categories.store');
+    Route::post('/admin/categories/{category}', [AdminController::class, 'updateCategory'])->name('admin.categories.update');
+
     Route::get('/admin/users', [AdminController::class, 'index'])->name('admin.users');
     Route::post('/admin/users', [AdminController::class, 'storeUser'])->name('admin.users.store');
     Route::post('/admin/users/{user}/ban', [AdminController::class, 'ban'])->name('admin.users.ban');

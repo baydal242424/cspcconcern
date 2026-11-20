@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Models\Concern;
+use App\Models\ConcernCategory;
 use App\Models\Notification;
 use App\Models\Referral;
 use App\Models\Role;
@@ -42,6 +43,127 @@ class AdminController extends Controller
      * @var list<string>
      */
     private const ADMIN_ROLES = ['System Admin', 'Staff Admin'];
+
+    /**
+     * The kinds of concern the college accepts.
+     *
+     * These were eleven names in a PHP constant, which meant a twelfth
+     * needed somebody with the repository, a release and a deployment. In
+     * practice that means it never happens: a college that decides to start
+     * taking complaints about the canteen waits a year, or files them all
+     * under "Others" and loses the ability to route them anywhere.
+     *
+     * Open to both admin tiers. Adding a category is housekeeping, not a
+     * grant of power -- the thing guarded on this page is who may appoint
+     * an administrator, and that is a different question.
+     */
+    public function categories()
+    {
+        $this->authorizeAdmin();
+
+        return view('admin.categories', [
+            'categories' => ConcernCategory::cached(),
+            // What a new category may be routed to. The same list the
+            // referral picker uses, so a category cannot be pointed at an
+            // office the rest of the system does not believe in.
+            'roles' => Role::whereIn('name', User::EMPLOYEE_ROLES)
+                ->orderBy('name')
+                ->pluck('name'),
+            // How many concerns each one is carrying. A category with
+            // hundreds of cases behind it is not one to retire casually,
+            // and the number is the only thing that says so.
+            'counts' => Concern::selectRaw('category, COUNT(*) as n')
+                ->groupBy('category')
+                ->pluck('n', 'category'),
+        ]);
+    }
+
+    /**
+     * Add one.
+     *
+     * The stored name is written once and never again: it is matched by
+     * name on every concern filed under it, so a rename would orphan them.
+     * The label is the part that may be changed freely, because nothing
+     * matches on it.
+     */
+    public function storeCategory(Request $request)
+    {
+        $this->authorizeAdmin();
+
+        $validated = $request->validate([
+            'name' => [
+                'required', 'string', 'max:60',
+                // Letters, digits, spaces, ampersands and hyphens. The
+                // value ends up in URLs, query strings and a LIKE, and a
+                // category called "100% Done" or "A/B" would be a small
+                // adventure in three different places.
+                'regex:/^[A-Za-z0-9 &\-]+$/',
+                'unique:concern_categories,name',
+            ],
+            'label' => ['required', 'string', 'max:80'],
+            'routing_role' => ['nullable', 'string', Rule::in(User::EMPLOYEE_ROLES)],
+            // One per line in the textarea.
+            'subcategories' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        ConcernCategory::create([
+            'name' => trim($validated['name']),
+            'label' => trim($validated['label']),
+            'routing_role' => $validated['routing_role'] ?? null,
+            'subcategories' => $this->splitLines($validated['subcategories'] ?? null),
+            'is_active' => true,
+            'is_builtin' => false,
+            'sort_order' => (int) ConcernCategory::max('sort_order') + 10,
+        ]);
+
+        return back()->with('success', 'Category added. It is now on the filing form.');
+    }
+
+    /**
+     * Change one: its label, its sub-categories, where it routes, and
+     * whether the filing form still offers it.
+     *
+     * The name is not among them, for a category the system shipped with or
+     * one the office added: 808 concerns match on it.
+     */
+    public function updateCategory(Request $request, ConcernCategory $category)
+    {
+        $this->authorizeAdmin();
+
+        $validated = $request->validate([
+            'label' => ['required', 'string', 'max:80'],
+            'routing_role' => ['nullable', 'string', Rule::in(User::EMPLOYEE_ROLES)],
+            'subcategories' => ['nullable', 'string', 'max:2000'],
+            'is_active' => ['nullable', 'boolean'],
+        ]);
+
+        $category->update([
+            'label' => trim($validated['label']),
+            'routing_role' => $validated['routing_role'] ?? null,
+            'subcategories' => $this->splitLines($validated['subcategories'] ?? null),
+            'is_active' => (bool) ($validated['is_active'] ?? false),
+        ]);
+
+        return back()->with('success', 'Category updated.');
+    }
+
+    /**
+     * A textarea of one-per-line into a list, or null for none.
+     *
+     * Null and [] are different: a category with no sub-categories hides
+     * the second dropdown entirely, which is what 'Others' does.
+     */
+    private function splitLines(?string $text): ?array
+    {
+        $lines = collect(preg_split('/\r\n|\r|\n/', (string) $text))
+            ->map(fn ($line) => trim($line))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        return $lines === [] ? null : $lines;
+    }
 
     /**
      * List every registered account.

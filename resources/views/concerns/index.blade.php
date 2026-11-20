@@ -152,7 +152,11 @@
                     <label for="filter-category">Category</label>
                     <select id="filter-category" name="category">
                         <option value="">All categories</option>
-                        @foreach (\App\Models\Concern::CATEGORIES as $category)
+                        {{-- Every stored name, not only the ones still offered
+                             on the filing form: a category the office has
+                             retired still has concerns filed under it, and
+                             staff must be able to find them. --}}
+                        @foreach (\App\Models\Concern::categoryNames() as $category)
                             <option value="{{ $category }}" @selected($filters['category'] === $category)>{{ \App\Models\Concern::categoryLabel($category) }}</option>
                         @endforeach
                     </select>

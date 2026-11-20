@@ -105,7 +105,7 @@
 
                     if ($chosenCategory
                         && ! in_array($chosenCategory, $categoryOptions, true)
-                        && in_array($chosenCategory, \App\Models\Concern::CATEGORIES, true)) {
+                        && in_array($chosenCategory, \App\Models\Concern::categoryNames(), true)) {
                         $categoryOptions[] = $chosenCategory;
                     }
                 @endphp
@@ -1015,7 +1015,7 @@
                 // headed "this concern is about a particular person".
                 // Straight from Concern::SUBCATEGORIES, so the form cannot
                 // offer one the server will refuse, or miss one that was added.
-                const SUBCATEGORIES = @json(\App\Models\Concern::SUBCATEGORIES);
+                const SUBCATEGORIES = @json(\App\Models\Concern::subcategoryMap());
 
                 const NAMEABLE_ROLES = {
                     'Academic': ['Program Chair', 'Dean', 'Vice President for Academic Affairs'],
