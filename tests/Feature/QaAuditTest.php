@@ -92,7 +92,11 @@ class QaAuditTest extends TestCase
             'Mental Health' => 'Guidance Counselor',
             'Bullying'                 => 'Guidance Counselor',
             'Harassment'               => 'Guidance Counselor',
-            'Administrative'           => 'System Admin',
+            // A fault in this website is the ICT Unit's work, like the
+            // Equipment queue below it: the System Admin role here manages
+            // accounts and roles, which is a different job from a page that
+            // will not load.
+            'Administrative'           => 'ICT Unit',
             'Facilities'               => 'General Services',
             // Equipment left General Services for the ICT Unit. A dead lab
             // PC and a blocked fire exit are different work, and one person

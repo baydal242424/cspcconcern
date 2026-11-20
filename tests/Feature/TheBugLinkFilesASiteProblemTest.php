@@ -142,8 +142,8 @@ class TheBugLinkFilesASiteProblemTest extends TestCase
         fwrite(STDERR, "  [bug] only the one whitelisted category pre-selects\n");
     }
 
-    /** Filed through the link, it reaches the System Admin as before. */
-    public function test_a_site_problem_still_routes_to_the_system_admin(): void
+    /** Filed through the link, it reaches the ICT Unit. */
+    public function test_a_site_problem_routes_to_the_ict_unit(): void
     {
         $this->actingAs($this->student())->post('/concerns', [
             'category' => Concern::WEBSITE_FAULT,
@@ -157,11 +157,11 @@ class TheBugLinkFilesASiteProblemTest extends TestCase
         $this->assertSame('System Problem', $concern->category_label);
         $this->assertNotNull($concern->assigned_to, 'a site problem still lands on a desk');
         $this->assertSame(
-            'System Admin',
+            'ICT Unit',
             optional(optional($concern->assignedUser)->role)->name
         );
 
-        fwrite(STDERR, "  [bug] a filed site problem still reaches the System Admin\n");
+        fwrite(STDERR, "  [bug] a filed site problem reaches the ICT Unit\n");
     }
 
     /**
@@ -212,7 +212,7 @@ class TheBugLinkFilesASiteProblemTest extends TestCase
 
         // It lands on a desk like any other concern.
         $this->assertSame(
-            'System Admin',
+            'ICT Unit',
             optional(optional($concern->assignedUser)->role)->name
         );
 

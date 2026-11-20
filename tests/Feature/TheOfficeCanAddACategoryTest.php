@@ -74,7 +74,7 @@ class TheOfficeCanAddACategoryTest extends TestCase
     {
         $this->assertContains(Concern::WEBSITE_FAULT, ConcernCategory::names());
         $this->assertNotContains(Concern::WEBSITE_FAULT, ConcernCategory::offered());
-        $this->assertSame('System Admin', ConcernCategory::routingFor(Concern::WEBSITE_FAULT));
+        $this->assertSame('ICT Unit', ConcernCategory::routingFor(Concern::WEBSITE_FAULT));
 
         fwrite(STDERR, "  [categories] the website fault keeps its row and its routing\n");
     }

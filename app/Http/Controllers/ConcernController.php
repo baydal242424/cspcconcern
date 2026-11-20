@@ -685,10 +685,20 @@ class ConcernController extends Controller
             'ip_address' => $request->ip(),
         ]);
 
+        // Named from the routing table rather than written into the
+        // sentence. It said "reported to the ICT team" while the category
+        // still routed to the System Admin -- true of neither the code nor
+        // the college, and the kind of wrong nobody notices because the
+        // message looks right. Read from the same row that decided where it
+        // actually went, so the two cannot disagree again.
+        $office = ConcernCategory::routingFor(Concern::WEBSITE_FAULT);
+
         // Back where they were, so reporting a fault does not also lose
         // their place. The concern page would be a worse landing: they
         // were in the middle of something when the thing broke.
-        return back()->with('success', 'Thank you — the problem has been reported to the ICT team.');
+        return back()->with('success', $office
+            ? "Thank you — the problem has been reported to the {$office}."
+            : 'Thank you — the problem has been reported.');
     }
 
     public function create(Request $request)
@@ -2739,11 +2749,20 @@ class ConcernController extends Controller
         // is small and its members answer to each other, so someone
         // investigating the colleague at the next desk is not an independent
         // review. It goes above them instead.
-        if (in_array($targetRoleName, ['Staff Admin', 'System Admin'], true) && $concern->about_staff_id) {
+        // The ICT Unit is in this list because website faults route there
+        // now. On paper it is a different role from System Admin; in a
+        // college it is usually the same office and often the same room.
+        // A complaint about the system administrator landing on the unit
+        // they work in is exactly the colleague-at-the-next-desk problem
+        // this rule exists to prevent, and the routing change would have
+        // quietly reintroduced it.
+        $theSameOffice = ['Staff Admin', 'System Admin', 'ICT Unit'];
+
+        if (in_array($targetRoleName, $theSameOffice, true) && $concern->about_staff_id) {
             // ANY named administrator disqualifies the office, not just the
             // first one listed.
             $subjectIsAdmin = User::whereIn('id', $concern->subjectIds())
-                ->whereHas('role', fn ($q) => $q->whereIn('name', ['Staff Admin', 'System Admin']))
+                ->whereHas('role', fn ($q) => $q->whereIn('name', $theSameOffice))
                 ->exists();
 
             if ($subjectIsAdmin) {
@@ -2758,7 +2777,7 @@ class ConcernController extends Controller
             // system administrator -- so it goes up to the VPAA rather than
             // sideways. Everything else still climbs the academic ladder, with
             // Admin last so nothing can end up assigned to nobody.
-            $chain = in_array($targetRoleName, ['Staff Admin', 'System Admin'], true)
+            $chain = in_array($targetRoleName, ['Staff Admin', 'System Admin', 'ICT Unit'], true)
                 ? ['Vice President for Academic Affairs', 'Head of School', 'Dean']
                 : ['Dean', 'Head of School', 'Vice President for Academic Affairs', 'Staff Admin'];
 

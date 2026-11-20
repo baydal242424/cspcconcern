@@ -59,7 +59,7 @@ class AdminTiersTest extends TestCase
      * Administrative Office. It now means a fault in the system itself, which
      * that office can do nothing about.
      */
-    public function test_a_system_problem_reaches_the_system_admin(): void
+    public function test_a_system_problem_reaches_the_ict_unit(): void
     {
         $this->actingAs(User::where('email', 'student@my.cspc.edu.ph')->firstOrFail())
             ->post('/concerns', [
@@ -70,7 +70,11 @@ class AdminTiersTest extends TestCase
 
         $concern = Concern::latest('id')->firstOrFail();
 
-        $this->assertSame('System Admin', optional(optional($concern->assignedUser)->role)->name);
+        // The ICT Unit, not the System Admin. The System Admin role in this
+        // system manages accounts and roles; a page that will not load is a
+        // technical defect, and the office that owns technology at the
+        // college is the one that already handles Equipment and devices.
+        $this->assertSame('ICT Unit', optional(optional($concern->assignedUser)->role)->name);
 
         fwrite(STDERR, '  [tiers] a system problem reached '.$concern->assignedUser->name."\n");
     }
