@@ -292,7 +292,15 @@
 
     <div>
         <h2 class="section-title">Description</h2>
-        <p class="user-text">{{ $concern->description }}</p>
+        {{-- Folded to ten lines, with the rest one tap away.
+             A description may run to tens of thousands of characters, and
+             one of those on a phone buries the timeline, the notes and the
+             action form under a scroll nobody reaches the end of. Nothing
+             is withheld: the whole text is in the page, and the script in
+             the layout only draws the button where it is actually needed.
+             With JavaScript off the text simply shows in full. --}}
+        <p class="user-text clamp" id="concern-description">{{ $concern->description }}</p>
+        <button type="button" class="clamp-toggle" data-clamp="concern-description"></button>
     </div>
 
     {{-- Files, in two groups that answer opposite questions: what the
@@ -409,7 +417,7 @@
                     || Auth::id() === $concern->user_id
                     || (optional(Auth::user()->role)->name === 'Head of School' && $concern->identityIsRevealed());
             @endphp
-            <div style="position: relative; padding-left: 1.25rem;">
+            <div id="timeline-list" data-total="{{ $timeline->count() }}" style="position: relative; padding-left: 1.25rem;">
                 {{-- Entries come from Concern::timelineFor(), which decides what
                      this viewer may read: staff get the audit log in full, the
                      reporter gets the state of their own case without the names
@@ -418,9 +426,16 @@
                      entries in the same second and a timestamp leaves those tied,
                      falling back to insertion order and putting the oldest event
                      at the top of a list meant to read newest first. --}}
+                {{-- Five showing, the rest folded.
+                     A case that crossed nine desks reads as nine steps, and
+                     the five most recent are what the page is opened for.
+                     Everything past them is RENDERED and hidden, not left
+                     out: Ctrl+F still finds it, and opening it needs no
+                     second trip to the server. With JavaScript off, the
+                     whole chain shows, which is the safe way to fail. --}}
                 @foreach ($timeline as $entry)
                     @php $log = $entry['log']; @endphp
-                    <div style="position: relative; padding-bottom: 1.1rem; border-left: 2px solid #e2e8f0; padding-left: 1.1rem;">
+                    <div class="{{ $loop->index >= 5 ? 'timeline-rest' : '' }}" style="position: relative; padding-bottom: 1.1rem; border-left: 2px solid #e2e8f0; padding-left: 1.1rem;">
                         <span style="position:absolute; left:-6px; top:2px; width:10px; height:10px; border-radius:50%; background:#2f5bea;"></span>
                         <div style="font-weight:600; color:#1f2733; font-size:0.92rem;">
                             {{ $entry['label'] }}
@@ -442,6 +457,9 @@
                     </div>
                 @endforeach
             </div>
+            @if ($timeline->count() > 5)
+                <button type="button" id="timeline-toggle" class="clamp-toggle"></button>
+            @endif
         </div>
     @endif
 

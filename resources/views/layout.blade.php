@@ -460,6 +460,61 @@
            has just been refused speak in one colour. */
         .req{color:var(--danger-ink); font-weight:700}
 
+        /* Long text that would otherwise push the rest of the page away.
+           A description may now run to 60,000 characters, and one of those
+           on a phone buries the timeline, the notes and the action form
+           under a scroll nobody reaches the end of. Ten lines is about a
+           screenful; the rest is one tap away.
+
+           Both spellings of the property: the -webkit- one is what every
+           browser actually honours today, the unprefixed one is the
+           standard and will outlive it.
+
+           The fold is applied BY THE SCRIPT, not by this rule: a browser
+           with JavaScript off would otherwise cut the text at ten lines
+           and draw no button to open it, which is the one failure worse
+           than a long scroll. Plain `.clamp` does nothing on its own. */
+        .clamp.is-folded{
+            display:-webkit-box; -webkit-box-orient:vertical;
+            -webkit-line-clamp:10; line-clamp:10; overflow:hidden;
+        }
+
+        /* Hidden until the script finds the text really is too long. A
+           "Show more" under four lines of text is a button that lies. */
+        .clamp-toggle{
+            display:none; margin-top:.5rem; padding:0; border:0; background:none;
+            font:inherit; font-size:.85rem; font-weight:600; color:var(--brand);
+            cursor:pointer; text-decoration:underline; text-underline-offset:3px;
+        }
+        .clamp-toggle.is-needed{display:inline-block}
+
+        /* The same idea for the timeline, counted in entries rather than
+           lines: a case that crossed nine desks reads as nine steps, and
+           the five most recent are what anybody opens the page for.
+
+           Folded by the script for the same reason as above: left to this
+           rule alone, a browser with JavaScript off would hide the older
+           half of a case's history with no way to ask for it. */
+        #timeline-list.is-folded .timeline-rest{display:none}
+
+        /* The bug box. A <dialog>, so the backdrop, the focus trap and
+           Escape are the browser's job rather than three more scripts. */
+        .bug-box{
+            width:min(30rem, calc(100vw - 2rem)); padding:1.4rem;
+            border:1px solid var(--line); border-radius:var(--radius, 16px);
+            background:#fff; color:var(--ink); box-shadow:var(--shadow);
+        }
+        .bug-box::backdrop{background:rgba(13,27,62,.45)}
+        .bug-box h2{font-size:1.1rem; margin-bottom:.4rem}
+        .bug-box p{font-size:.86rem; color:var(--muted); margin-bottom:1rem}
+        .bug-box label{display:block; font-weight:600; font-size:.88rem; margin-bottom:.35rem}
+        .bug-box textarea{
+            width:100%; padding:.65rem .8rem; font:inherit; font-size:.92rem;
+            border:1px solid var(--line); border-radius:.6rem; resize:vertical;
+            color:var(--ink); background:#fff;
+        }
+        .bug-box-actions{display:flex; justify-content:flex-end; gap:.6rem; margin-top:1rem}
+
         footer{text-align:center; color:var(--muted); padding:2rem 1rem 3rem; font-size:.85rem}
         .footer-link{color:var(--muted); text-decoration:underline; text-underline-offset:3px}
         .footer-link:hover{color:var(--ink)}
@@ -769,11 +824,151 @@
                 <span>Report a site problem</span>
             </a>
             <span class="footer-sep">|</span>
+
+            {{-- The box the link opens.
+                 It is a <dialog>, so the browser handles the backdrop, the
+                 focus trap and Escape without a line of script. The link
+                 above still points at the filing form: if the script below
+                 never runs, clicking it goes there instead of doing
+                 nothing, which is the whole reason it is an anchor and not
+                 a button. --}}
+            <dialog id="bug-box" class="bug-box">
+                <form method="POST" action="{{ route('concerns.bug') }}">
+                    @csrf
+                    <h2>Report a problem with this site</h2>
+                    <p>
+                        Something broken, missing or wrong on the page? Tell the ICT
+                        team what happened. The page you are on is sent with it.
+                    </p>
+
+                    <label for="bug-message">What went wrong? <span class="req">*</span></label>
+                    <textarea id="bug-message" name="message" rows="5" required
+                              minlength="10" maxlength="2000"
+                              placeholder="I clicked Submit and nothing happened."></textarea>
+
+                    <input type="hidden" name="page" id="bug-page" value="">
+
+                    <div class="bug-box-actions">
+                        <button type="button" class="btn btn-muted" data-bug-close>Cancel</button>
+                        <button type="submit" class="btn btn-primary">Send report</button>
+                    </div>
+                </form>
+            </dialog>
         @endauth
         © {{ date('Y') }} Camarines Sur Polytechnic Colleges. All Rights Reserved.
     </footer>
 
     <script>
+        // Long text, folded to ten lines with a way back.
+        //
+        // The button is drawn only where the text really is too long --
+        // measured, not guessed from a character count, because ten lines
+        // of narrow phone column and ten lines of desktop are different
+        // numbers of characters and a guess is wrong on one of them.
+        (function () {
+            var blocks = document.querySelectorAll('.clamp');
+
+            Array.prototype.forEach.call(blocks, function (block) {
+                var toggle = document.querySelector('[data-clamp="' + block.id + '"]');
+                if (!toggle) return;
+
+                // Fold first, then ask whether it made any difference.
+                block.classList.add('is-folded');
+
+                // scrollHeight is the full text; clientHeight is the ten
+                // lines on screen. A couple of pixels of rounding is not
+                // overflow, hence the margin.
+                if (block.scrollHeight - block.clientHeight < 4) {
+                    // Short enough to stand as it is. Unfold it again and
+                    // leave no button: "Show more" over four lines of text
+                    // is a button that lies.
+                    block.classList.remove('is-folded');
+                    return;
+                }
+
+                toggle.classList.add('is-needed');
+                toggle.textContent = 'Show more';
+                toggle.setAttribute('aria-expanded', 'false');
+
+                toggle.addEventListener('click', function () {
+                    var folded = block.classList.toggle('is-folded');
+                    toggle.textContent = folded ? 'Show more' : 'Show less';
+                    toggle.setAttribute('aria-expanded', folded ? 'false' : 'true');
+                });
+            });
+        })();
+
+        // A timeline long enough to bury what is under it.
+        //
+        // Five entries is a case that has moved about as much as anyone
+        // reads at a glance; past that it is history, and history goes
+        // behind a button. Entries beyond the fifth are rendered and
+        // hidden rather than left out, so the page needs no second trip
+        // to show them and a search of the page still finds them.
+        (function () {
+            var list = document.getElementById('timeline-list');
+            var toggle = document.getElementById('timeline-toggle');
+            if (!list || !toggle) return;
+
+            var hidden = list.querySelectorAll('.timeline-rest');
+            if (!hidden.length) return;
+
+            list.classList.add('is-folded');
+            toggle.classList.add('is-needed');
+            toggle.textContent = 'Show all ' + list.dataset.total + ' steps';
+            toggle.setAttribute('aria-expanded', 'false');
+
+            toggle.addEventListener('click', function () {
+                var folded = list.classList.toggle('is-folded');
+                toggle.textContent = folded
+                    ? 'Show all ' + list.dataset.total + ' steps'
+                    : 'Show fewer steps';
+                toggle.setAttribute('aria-expanded', folded ? 'false' : 'true');
+            });
+        })();
+
+        // The bug box.
+        //
+        // The footer link is an anchor pointing at the filing form, and
+        // stays one: if this script never runs, or the browser has no
+        // <dialog>, the click goes to the form and the fault still gets
+        // reported. Only where the box will actually open is the default
+        // navigation taken away.
+        (function () {
+            var link = document.querySelector('.footer-bug');
+            var box = document.getElementById('bug-box');
+
+            if (!link || !box || typeof box.showModal !== 'function') return;
+
+            link.addEventListener('click', function (e) {
+                e.preventDefault();
+
+                // The page they are on, captured rather than asked for:
+                // it is the most useful line in a bug report and the one
+                // nobody thinks to write. The server keeps the path and
+                // drops the query string.
+                var page = document.getElementById('bug-page');
+                if (page) page.value = window.location.pathname;
+
+                box.showModal();
+            });
+
+            var cancel = box.querySelector('[data-bug-close]');
+            if (cancel) {
+                cancel.addEventListener('click', function () { box.close(); });
+            }
+
+            // A click on the backdrop closes it too. The dialog element
+            // itself fills only the panel, so a click landing ON the
+            // dialog but outside that rectangle is a backdrop click.
+            box.addEventListener('click', function (e) {
+                var r = box.getBoundingClientRect();
+                var inside = e.clientX >= r.left && e.clientX <= r.right
+                    && e.clientY >= r.top && e.clientY <= r.bottom;
+                if (!inside) box.close();
+            });
+        })();
+
         // Success flashes fade out on their own; errors stay until dismissed by
         // navigation so the user can't miss them.
         (function () {

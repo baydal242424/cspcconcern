@@ -610,6 +610,86 @@ class ConcernController extends Controller
         );
     }
 
+    /**
+     * Something wrong with this website, reported from the page it happened on.
+     *
+     * The bug link used to open the whole filing form with the category
+     * preset. That form asks a dozen questions -- who it is about, which
+     * sub-category, whether to skip the adviser, what evidence there is --
+     * and none of them apply to "the page will not load". Somebody who has
+     * just hit a broken screen will not fill in a dozen fields to say so,
+     * so most faults were never reported at all.
+     *
+     * This is one box. The page they were on is captured rather than asked
+     * for, because it is the single most useful fact in a bug report and
+     * the one a person is least likely to think of writing down.
+     */
+    public function reportBug(Request $request)
+    {
+        /** @var User $user */
+        $user = Auth::user();
+
+        $validated = $request->validate([
+            // Shorter than the 20 a concern normally asks for. A complaint
+            // about the college needs explaining; "cannot sign in" is a
+            // complete bug report, and holding it to twenty characters
+            // would teach people to pad it.
+            'message' => ['required', 'string', 'min:10', 'max:2000'],
+            // Hidden, filled by the page. Validated anyway: it arrives from
+            // the browser like anything else.
+            'page' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        // The path only, never the full URL. A query string can carry a
+        // search term somebody typed, and a bug report is not the place
+        // for it to resurface.
+        $page = $validated['page'] ?? null;
+
+        if ($page) {
+            $page = '/'.ltrim(parse_url($page, PHP_URL_PATH) ?: '', '/');
+        }
+
+        $description = trim($validated['message']);
+
+        if ($page) {
+            $description .= "\n\nReported from: ".$page;
+        }
+
+        $concern = Concern::create([
+            'user_id' => $user->id,
+            'category' => Concern::WEBSITE_FAULT,
+            'subcategory' => 'Other problem with this website',
+            'department' => $user->department,
+            'description' => $description,
+            'urgency' => $this->determineUrgency(Concern::WEBSITE_FAULT, $description),
+            'status' => 'submitted',
+            'is_anonymous' => false,
+        ]);
+
+        $this->routeConcern($concern);
+
+        AuditLog::create([
+            'user_id' => $user->id,
+            'concern_id' => $concern->id,
+            'action' => 'concern_submitted',
+            'description' => 'Student submitted a new concern',
+            'ip_address' => $request->ip(),
+        ]);
+
+        AuditLog::create([
+            'user_id' => $user->id,
+            'concern_id' => $concern->id,
+            'action' => 'urgency_assigned',
+            'description' => "Urgency auto-assigned as {$concern->urgency}",
+            'ip_address' => $request->ip(),
+        ]);
+
+        // Back where they were, so reporting a fault does not also lose
+        // their place. The concern page would be a worse landing: they
+        // were in the middle of something when the thing broke.
+        return back()->with('success', 'Thank you — the problem has been reported to the ICT team.');
+    }
+
     public function create(Request $request)
     {
         // Reporting a settled concern again. The student arrives here

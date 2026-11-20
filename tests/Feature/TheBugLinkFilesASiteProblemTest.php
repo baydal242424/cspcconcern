@@ -183,6 +183,68 @@ class TheBugLinkFilesASiteProblemTest extends TestCase
     }
 
     /**
+     * The box itself: one field, and the page comes with it.
+     *
+     * The link opens a dialog rather than the filing form. That form asks
+     * a dozen questions -- who it is about, which sub-category, whether to
+     * skip the adviser, what evidence there is -- and none of them apply
+     * to "the page will not load".
+     */
+    public function test_the_box_files_a_fault_from_one_field(): void
+    {
+        $this->actingAs($this->student())->post('/report-bug', [
+            'message' => 'I clicked Submit and the page just reloaded with nothing filled in.',
+            'page' => 'http://localhost:8001/concerns/create?draft=4',
+        ])->assertRedirect();
+
+        $concern = Concern::latest('id')->firstOrFail();
+
+        $this->assertSame(Concern::WEBSITE_FAULT, $concern->category);
+        $this->assertStringContainsString('I clicked Submit', $concern->description);
+
+        // The page is captured, because it is the most useful line in a bug
+        // report and the one nobody thinks to write down.
+        $this->assertStringContainsString('Reported from: /concerns/create', $concern->description);
+
+        // The PATH only. A query string can carry something somebody typed,
+        // and a bug report is not where it should resurface.
+        $this->assertStringNotContainsString('draft=4', $concern->description);
+
+        // It lands on a desk like any other concern.
+        $this->assertSame(
+            'System Admin',
+            optional(optional($concern->assignedUser)->role)->name
+        );
+
+        fwrite(STDERR, "  [bug] the box files a fault and captures the page\n");
+    }
+
+    /** Too short to act on is refused; "cannot sign in" is not. */
+    public function test_the_box_asks_for_enough_to_act_on(): void
+    {
+        $this->actingAs($this->student())
+            ->post('/report-bug', ['message' => 'broken'])
+            ->assertSessionHasErrors('message');
+
+        // Ten characters, not the twenty a full concern needs: holding a
+        // bug report to that would only teach people to pad it.
+        $this->actingAs($this->student())
+            ->post('/report-bug', ['message' => 'cannot sign in'])
+            ->assertSessionHasNoErrors();
+
+        fwrite(STDERR, "  [bug] short but usable reports are accepted\n");
+    }
+
+    /** A signed-out visitor cannot post one. */
+    public function test_the_box_is_behind_sign_in(): void
+    {
+        $this->post('/report-bug', ['message' => 'the sign-in page is broken'])
+            ->assertRedirect(route('login'));
+
+        fwrite(STDERR, "  [bug] the box is behind sign-in\n");
+    }
+
+    /**
      * The 48 concerns already on file are untouched, and staff can still
      * find them. The category comes off the FILING form; the staff filter
      * reads the full list, or a whole category of past cases becomes

@@ -75,6 +75,11 @@ Route::middleware(['auth', 'track.last_seen', 'profile.complete', 'policy.accept
     Route::get('concerns-mentionable', [ConcernController::class, 'mentionable'])
         ->name('concerns.mentionable');
 
+    // Something wrong with the website itself, sent from the footer's bug
+    // link on whatever page it happened on.
+    Route::post('report-bug', [ConcernController::class, 'reportBug'])
+        ->name('concerns.bug');
+
     // A concern somebody is part way through writing. Declared before the
     // resource, or "draft" is read as a concern id by concerns/{concern}.
     Route::get('concerns/drafts', [ConcernController::class, 'drafts'])
