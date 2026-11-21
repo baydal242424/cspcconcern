@@ -137,6 +137,76 @@ class ANoticeLandsOnWhatItIsAboutTest extends TestCase
         fwrite(STDERR, "  [notice] following it lands on the note itself\n");
     }
 
+    /**
+     * A status change lands on that line of the timeline.
+     *
+     * "Your concern status has been updated to In progress" on a case
+     * with eighteen entries left the reader to find which one.
+     */
+    public function test_a_status_notice_lands_on_its_timeline_entry(): void
+    {
+        $concern = $this->aConcern();
+
+        $this->actingAs($this->u('staff@cspc.edu.ph'))
+            ->patch("/concerns/{$concern->id}", [
+                'investigation_notes' => 'Looked into this and spoke with the people involved.',
+                'resolution_notes' => 'Recorded what is being done about it.',
+                'status' => 'resolved',
+                'urgency' => 'Low',
+            ])->assertRedirect();
+
+        $notice = Notification::where('user_id', $concern->user_id)
+            ->where('type', 'status_update')
+            ->latest('id')->firstOrFail();
+
+        $this->assertNotNull($notice->anchor, 'a status notice knows which change it is about');
+        $this->assertStringStartsWith('log-', $notice->anchor);
+
+        // And the page has that line to land on.
+        $this->flushSession();
+
+        $this->actingAs($this->u('student@my.cspc.edu.ph'))
+            ->get("/concerns/{$concern->id}")->assertOk()
+            ->assertSee('id="'.$notice->anchor.'"', false);
+
+        fwrite(STDERR, "  [notice] a status notice lands on its timeline entry\n");
+    }
+
+    /**
+     * A message from the handler lands on the message.
+     *
+     * The bell and the page read different tables -- notifications and
+     * audit entries -- so this one could name the message and still drop
+     * the reader at the top of the case with it somewhere below.
+     */
+    public function test_a_message_notice_lands_on_the_message(): void
+    {
+        $concern = $this->aConcern();
+
+        $this->actingAs($this->u('staff@cspc.edu.ph'))
+            ->post("/concerns/{$concern->id}/notify-reporter", [
+                'to' => 'reporter',
+                'kind' => 'documents',
+                'message' => 'Please send the receipt by Friday.',
+            ])->assertRedirect();
+
+        $notice = Notification::where('user_id', $concern->user_id)
+            ->where('type', ConcernNotificationService::TYPE_NOTICE_FROM_HANDLER)
+            ->latest('id')->firstOrFail();
+
+        $this->assertNotNull($notice->anchor, 'a message notice knows which message it is');
+        $this->assertStringStartsWith('notice-', $notice->anchor);
+
+        $this->flushSession();
+
+        $this->actingAs($this->u('student@my.cspc.edu.ph'))
+            ->get("/concerns/{$concern->id}")->assertOk()
+            ->assertSee('id="'.$notice->anchor.'"', false)
+            ->assertSee('Please send the receipt by Friday.');
+
+        fwrite(STDERR, "  [notice] a message notice lands on the message\n");
+    }
+
     /** A notice about the case as a whole still goes to the top. */
     public function test_a_notice_with_nothing_finer_to_point_at_is_unchanged(): void
     {

@@ -127,7 +127,13 @@ class ConcernNotificationService
         ]);
     }
 
-    public function statusChanged(Concern $concern, string $status): void
+    /**
+     * @param  int|null  $logId  the audit entry this change wrote, so the
+     *                           notice can land on that line of the
+     *                           timeline rather than at the top of a case
+     *                           with eighteen of them.
+     */
+    public function statusChanged(Concern $concern, string $status, ?int $logId = null): void
     {
         $copy = self::STATUS_COPY[$status] ?? [
             'label' => ucfirst(str_replace('_', ' ', $status)),
@@ -138,6 +144,7 @@ class ConcernNotificationService
             'user_id' => $concern->user_id,
             'type' => 'status_update',
             'concern_id' => $concern->id,
+            'anchor' => $logId ? 'log-'.$logId : null,
             'title' => 'Concern Status Updated',
             'message' => "Your concern status has been updated to {$copy['label']}",
         ]);

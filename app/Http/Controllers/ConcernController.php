@@ -1869,7 +1869,9 @@ class ConcernController extends Controller
                 $logDescription = "Status changed from {$oldStatus} to {$validated['status']}";
             }
 
-            AuditLog::create([
+            // Kept so the reporter's notice can point at this exact line
+            // of the timeline rather than at the top of the case.
+            $statusLog = AuditLog::create([
                 'user_id' => Auth::id(),
                 'concern_id' => $concern->id,
                 'action' => 'status_updated',
@@ -1927,7 +1929,11 @@ class ConcernController extends Controller
         }
 
         if ($statusChanged || $isReferral) {
-            $this->notifications->statusChanged($concern, $validated['status']);
+            $this->notifications->statusChanged(
+                $concern,
+                $validated['status'],
+                optional($statusLog ?? null)->id
+            );
 
             // Somebody named in a concern is told that it was looked into
             // -- not who raised it, and not what it says.
@@ -2423,11 +2429,9 @@ class ConcernController extends Controller
             }
         }
 
-        if ($recipient) {
-            $notifier->noticeToNamedPerson($concern, $recipient, $validated['kind'], $validated['message'], $user);
-        } else {
-            $notifier->noticeFromHandler($concern, $validated['kind'], $validated['message'], $user);
-        }
+        $bellRow = $recipient
+            ? $notifier->noticeToNamedPerson($concern, $recipient, $validated['kind'], $validated['message'], $user)
+            : $notifier->noticeFromHandler($concern, $validated['kind'], $validated['message'], $user);
 
         // The audit entry carries the handler's words, so the request and
         // the case history are the same record. The student's timeline
@@ -2437,7 +2441,7 @@ class ConcernController extends Controller
         // the reporter's timeline does not show it: that timeline is what
         // happened to THEIR report, and "we wrote to the person you named"
         // is the office's business with somebody else.
-        AuditLog::create([
+        $entry = AuditLog::create([
             'user_id' => $user->id,
             'concern_id' => $concern->id,
             'action' => $recipient ? 'named_person_notified' : 'reporter_notified',
@@ -2447,6 +2451,18 @@ class ConcernController extends Controller
                 : Concern::noticeTitle($validated['kind']).': '.$validated['message'],
             'ip_address' => $request->ip(),
         ]);
+
+        // Point the bell row at the message as it appears on the page.
+        //
+        // The two live in different tables -- the bell reads notifications,
+        // the page reads audit entries -- so the notice could name the
+        // message and still land the reader at the top of the case, with
+        // the thing they were told about somewhere below the fold. The
+        // anchor is set here because this is the only place that holds
+        // both rows at once.
+        if ($bellRow) {
+            $bellRow->update(['anchor' => 'notice-'.$entry->id]);
+        }
 
         return redirect()->route('concerns.show', $concern)
             ->with('success', $recipient

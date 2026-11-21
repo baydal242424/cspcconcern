@@ -436,7 +436,7 @@
                      whole chain shows, which is the safe way to fail. --}}
                 @foreach ($timeline as $entry)
                     @php $log = $entry['log']; @endphp
-                    <div class="fold-entry {{ $loop->index >= 5 ? 'fold-rest' : '' }}" style="position: relative; padding-bottom: 1.1rem; border-left: 2px solid #e2e8f0; padding-left: 1.1rem;">
+                    <div id="log-{{ $log->id }}" class="fold-entry {{ $loop->index >= 5 ? 'fold-rest' : '' }}" style="position: relative; padding-bottom: 1.1rem; border-left: 2px solid #e2e8f0; padding-left: 1.1rem;">
                         <span style="position:absolute; left:-6px; top:2px; width:10px; height:10px; border-radius:50%; background:#2f5bea;"></span>
                         {{-- The two font sizes live in classes rather than
                              inline styles so the compact setting can reach
@@ -1052,7 +1052,8 @@
             </h2>
             <div style="display:flex; flex-direction:column; gap:.7rem;">
                 @foreach ($notices as $notice)
-                    <div style="border:1px solid var(--line,#e7ebf1); border-left:3px solid var(--brand,#2f5bea); border-radius:10px; padding:.8rem 1rem; background:#fff;">
+                    {{-- The id a bell row points at. --}}
+                    <div id="notice-{{ $notice->id }}" style="border:1px solid var(--line,#e7ebf1); border-left:3px solid var(--brand,#2f5bea); border-radius:10px; padding:.8rem 1rem; background:#fff;">
                         <p style="margin:0; font-size:.92rem; color:var(--ink,#1f2733); white-space:pre-line; overflow-wrap:anywhere;">{{ $notice->description }}</p>
                         <p style="margin:.45rem 0 0; font-size:.78rem; color:var(--muted,#64748b);">
                             {{ $notice->created_at->format('M j, Y g:i A') }}
