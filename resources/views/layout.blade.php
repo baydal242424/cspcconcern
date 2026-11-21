@@ -542,49 +542,61 @@
            closes it natively, so it works with JavaScript off, keeps
            keyboard and screen-reader behaviour for free, and needs no
            state of its own. */
-        .dock{position:fixed; right:0; top:50%; transform:translateY(-50%); z-index:60}
+        .dock{
+            position:fixed; right:1.25rem; bottom:1.25rem; z-index:60;
+            display:flex; flex-direction:column; align-items:flex-end; gap:.7rem;
+        }
 
+        /* An ordinary button, bottom right, the way a chat widget sits.
+           The panel opens ABOVE it and the button stays where it is, so
+           the thing you just pressed does not move out from under you. */
         .dock-tab{
-            list-style:none; cursor:pointer; display:flex; align-items:center; gap:.4rem;
-            writing-mode:vertical-rl; padding:1rem .6rem;
-            background:var(--brand); color:#fff; font-size:.82rem; font-weight:600;
-            border-radius:.75rem 0 0 .75rem; box-shadow:var(--shadow);
-            border:1px solid var(--brand6); border-right:0;
+            list-style:none; cursor:pointer; order:2;
+            display:flex; align-items:center; justify-content:center;
+            width:3.1rem; height:3.1rem; border-radius:.9rem;
+            background:var(--brand); color:#fff; border:0;
+            box-shadow:0 6px 20px -4px rgba(47,91,234,.5), 0 2px 6px rgba(16,30,66,.2);
+            transition:background .15s ease;
         }
         .dock-tab::-webkit-details-marker{display:none}
+        .dock-tab::marker{content:""}
         .dock-tab:hover{background:var(--brand6)}
-        .dock-tab svg{width:16px; height:16px; rotate:90deg}
+        .dock-tab:focus-visible{outline:3px solid var(--brand50); outline-offset:3px}
+        .dock-tab svg{width:21px; height:21px; flex:none}
 
-        /* Open: the tab stays put and the panel grows to its left, so the
-           handle does not jump out from under the pointer that just hit it. */
-        .dock[open]{display:flex; align-items:center}
-        .dock[open] .dock-tab{order:2}
+        /* The icon says what the next press does: an envelope to open,
+           a cross to close. Swapped in CSS off the open attribute, so
+           there is no script holding the two in step. */
+        .dock-tab .dock-close{display:none}
+        .dock[open] .dock-tab .dock-open{display:none}
+        .dock[open] .dock-tab .dock-close{display:block}
+        .dock[open] .dock-tab{background:var(--ink)}
 
         .dock-panel{
-            order:1; width:min(23rem, calc(100vw - 3.5rem));
-            max-height:80vh; overflow-y:auto;
+            order:1; width:min(21rem, calc(100vw - 2.5rem));
+            max-height:min(70vh, 34rem); overflow-y:auto;
             padding:1.2rem; background:#fff; color:var(--ink);
-            border:1px solid var(--line); border-right:0;
-            border-radius:.9rem 0 0 .9rem; box-shadow:var(--shadow);
+            border:1px solid var(--line); border-radius:.9rem;
+            box-shadow:0 18px 40px -12px rgba(16,30,66,.3), 0 4px 10px rgba(16,30,66,.08);
         }
         .dock-panel .section-title{font-size:1rem}
 
-        /* On a phone there is no room beside the page, so it becomes a
-           sheet along the bottom instead of a column down the side. */
-        @media (max-width:768px){
-            .dock{top:auto; bottom:0; right:0; left:0; transform:none}
-            .dock-tab{
-                writing-mode:horizontal-tb; justify-content:center;
-                border-radius:.75rem .75rem 0 0; border-right:1px solid var(--brand6);
-                padding:.7rem 1rem; margin:0 auto; width:max-content;
+        /* It rises rather than appearing, which is what says it belongs to
+           the button underneath it. Off for anybody who has asked for less
+           movement. */
+        @media (prefers-reduced-motion:no-preference){
+            .dock[open] .dock-panel{animation:dock-rise .16s ease-out}
+            @keyframes dock-rise{
+                from{opacity:0; transform:translateY(.75rem)}
+                to{opacity:1; transform:none}
             }
-            .dock-tab svg{rotate:none}
-            .dock[open]{flex-direction:column}
-            .dock[open] .dock-tab{order:1; margin-bottom:0}
-            .dock-panel{
-                order:2; width:100vw; max-height:70vh;
-                border-radius:0; border-right:1px solid var(--line);
-            }
+        }
+
+        /* On a phone the panel spans the width, with the button still in
+           its corner on top of it. */
+        @media (max-width:520px){
+            .dock{right:.75rem; bottom:.75rem; left:.75rem; align-items:flex-end}
+            .dock-panel{width:100%; max-height:65vh}
         }
 
         footer{text-align:center; color:var(--muted); padding:2rem 1rem 3rem; font-size:.85rem}
@@ -1070,5 +1082,15 @@
             }, 4000);
         })();
     </script>
+
+    {{-- Anything that floats over the page rather than sitting in it.
+
+         It has to be emitted HERE, as a direct child of <body>, and not
+         inside the content. A fixed element is positioned against the
+         viewport only while no ancestor has a transform, a filter or
+         containment on it; inside the page's card it was being measured
+         against that card instead, so it scrolled away with the content
+         and was clipped at the edge. --}}
+    @stack('floating')
 </body>
 </html>

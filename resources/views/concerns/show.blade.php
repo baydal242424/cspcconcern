@@ -1160,13 +1160,20 @@
          error is inside a closed panel, and the page reads as having
          swallowed what they typed. --}}
     @if ($canNotifyReporter)
+        @push('floating')
         <details class="dock" id="message-dock" @if ($errors->has('message') || $errors->has('kind') || $errors->has('to')) open @endif>
-            <summary class="dock-tab">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            <summary class="dock-tab" title="Write to someone on this concern"
+                     aria-label="Write to someone on this concern">
+                {{-- Two icons, one shown at a time: the icon says what the
+                     next press will do rather than what the panel is. --}}
+                <svg class="dock-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                      stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-                    <path d="M4 4h16v12H5.17L4 17.17V4z"/>
+                    <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9.9 9.9 0 0 1-4.3-1L3 20l1.3-3.8A8.2 8.2 0 0 1 3 11.5 8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5z"/>
                 </svg>
-                Write to someone
+                <svg class="dock-close" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                    <path d="M18 6 6 18"/><path d="m6 6 12 12"/>
+                </svg>
             </summary>
             <div class="dock-panel">
             <h2 class="section-title" style="margin-bottom:.4rem;">Write to someone on this concern</h2>
@@ -1284,6 +1291,7 @@
             </script>
             </div>
         </details>
+        @endpush
     @endif
 
     {{-- The student answering with the files.
