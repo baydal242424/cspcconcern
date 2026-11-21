@@ -121,7 +121,15 @@ class AdminController extends Controller
             'name' => trim($validated['name']),
             'label' => trim($validated['label']),
             'routing_role' => $validated['routing_role'] ?? null,
-            'subcategories' => $this->splitLines($validated['subcategories'] ?? null),
+            // Stored in the shape a sub-category has now: a name and an
+            // office of its own, the office left empty so it follows the
+            // category. Written as plain strings this would have been the
+            // one row in the table in the old shape -- readable, because
+            // subcategoryRowsFor() copes with both, but a second shape in
+            // live data waiting for somebody to write code that does not.
+            'subcategories' => collect($this->splitLines($validated['subcategories'] ?? null) ?? [])
+                ->map(fn (string $name) => ['name' => $name, 'route' => null])
+                ->all() ?: null,
             'is_active' => true,
             'is_builtin' => false,
             'sort_order' => (int) ConcernCategory::max('sort_order') + 10,
@@ -154,19 +162,62 @@ class AdminController extends Controller
             // destroy a list by being typed in carelessly.
             'remove' => ['nullable', 'array'],
             'remove.*' => ['string'],
+            // Renaming, keyed by the name as it stands. Unlike a category
+            // name, this one is safe to change: no code matches on it, and
+            // the concerns carrying it are moved below in the same breath.
+            'rename' => ['nullable', 'array'],
+            'rename.*' => ['nullable', 'string', 'max:80'],
+            // Which office this particular sub-category goes to. Empty
+            // means "whatever the category says", which is what they all
+            // said before any of them could say anything.
+            'route' => ['nullable', 'array'],
+            'route.*' => ['nullable', 'string', Rule::in(User::EMPLOYEE_ROLES)],
             'add' => ['nullable', 'string', 'max:2000'],
             'is_active' => ['nullable', 'boolean'],
         ]);
 
-        $existing = collect($category->subcategories ?? []);
+        $existing = collect(ConcernCategory::subcategoryRowsFor($category->name));
         $removing = collect($validated['remove'] ?? []);
+        $renames = collect($validated['rename'] ?? []);
+        $routes = collect($validated['route'] ?? []);
 
-        $subcategories = $existing
-            ->reject(fn (string $sub) => $removing->contains($sub))
-            ->concat($this->splitLines($validated['add'] ?? null) ?? [])
-            ->map(fn ($sub) => trim($sub))
-            ->filter()
-            ->unique()
+        // Renames that actually change something, so the concerns move
+        // once and the message below counts honestly.
+        $moved = 0;
+
+        $kept = $existing
+            ->reject(fn (array $sub) => $removing->contains($sub['name']))
+            ->map(function (array $sub) use ($renames, $routes, $category, &$moved) {
+                $was = $sub['name'];
+                $now = trim((string) ($renames->get($was) ?? $was));
+
+                if ($now === '') {
+                    $now = $was;
+                }
+
+                if ($now !== $was) {
+                    // The concerns filed under the old name come with it.
+                    // A sub-category is only ever matched against the list
+                    // on its category, so leaving them behind would make
+                    // every one of them fail that check -- the opposite of
+                    // what renaming is for.
+                    $moved += Concern::where('category', $category->name)
+                        ->where('subcategory', $was)
+                        ->update(['subcategory' => $now]);
+                }
+
+                return [
+                    'name' => $now,
+                    'route' => filled($routes->get($was)) ? $routes->get($was) : null,
+                ];
+            });
+
+        $added = collect($this->splitLines($validated['add'] ?? null) ?? [])
+            ->map(fn (string $name) => ['name' => $name, 'route' => null]);
+
+        $subcategories = $kept->concat($added)
+            ->filter(fn (array $sub) => $sub['name'] !== '')
+            ->unique(fn (array $sub) => $sub['name'])
             ->values()
             ->all();
 
@@ -183,10 +234,12 @@ class AdminController extends Controller
             $said[] = 'removed '.$removing->count();
         }
 
-        $added = count($subcategories) - $existing->count() + $removing->count();
+        if ($added->isNotEmpty()) {
+            $said[] = 'added '.$added->count();
+        }
 
-        if ($added > 0) {
-            $said[] = 'added '.$added;
+        if ($moved > 0) {
+            $said[] = "renamed one, and moved {$moved} concern".($moved === 1 ? '' : 's').' with it';
         }
 
         return back()->with('success', 'Category updated.'

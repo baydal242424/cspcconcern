@@ -137,23 +137,48 @@
             <div class="form-group">
                 <label style="margin-bottom:.5rem;">What is it about?</label>
 
-                @if (filled($category->subcategories))
-                    <div style="display:flex; flex-direction:column; gap:.35rem; margin-bottom:.8rem;">
-                        @foreach ($category->subcategories as $sub)
-                            <label style="display:flex; align-items:center; gap:.5rem; font-weight:400; font-size:.88rem;">
-                                <input type="checkbox" name="remove[]" value="{{ $sub }}">
-                                <span>{{ $sub }}</span>
-                                @if (($subCounts[$category->name][$sub] ?? 0) > 0)
+                @php $subRows = \App\Models\ConcernCategory::subcategoryRowsFor($category->name); @endphp
+
+                @if (filled($subRows))
+                    <div style="display:flex; flex-direction:column; gap:.6rem; margin-bottom:.8rem;">
+                        @foreach ($subRows as $sub)
+                            @php $subFiled = $subCounts[$category->name][$sub['name']] ?? 0; @endphp
+                            <div style="display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; border:1px solid var(--line); border-radius:.5rem; padding:.55rem .7rem;">
+                                {{-- The name, editable in place. Safe to
+                                     change, unlike a category's: no code
+                                     matches on it, and the concerns using
+                                     it are moved with it when it goes. --}}
+                                <input type="text" name="rename[{{ $sub['name'] }}]"
+                                       value="{{ $sub['name'] }}" maxlength="80"
+                                       style="flex:1 1 11rem; min-width:9rem;">
+
+                                {{-- Its own office, where it differs. --}}
+                                <select name="route[{{ $sub['name'] }}]" style="flex:0 1 13rem;">
+                                    <option value="">— same as the category —</option>
+                                    @foreach ($roles as $role)
+                                        <option value="{{ $role }}" @selected($sub['route'] === $role)>{{ $role }}</option>
+                                    @endforeach
+                                </select>
+
+                                <label style="display:flex; align-items:center; gap:.35rem; font-weight:400; font-size:.82rem; color:var(--danger-ink);">
+                                    <input type="checkbox" name="remove[]" value="{{ $sub['name'] }}">
+                                    Delete
+                                </label>
+
+                                @if ($subFiled > 0)
                                     <span style="color:var(--muted); font-size:.78rem;">
-                                        &middot; {{ $subCounts[$category->name][$sub] }} filed
+                                        {{ $subFiled }} filed
                                     </span>
                                 @endif
-                            </label>
+                            </div>
                         @endforeach
                     </div>
                     <p style="color:var(--muted); font-size:.8rem; margin:0 0 .8rem;">
-                        Tick one to take it off the filing form. Concerns already
-                        filed under it keep their value and stay searchable.
+                        Renaming one moves the concerns filed under it too, so nothing
+                        is orphaned. Deleting takes it off the filing form &mdash; the
+                        concerns keep their value and stay searchable.
+                        Leave the office as <em>same as the category</em> unless this
+                        particular kind belongs to a different desk.
                     </p>
                 @else
                     <p style="color:var(--muted); font-size:.82rem; margin:0 0 .8rem;">

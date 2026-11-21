@@ -154,13 +154,65 @@ class ConcernCategory extends Model
     }
 
     /**
-     * The sub-categories offered under it, which may be none.
+     * The sub-categories under a category, as stored.
+     *
+     * Each is ['name' => ..., 'route' => ...]. A null route means the
+     * category's own office handles it, which is what all of them did
+     * before one could name its own.
+     *
+     * Reads BOTH shapes. The column held a plain list of strings until the
+     * migration that gave each one a route, and a database that has not
+     * run it yet -- or a row written by older code -- must still answer
+     * correctly rather than return a list of nulls.
+     *
+     * @return list<array{name: string, route: string|null}>
+     */
+    public static function subcategoryRowsFor(string $name): array
+    {
+        $stored = optional(self::named($name))->subcategories ?? [];
+
+        return collect($stored)
+            ->map(fn ($sub) => is_array($sub)
+                ? ['name' => (string) ($sub['name'] ?? ''), 'route' => $sub['route'] ?? null]
+                : ['name' => (string) $sub, 'route' => null])
+            ->filter(fn (array $sub) => $sub['name'] !== '')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Just the names, for the filing form and for validation.
      *
      * @return list<string>
      */
     public static function subcategoriesFor(string $name): array
     {
-        return optional(self::named($name))->subcategories ?? [];
+        return array_column(self::subcategoryRowsFor($name), 'name');
+    }
+
+    /**
+     * The office a particular sub-category goes to, or null to use the
+     * category's.
+     *
+     * "Instructor conduct" and "Class schedule" are both Academic and are
+     * not the same desk's work: one is a complaint about a person and the
+     * other is a timetable. Routing by category alone could not tell them
+     * apart, so every Academic concern went to the class adviser and the
+     * ones about conduct had to be referred on by hand.
+     */
+    public static function routeForSubcategory(?string $category, ?string $subcategory): ?string
+    {
+        if (! $category || ! $subcategory) {
+            return null;
+        }
+
+        foreach (self::subcategoryRowsFor($category) as $sub) {
+            if ($sub['name'] === $subcategory) {
+                return $sub['route'] ?: null;
+            }
+        }
+
+        return null;
     }
 
     /** The role that handles it, or null to let routeConcern() decide. */

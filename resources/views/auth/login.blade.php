@@ -369,16 +369,14 @@
                 {{-- There is no registration form. A student's first CSPC Mail
                      sign-in creates their account, and /complete-profile then
                      collects the student details. --}}
-                {{-- Says which address to use, because the domain is what
-                     decides whether the new account is a student or an
-                     employee (see AuthController::DOMAIN_ROLES). --}}
-                <p class="foot" style="margin-top:1.1rem; line-height:1.55">
-                    Your account is created automatically on first sign-in.<br>
-                    <b>Students</b> &mdash; use your <b>@my.cspc.edu.ph</b> address.<br>
-                    <b>Faculty &amp; staff</b> &mdash; use your <b>@cspc.edu.ph</b> address.
-                </p>
-
-                <div class="foot">© {{ date('Y') }} Camarines Sur Polytechnic Colleges. All rights reserved.</div>
+                {{-- The three lines about which address to use are gone.
+                     They said what the sign-in button does anyway: there
+                     is one way in, people have one CSPC address, and the
+                     domain decides student or employee without anybody
+                     having to be told (AuthController::DOMAIN_ROLES).
+                     Somebody signing in with the wrong account is told so
+                     then, which is when it matters. --}}
+                <div class="foot" style="margin-top:1.1rem;">© {{ date('Y') }} Camarines Sur Polytechnic Colleges. All rights reserved.</div>
             </div>
         </main>
     </div>

@@ -1161,7 +1161,17 @@ class ConcernController extends Controller
         // Only meaningful where the adviser is the first handler. Cleared
         // everywhere else so a hand-posted form cannot mark a Facilities
         // concern as skipping a tier it never had.
-        $validated['skip_adviser'] = (ConcernCategory::routingFor($validated['category']) ?? 'Adviser') === 'Adviser'
+        //
+        // Reads the sub-category's office first, like routeConcern() does.
+        // A sub-category pointed somewhere other than the adviser has no
+        // adviser tier to skip, and leaving the flag set on one would mark
+        // a case as having bypassed a desk it was never going to reach.
+        $firstDesk = ConcernCategory::routeForSubcategory(
+            $validated['category'],
+            $validated['subcategory'] ?? null
+        ) ?? ConcernCategory::routingFor($validated['category']) ?? 'Adviser';
+
+        $validated['skip_adviser'] = $firstDesk === 'Adviser'
             ? (bool) ($validated['skip_adviser'] ?? false)
             : false;
 
@@ -2653,7 +2663,17 @@ class ConcernController extends Controller
         // From the categories table now, not the constant: a category the
         // office added after deployment has to route somewhere too, and a
         // constant cannot know about it.
-        $targetRoleName = ConcernCategory::routingFor($concern->category) ?? 'Adviser';
+        //
+        // The SUB-category wins where it names an office of its own.
+        // "Instructor conduct" and "Class schedule" are both Academic and
+        // are not the same desk's work -- one is a complaint about a
+        // person, the other a timetable -- and routing by category alone
+        // sent both to the class adviser, who then referred half of them
+        // on by hand. Most sub-categories name nothing and fall through
+        // to the category, which is what they all did before.
+        $targetRoleName = ConcernCategory::routeForSubcategory($concern->category, $concern->subcategory)
+            ?? ConcernCategory::routingFor($concern->category)
+            ?? 'Adviser';
 
         // The Adviser role never reaches outside the student's own college.
         // findHandler()'s last tier is "anybody in the role": with a single

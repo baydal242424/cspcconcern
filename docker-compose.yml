@@ -14,11 +14,62 @@ services:
     container_name: cspcconcern-app
     restart: unless-stopped
 
-    # Read from a .env file that is NOT the one the application uses on this
-    # machine: DB_HOST has to be the service name below, not 127.0.0.1, and
-    # overwriting the local .env would break XAMPP the moment this starts.
+    # ONE env file, the same one XAMPP reads.
+    #
+    # There were two, and keeping them in step was a job nobody was doing:
+    # a Google secret rotated in .env and not in .env.docker meant sign-in
+    # worked in one and failed in the other, for no visible reason. The
+    # file holds what the two have in common -- the key, the mail password,
+    # the Google client -- and everything below overrides what they cannot
+    # share.
+    #
+    # `environment:` beats `env_file:` in Compose, which is what makes this
+    # work: .env says 127.0.0.1 and the block below says db, and the
+    # container gets db.
     env_file:
-      - .env.docker
+      - .env
+
+    environment:
+      # Inside this network the database answers to "db". localhost here is
+      # the application container itself, which has no database in it.
+      # Written out rather than ${DB_DATABASE:-cspcconcern}. Compose reads
+      # .env for its OWN substitutions, so now that the two files are one
+      # those defaults never applied: the container was handed the XAMPP
+      # database name and the XAMPP user, neither of which exists inside
+      # it. These three describe the container's own database and belong
+      # to the container, not to whoever is running it.
+      DB_CONNECTION: mysql
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_DATABASE: cspcconcern
+      DB_USERNAME: cspcconcern
+      DB_PASSWORD: secret
+
+      # The address this one answers on, which is not the one artisan serve
+      # answers on. Both are needed: APP_URL builds links, APP_PUBLIC_URL
+      # is what goes in emails.
+      APP_URL: http://localhost:8002
+      APP_PUBLIC_URL: http://localhost:8002
+      GOOGLE_REDIRECT_URI: http://localhost:8002/auth/google/callback
+
+      # A deployment shape, not a workbench: no debug screens, logs to the
+      # container's stdout where `docker logs` can read them, and the demo
+      # sign-in off.
+      APP_ENV: production
+      APP_DEBUG: "false"
+      LOG_CHANNEL: stderr
+      LOG_LEVEL: warning
+      DEMO_LOGIN_ENABLED: "false"
+
+      # Sessions, cache and queue on the database, which is why there is no
+      # Redis container: all three are small here and a third service would
+      # be one more thing to run for no gain.
+      SESSION_DRIVER: database
+      CACHE_STORE: database
+      QUEUE_CONNECTION: database
+
+      # Migrations run on boot. Set to false to start without them.
+      RUN_MIGRATIONS: "true"
 
     ports:
       # Host 8002, leaving 8001 to `php artisan serve`.
@@ -67,11 +118,15 @@ services:
     container_name: cspcconcern-db
     restart: unless-stopped
 
+    # The same three values as the app service above, for the same reason:
+    # Compose substitutes from .env, which now holds the XAMPP settings, so
+    # a ${DB_USERNAME:-cspcconcern} here asked this image to create a user
+    # called "root" -- which it refuses, because root already exists.
     environment:
-      MYSQL_DATABASE: "${DB_DATABASE:-cspcconcern}"
-      MYSQL_USER: "${DB_USERNAME:-cspcconcern}"
-      MYSQL_PASSWORD: "${DB_PASSWORD:-secret}"
-      MYSQL_ROOT_PASSWORD: "${DB_ROOT_PASSWORD:-root}"
+      MYSQL_DATABASE: cspcconcern
+      MYSQL_USER: cspcconcern
+      MYSQL_PASSWORD: secret
+      MYSQL_ROOT_PASSWORD: root
 
     # utf8mb4 end to end. The default collation would mangle a name with an
     # ñ in it, and this roster is full of them.
@@ -85,7 +140,11 @@ services:
     # The app waits on this rather than on the port opening: MySQL listens
     # for several seconds before it will accept a query.
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p${DB_ROOT_PASSWORD:-root}"]
+      # Literal, like the credentials above: DB_ROOT_PASSWORD no longer
+      # exists anywhere now that .env.docker is gone, and a substitution
+      # that silently falls back to its default is a thing that looks
+      # configurable and is not.
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-proot"]
       interval: 10s
       timeout: 5s
       retries: 10

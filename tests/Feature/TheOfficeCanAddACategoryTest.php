@@ -176,7 +176,6 @@ class TheOfficeCanAddACategoryTest extends TestCase
         $this->actingAs($this->admin())->post('/admin/categories/'.$bullying->id, [
             'label' => 'Bullying',
             'routing_role' => 'Guidance Counselor',
-            'subcategories' => implode("\n", $bullying->subcategories ?? []),
             // is_active left out entirely: an unticked checkbox sends nothing.
         ])->assertRedirect();
 
@@ -218,7 +217,7 @@ class TheOfficeCanAddACategoryTest extends TestCase
     public function test_an_ordinary_save_leaves_the_sub_categories_alone(): void
     {
         $academic = ConcernCategory::cached()->firstWhere('name', 'Academic');
-        $before = $academic->subcategories;
+        $before = ConcernCategory::subcategoriesFor('Academic');
 
         $this->assertNotEmpty($before, 'the fixture needs something to lose');
 
@@ -243,7 +242,7 @@ class TheOfficeCanAddACategoryTest extends TestCase
     public function test_a_sub_category_goes_only_when_it_is_named(): void
     {
         $academic = ConcernCategory::cached()->firstWhere('name', 'Academic');
-        $before = $academic->subcategories;
+        $before = ConcernCategory::subcategoriesFor('Academic');
         $doomed = $before[0];
 
         $this->actingAs($this->admin())->post('/admin/categories/'.$academic->id, [
@@ -274,7 +273,7 @@ class TheOfficeCanAddACategoryTest extends TestCase
     public function test_removing_a_sub_category_keeps_its_concerns(): void
     {
         $academic = ConcernCategory::cached()->firstWhere('name', 'Academic');
-        $doomed = $academic->subcategories[0];
+        $doomed = ConcernCategory::subcategoriesFor('Academic')[0];
 
         $filed = Concern::create([
             'user_id' => $this->student()->id,
@@ -303,6 +302,102 @@ class TheOfficeCanAddACategoryTest extends TestCase
             ->assertSee($doomed);
 
         fwrite(STDERR, "  [categories] a retired sub-category keeps its concerns\n");
+    }
+
+    /**
+     * A sub-category can name its own office, and the routing follows it.
+     *
+     * "Instructor conduct" and "Class schedule" are both Academic and are
+     * not the same desk's work -- one is a complaint about a person, the
+     * other a timetable. Routing by category alone sent both to the class
+     * adviser, who referred half of them on by hand.
+     */
+    public function test_a_sub_category_can_route_somewhere_of_its_own(): void
+    {
+        $academic = ConcernCategory::cached()->firstWhere('name', 'Academic');
+
+        $this->actingAs($this->admin())->post('/admin/categories/'.$academic->id, [
+            'label' => 'Academic',
+            'routing_role' => 'Adviser',
+            'is_active' => '1',
+            'route' => ['Instructor conduct' => 'Dean'],
+        ])->assertRedirect();
+
+        ConcernCategory::forget();
+
+        $this->assertSame('Dean', ConcernCategory::routeForSubcategory('Academic', 'Instructor conduct'));
+        $this->assertNull(ConcernCategory::routeForSubcategory('Academic', 'Grades'),
+            'the ones left alone still follow the category');
+
+        // And a concern filed under it lands on that desk.
+        $this->flushSession();
+        $this->actingAs($this->student())->post('/concerns', [
+            'category' => 'Academic',
+            'subcategory' => 'Instructor conduct',
+            'description' => 'My instructor said something I want to report properly.',
+        ])->assertRedirect();
+
+        $concern = Concern::latest('id')->firstOrFail();
+
+        $this->assertSame('Dean', optional(optional($concern->assignedUser)->role)->name);
+
+        // While an ordinary Academic one still goes where it always did.
+        $this->flushSession();
+        $this->actingAs($this->student())->post('/concerns', [
+            'category' => 'Academic',
+            'subcategory' => 'Grades',
+            'description' => 'My grade in this subject looks wrong to me.',
+        ])->assertRedirect();
+
+        $this->assertNotSame('Dean',
+            optional(optional(Concern::latest('id')->firstOrFail()->assignedUser)->role)->name);
+
+        fwrite(STDERR, "  [categories] a sub-category can route to its own office\n");
+    }
+
+    /**
+     * Renaming a sub-category brings its concerns with it.
+     *
+     * Unlike a category's name, this one is safe to change: no code
+     * matches on it. But the concerns carrying it must move in the same
+     * breath, or every one of them fails the check that a sub-category
+     * belongs to its category -- the opposite of what renaming is for.
+     */
+    public function test_renaming_a_sub_category_moves_its_concerns(): void
+    {
+        $academic = ConcernCategory::cached()->firstWhere('name', 'Academic');
+
+        $filed = Concern::create([
+            'user_id' => $this->student()->id,
+            'category' => 'Academic',
+            'subcategory' => 'Grades',
+            'department' => 'College of Computer Studies',
+            'description' => 'A concern filed before the rename.',
+            'urgency' => 'Low',
+            'status' => 'submitted',
+            'is_anonymous' => false,
+            'assigned_to' => User::where('email', 'staff@cspc.edu.ph')->firstOrFail()->id,
+        ]);
+
+        $this->actingAs($this->admin())->post('/admin/categories/'.$academic->id, [
+            'label' => 'Academic',
+            'routing_role' => 'Adviser',
+            'is_active' => '1',
+            'rename' => ['Grades' => 'Marks and grading'],
+        ])->assertRedirect();
+
+        ConcernCategory::forget();
+
+        $this->assertContains('Marks and grading', ConcernCategory::subcategoriesFor('Academic'));
+        $this->assertNotContains('Grades', ConcernCategory::subcategoriesFor('Academic'));
+
+        // The concern came with it.
+        $this->assertSame('Marks and grading', $filed->fresh()->subcategory);
+
+        // Which means it still belongs to its category.
+        $this->assertTrue(Concern::subcategoryBelongsTo('Academic', 'Marks and grading'));
+
+        fwrite(STDERR, "  [categories] renaming a sub-category moves its concerns\n");
     }
 
     /** One nobody has used can be deleted outright. */

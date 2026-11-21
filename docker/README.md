@@ -10,13 +10,18 @@ project folder.
 
 ## Setting up, once
 
-```sh
-cp .env.docker.example .env.docker
-```
+Nothing to copy. The containers read the same `.env` the rest of the
+project does — the key, the mail password, the Google client — and
+everything the two cannot share is set in `docker-compose.yml` under
+`environment:`, which overrides the file.
 
-Then fill in `.env.docker`: `APP_KEY`, the mail settings and the Google
-client id and secret. That file is gitignored and must stay that way — it
-holds the same secrets as `.env`.
+That is the whole reason it works: `.env` says `DB_HOST=127.0.0.1` for
+XAMPP, the compose file says `db`, and the container gets `db`.
+
+There used to be a second file, `.env.docker`, and keeping the two in step
+was a job nobody was doing: a Google secret rotated in one and not the
+other meant sign-in worked on 8001 and failed on 8002, for no visible
+reason.
 
 Google sign-in is the only way into the application, so the address the
 containers run on has to be registered too. In the Google Cloud console,
@@ -32,21 +37,21 @@ Without it, the sign-in page loads and the sign-in fails.
 
 ```sh
 # start
-docker compose --env-file .env.docker up -d
+docker compose up -d
 
 # open
 # http://localhost:8002
 
 # stop (the data stays)
-docker compose --env-file .env.docker stop
+docker compose stop
 
 # stop and remove the containers (the data still stays: it is in volumes)
-docker compose --env-file .env.docker down
+docker compose down
 ```
 
-`--env-file .env.docker` matters on every command. Without it Compose reads
-`.env` instead, and the database container would be built with the local
-database name while the application looks for the other one.
+No `--env-file` on any of them any more. Compose reads `.env` by itself,
+and `docker-compose.yml` overrides the handful of values the containers
+need differently.
 
 ## After changing code
 
@@ -54,7 +59,7 @@ The application is copied into the image at build time, so an edit on the
 host is not live in the container.
 
 ```sh
-docker compose --env-file .env.docker up -d --build
+docker compose up -d --build
 ```
 
 Migrations run on every boot, so a new migration needs nothing else.
@@ -63,7 +68,7 @@ Migrations run on every boot, so a new migration needs nothing else.
 
 ```sh
 # what is running
-docker compose --env-file .env.docker ps
+docker compose ps
 
 # the application log, as it happens
 docker logs -f cspcconcern-app
@@ -106,7 +111,7 @@ Nothing here writes to the XAMPP database; it is read and copied.
 ## Starting the data over
 
 ```sh
-docker compose --env-file .env.docker down -v
+docker compose down -v
 ```
 
 `-v` removes the volumes, which is the uploaded evidence and the whole
