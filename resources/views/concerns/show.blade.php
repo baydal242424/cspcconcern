@@ -1053,7 +1053,13 @@
             <div style="display:flex; flex-direction:column; gap:.7rem;">
                 @foreach ($notices as $notice)
                     {{-- The id a bell row points at. --}}
-                    <div id="notice-{{ $notice->id }}" style="border:1px solid var(--line,#e7ebf1); border-left:3px solid var(--brand,#2f5bea); border-radius:10px; padding:.8rem 1rem; background:#fff;">
+                    {{-- No inline background. It was #fff, and an inline
+                         rule beats the class that tints this block when a
+                         notification brings the reader to it -- the
+                         highlight would have been painted over by the
+                         white it is meant to replace. The card behind is
+                         white anyway. --}}
+                    <div id="notice-{{ $notice->id }}" style="border:1px solid var(--line,#e7ebf1); border-left:3px solid var(--brand,#2f5bea); border-radius:10px; padding:.8rem 1rem;">
                         <p style="margin:0; font-size:.92rem; color:var(--ink,#1f2733); white-space:pre-line; overflow-wrap:anywhere;">{{ $notice->description }}</p>
                         <p style="margin:.45rem 0 0; font-size:.78rem; color:var(--muted,#64748b);">
                             {{ $notice->created_at->format('M j, Y g:i A') }}

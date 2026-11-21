@@ -600,18 +600,29 @@
         }
 
         /* What a notification just brought you to.
-           It fades rather than staying lit: the point is to catch the eye
-           on arrival, and a highlight that never goes becomes part of the
-           page and stops meaning anything. */
+
+           A filled blue block, the way a comment linked to from a
+           notification is marked elsewhere. The first version used
+           --brand50, which is so near white that on a white card it read
+           as nothing at all: the reader arrived at the right place and
+           could not tell they had. */
         .is-flagged{
-            background:var(--brand50); border-left-color:var(--brand) !important;
-            border-radius:.4rem; padding-right:.6rem;
+            background:#dbe7ff;
+            border-left:3px solid var(--brand) !important;
+            border-radius:.5rem;
+            padding:.55rem .7rem .55rem .9rem;
+            margin-left:-.2rem;
+            box-shadow:0 0 0 4px rgba(47,91,234,.1);
         }
+
+        /* Held, then let go: long enough to find after the scroll settles,
+           and no longer, because a mark that never leaves becomes part of
+           the page and stops meaning anything. */
         @media (prefers-reduced-motion:no-preference){
-            .is-flagged{animation:flag-fade 3.5s ease-out forwards}
+            .is-flagged{animation:flag-fade 6s ease-out forwards}
             @keyframes flag-fade{
-                0%,55%{background:var(--brand50)}
-                100%{background:transparent}
+                0%,66%{background:#dbe7ff; box-shadow:0 0 0 4px rgba(47,91,234,.1)}
+                100%{background:transparent; box-shadow:0 0 0 4px rgba(47,91,234,0)}
             }
         }
 

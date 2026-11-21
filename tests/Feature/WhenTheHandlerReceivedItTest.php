@@ -160,7 +160,12 @@ class WhenTheHandlerReceivedItTest extends TestCase
         $this->actingAs($this->u('student@my.cspc.edu.ph'))
             ->get("/concerns/{$concern->id}")->assertOk()
             ->assertSee('Less than a minute')
-            ->assertDontSee('seconds');
+            // "seconds ago", not the bare word. The page carries a
+            // stylesheet and two scripts, and this assertion searched the
+            // whole document -- so a CSS comment that happened to use the
+            // word failed a test about how an age is WORDED. What is
+            // under test is the phrasing diffForHumans() would produce.
+            ->assertDontSee('seconds ago');
 
         fwrite(STDERR, "  [received] a fresh concern says 'Less than a minute'\n");
     }
