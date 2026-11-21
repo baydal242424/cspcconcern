@@ -494,8 +494,25 @@
 
            Folded by the script for the same reason as above: left to this
            rule alone, a browser with JavaScript off would hide the older
-           half of a case's history with no way to ask for it. */
-        #timeline-list.is-folded .timeline-rest{display:none}
+           half of a case's history with no way to ask for it.
+
+           One mechanism for all of them -- the activity timeline, the
+           review notes, the resolution notes. Each was growing its own
+           copy, and three copies of "show the first few" is three places
+           for them to stop agreeing. */
+        .foldable.is-folded .fold-rest{display:none}
+
+        /* A list long enough to fold is set more tightly even once it is
+           open. Eight handling notes at full size is a page of scrolling
+           whether or not the first five are showing, and these are short
+           entries read in sequence rather than prose read once. */
+        .fold-body{font-size:.92rem}
+        .fold-meta{font-size:.82rem}
+        .foldable.is-compact .fold-body,
+        .foldable.is-compact .user-text{font-size:.86rem; line-height:1.5}
+        .foldable.is-compact .fold-meta{font-size:.72rem}
+        .foldable.is-compact{gap:.55rem}
+        .foldable.is-compact .fold-entry{padding-bottom:.75rem}
 
         /* The bug box. A <dialog>, so the backdrop, the focus trap and
            Escape are the browser's job rather than three more scripts. */
@@ -898,32 +915,48 @@
             });
         })();
 
-        // A timeline long enough to bury what is under it.
+        // Lists long enough to bury what is under them.
         //
-        // Five entries is a case that has moved about as much as anyone
-        // reads at a glance; past that it is history, and history goes
-        // behind a button. Entries beyond the fifth are rendered and
-        // hidden rather than left out, so the page needs no second trip
-        // to show them and a search of the page still finds them.
+        // Five entries is about as much as anyone reads at a glance; past
+        // that it is history, and history goes behind a button. The rest
+        // are RENDERED and hidden rather than left out, so Ctrl+F still
+        // finds them and opening them needs no second trip.
+        //
+        // One loop for the activity timeline and both sets of handling
+        // notes. Each was growing its own copy of this.
         (function () {
-            var list = document.getElementById('timeline-list');
-            var toggle = document.getElementById('timeline-toggle');
-            if (!list || !toggle) return;
+            var lists = document.querySelectorAll('.foldable');
 
-            var hidden = list.querySelectorAll('.timeline-rest');
-            if (!hidden.length) return;
+            Array.prototype.forEach.call(lists, function (list) {
+                var rest = list.querySelectorAll('.fold-rest');
 
-            list.classList.add('is-folded');
-            toggle.classList.add('is-needed');
-            toggle.textContent = 'Show all ' + list.dataset.total + ' steps';
-            toggle.setAttribute('aria-expanded', 'false');
+                // Long enough to be worth setting tightly, whether or not
+                // anything is hidden.
+                if (Number(list.dataset.total) >= Number(list.dataset.fold || 5)) {
+                    list.classList.add('is-compact');
+                }
 
-            toggle.addEventListener('click', function () {
-                var folded = list.classList.toggle('is-folded');
-                toggle.textContent = folded
-                    ? 'Show all ' + list.dataset.total + ' steps'
-                    : 'Show fewer steps';
-                toggle.setAttribute('aria-expanded', folded ? 'false' : 'true');
+                if (!rest.length) return;
+
+                var toggle = document.querySelector('[data-fold-toggle="' + list.id + '"]');
+                if (!toggle) return;
+
+                // What the thing in this list is called, so the button can
+                // say "Show all 9 steps" rather than "Show all 9 items".
+                var noun = list.dataset.noun || 'entries';
+                var more = 'Show all ' + list.dataset.total + ' ' + noun;
+                var less = 'Show fewer';
+
+                list.classList.add('is-folded');
+                toggle.classList.add('is-needed');
+                toggle.textContent = more;
+                toggle.setAttribute('aria-expanded', 'false');
+
+                toggle.addEventListener('click', function () {
+                    var folded = list.classList.toggle('is-folded');
+                    toggle.textContent = folded ? more : less;
+                    toggle.setAttribute('aria-expanded', folded ? 'false' : 'true');
+                });
             });
         })();
 

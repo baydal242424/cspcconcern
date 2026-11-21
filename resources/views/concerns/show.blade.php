@@ -417,7 +417,8 @@
                     || Auth::id() === $concern->user_id
                     || (optional(Auth::user()->role)->name === 'Head of School' && $concern->identityIsRevealed());
             @endphp
-            <div id="timeline-list" data-total="{{ $timeline->count() }}" style="position: relative; padding-left: 1.25rem;">
+            <div id="timeline-list" class="foldable" data-total="{{ $timeline->count() }}"
+                 data-fold="5" data-noun="steps" style="position: relative; padding-left: 1.25rem;">
                 {{-- Entries come from Concern::timelineFor(), which decides what
                      this viewer may read: staff get the audit log in full, the
                      reporter gets the state of their own case without the names
@@ -435,12 +436,16 @@
                      whole chain shows, which is the safe way to fail. --}}
                 @foreach ($timeline as $entry)
                     @php $log = $entry['log']; @endphp
-                    <div class="{{ $loop->index >= 5 ? 'timeline-rest' : '' }}" style="position: relative; padding-bottom: 1.1rem; border-left: 2px solid #e2e8f0; padding-left: 1.1rem;">
+                    <div class="fold-entry {{ $loop->index >= 5 ? 'fold-rest' : '' }}" style="position: relative; padding-bottom: 1.1rem; border-left: 2px solid #e2e8f0; padding-left: 1.1rem;">
                         <span style="position:absolute; left:-6px; top:2px; width:10px; height:10px; border-radius:50%; background:#2f5bea;"></span>
-                        <div style="font-weight:600; color:#1f2733; font-size:0.92rem;">
+                        {{-- The two font sizes live in classes rather than
+                             inline styles so the compact setting can reach
+                             them: an inline rule beats a class, so a list
+                             set tightly would have ignored it. --}}
+                        <div class="fold-body" style="font-weight:600; color:#1f2733;">
                             {{ $entry['label'] }}
                         </div>
-                        <div style="color:#64748b; font-size:0.82rem; margin-top:0.15rem;">
+                        <div class="fold-meta" style="color:#64748b; margin-top:0.15rem;">
                             @if ($entry['showActor'])
                                 @php
                                     if ($log->user_id === $concern->user_id && ! $canSeeReporter) {
@@ -458,7 +463,7 @@
                 @endforeach
             </div>
             @if ($timeline->count() > 5)
-                <button type="button" id="timeline-toggle" class="clamp-toggle"></button>
+                <button type="button" class="clamp-toggle" data-fold-toggle="timeline-list"></button>
             @endif
         </div>
     @endif
@@ -472,8 +477,8 @@
          names appear only once there is more than one, where they are
          what makes the sequence readable. --}}
     @foreach ([
-        ['heading' => $concern->handlingNoteLabel(), 'entries' => $reviewNotes, 'latest' => $concern->investigation_notes],
-        ['heading' => 'Resolution Notes', 'entries' => $resolutionNotes, 'latest' => $concern->resolution_notes],
+        ['key' => 'review', 'heading' => $concern->handlingNoteLabel(), 'entries' => $reviewNotes, 'latest' => $concern->investigation_notes],
+        ['key' => 'resolution', 'heading' => 'Resolution Notes', 'entries' => $resolutionNotes, 'latest' => $concern->resolution_notes],
     ] as $log)
         @if ($log['entries']->isNotEmpty() || $log['latest'])
             <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
@@ -486,11 +491,30 @@
                 @elseif ($log['entries']->count() === 1)
                     <p class="user-text">{{ $log['entries']->first()->body }}</p>
                 @else
-                    <div style="display:flex; flex-direction:column; gap:.9rem;">
+                    {{-- The same folding the timeline uses. A case worked
+                         over several weeks collects a dozen of these, and
+                         two columns of them pushed the action form off the
+                         bottom of the page.
+
+                         The id has to be unique: this block renders twice
+                         on one page, once for the review notes and once
+                         for the resolution notes, and two lists sharing an
+                         id means one button driving the wrong one.
+
+                         Keyed on the KIND of note, not on the heading. The
+                         heading is per-category -- "Review Notes" on an
+                         Academic case, "Case Notes" on a Personal one,
+                         "Inspection Notes" on a broken aircon -- so an id
+                         slugged from it would change with the category and
+                         be a different string on every kind of case. --}}
+                    @php $foldId = 'notes-'.$log['key']; @endphp
+                    <div id="{{ $foldId }}" class="foldable"
+                         data-total="{{ $log['entries']->count() }}" data-fold="5" data-noun="notes"
+                         style="display:flex; flex-direction:column; gap:.9rem;">
                         @foreach ($log['entries'] as $entry)
-                            <div style="border-left:3px solid var(--line,#e7ebf1); padding-left:.9rem;">
+                            <div class="fold-entry {{ $loop->index >= 5 ? 'fold-rest' : '' }}" style="border-left:3px solid var(--line,#e7ebf1); padding-left:.9rem;">
                                 <p class="user-text" style="margin:0;">{{ $entry->body }}</p>
-                                <p style="margin:.35rem 0 0; font-size:.78rem; color:var(--muted,#64748b);">
+                                <p class="fold-meta" style="margin:.35rem 0 0; color:var(--muted,#64748b);">
                                     {{ $entry->created_at->local()->format('M j, Y g:i A') }}
                                     @if ($viewerIsStaff && $entry->author)
                                         · {{ $entry->author->name }}@if ($entry->author->role) ({{ $entry->author->role->name }})@endif
@@ -499,6 +523,9 @@
                             </div>
                         @endforeach
                     </div>
+                    @if ($log['entries']->count() > 5)
+                        <button type="button" class="clamp-toggle" data-fold-toggle="{{ $foldId }}"></button>
+                    @endif
                 @endif
             </div>
         @endif
