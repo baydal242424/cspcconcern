@@ -1108,6 +1108,25 @@ class Concern extends Model
             // the run, so if the case comes back and is referred again, that
             // is a new line.
             if ($milestone['key'] === $previous) {
+                // A run of hand-offs keeps its FIRST entry: that is the
+                // moment the case left the desk the student was told
+                // about, and the later ones add nothing.
+                //
+                // A run of note-writing keeps its LAST. The useful fact
+                // there is when the office last worked on it -- a line
+                // reading "added to its notes, 2:58" while the handler
+                // was still typing at 3:17 reports the case as colder
+                // than it is, which is the opposite of what it is for.
+                if ($milestone['key'] === 'notes') {
+                    $entries->pop();
+
+                    $entries->push([
+                        'log' => $log,
+                        'label' => $milestone['label'],
+                        'showActor' => false,
+                    ]);
+                }
+
                 continue;
             }
 
@@ -1183,6 +1202,26 @@ class Concern extends Model
         // the reason, never the individual, so it is shown as recorded.
         if ($log->action === 'identity_revealed') {
             return ['key' => 'identity', 'label' => (string) $log->description];
+        }
+
+        // The office writing on the case.
+        //
+        // These were left out as internal bookkeeping, and the reasoning
+        // was half right: "Investigation notes updated" sixteen times tells
+        // a student nothing, and the staff phrasing is staff's. But leaving
+        // them out entirely meant a case being actively worked looked
+        // identical to one nobody had touched in a fortnight -- two lines
+        // on the timeline, unchanged for weeks, while the handler was
+        // writing on it daily. The person waiting is the one who most needs
+        // to know somebody is on it.
+        //
+        // One shared key, so a burst of edits collapses to a single line
+        // and a later status change starts a new one. The student reads
+        // "the office added to its notes" once per spell of work, not once
+        // per keystroke -- and the notes themselves are already on the page
+        // below, so this says WHEN rather than revealing anything new.
+        if (in_array($log->action, ['investigation_updated', 'notes_updated'], true)) {
+            return ['key' => 'notes', 'label' => 'The office added to its notes'];
         }
 
         if ($log->action !== 'status_updated') {

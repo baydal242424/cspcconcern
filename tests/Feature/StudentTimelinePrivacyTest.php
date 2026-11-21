@@ -260,7 +260,60 @@ class StudentTimelinePrivacyTest extends TestCase
         fwrite(STDERR, "  [timeline] work between two hand-offs shows between them\n");
     }
 
-    /** Triage and the handlers' own notes are not the student's business. */
+    /**
+     * The student is told the office is working on it, and when it last did.
+     *
+     * Note-writing used to be left out entirely as internal bookkeeping.
+     * That reasoning was half right: "Investigation notes updated" sixteen
+     * times tells a student nothing, and the staff phrasing is staff's.
+     *
+     * But leaving it out meant a case being worked daily looked identical
+     * to one nobody had touched in a fortnight -- the same two lines,
+     * unchanged for weeks -- and the person waiting is the one who most
+     * needs to know somebody is on it.
+     *
+     * So: one line per spell of work, carrying the time of the LAST edit
+     * in that spell. A line reading 2:58 while the handler was still
+     * typing at 3:17 would report the case as colder than it is, which is
+     * the opposite of what it is for.
+     */
+    public function test_the_student_sees_that_the_office_is_working_on_it(): void
+    {
+        $concern = $this->aConcern();
+        $staff = $this->u('staff@cspc.edu.ph');
+
+        // Four spells of writing, a minute apart.
+        $written = [];
+
+        foreach (range(1, 4) as $i) {
+            $written[] = $log = AuditLog::create([
+                'user_id' => $staff->id,
+                'concern_id' => $concern->id,
+                'action' => 'investigation_updated',
+                'description' => 'Investigation notes updated',
+            ]);
+
+            $log->forceFill(['created_at' => now()->addMinutes($i)])->save();
+        }
+
+        $html = $this->studentView($concern)->getContent();
+
+        // One line, not four.
+        $this->assertSame(1, substr_count($html, 'The office added to its notes'));
+
+        // Carrying the time of the LAST edit, not the first.
+        $this->assertStringContainsString(
+            end($written)->fresh()->created_at->local()->format('M d, Y \a\t g:i A'),
+            $html
+        );
+
+        // And still not the staff wording.
+        $this->assertStringNotContainsString('Investigation notes updated', $html);
+
+        fwrite(STDERR, "  [timeline] the student sees that the office is working on it\n");
+    }
+
+    /** Triage and the handlers' own raw wording are not the student's business. */
     public function test_internal_bookkeeping_is_left_out(): void
     {
         $concern = $this->aConcern();
