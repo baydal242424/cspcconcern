@@ -532,6 +532,61 @@
         }
         .bug-box-actions{display:flex; justify-content:flex-end; gap:.6rem; margin-top:1rem}
 
+        /* The message dock.
+           "Write to someone on this concern" sat at the bottom of the page,
+           under the notes, the timeline and the evidence. A handler who
+           wanted to ask the student for a receipt scrolled past the whole
+           case to find it, and on a long case did not know it was there.
+
+           A <details> rather than a scripted panel: the tab opens and
+           closes it natively, so it works with JavaScript off, keeps
+           keyboard and screen-reader behaviour for free, and needs no
+           state of its own. */
+        .dock{position:fixed; right:0; top:50%; transform:translateY(-50%); z-index:60}
+
+        .dock-tab{
+            list-style:none; cursor:pointer; display:flex; align-items:center; gap:.4rem;
+            writing-mode:vertical-rl; padding:1rem .6rem;
+            background:var(--brand); color:#fff; font-size:.82rem; font-weight:600;
+            border-radius:.75rem 0 0 .75rem; box-shadow:var(--shadow);
+            border:1px solid var(--brand6); border-right:0;
+        }
+        .dock-tab::-webkit-details-marker{display:none}
+        .dock-tab:hover{background:var(--brand6)}
+        .dock-tab svg{width:16px; height:16px; rotate:90deg}
+
+        /* Open: the tab stays put and the panel grows to its left, so the
+           handle does not jump out from under the pointer that just hit it. */
+        .dock[open]{display:flex; align-items:center}
+        .dock[open] .dock-tab{order:2}
+
+        .dock-panel{
+            order:1; width:min(23rem, calc(100vw - 3.5rem));
+            max-height:80vh; overflow-y:auto;
+            padding:1.2rem; background:#fff; color:var(--ink);
+            border:1px solid var(--line); border-right:0;
+            border-radius:.9rem 0 0 .9rem; box-shadow:var(--shadow);
+        }
+        .dock-panel .section-title{font-size:1rem}
+
+        /* On a phone there is no room beside the page, so it becomes a
+           sheet along the bottom instead of a column down the side. */
+        @media (max-width:768px){
+            .dock{top:auto; bottom:0; right:0; left:0; transform:none}
+            .dock-tab{
+                writing-mode:horizontal-tb; justify-content:center;
+                border-radius:.75rem .75rem 0 0; border-right:1px solid var(--brand6);
+                padding:.7rem 1rem; margin:0 auto; width:max-content;
+            }
+            .dock-tab svg{rotate:none}
+            .dock[open]{flex-direction:column}
+            .dock[open] .dock-tab{order:1; margin-bottom:0}
+            .dock-panel{
+                order:2; width:100vw; max-height:70vh;
+                border-radius:0; border-right:1px solid var(--line);
+            }
+        }
+
         footer{text-align:center; color:var(--muted); padding:2rem 1rem 3rem; font-size:.85rem}
         .footer-link{color:var(--muted); text-decoration:underline; text-underline-offset:3px}
         .footer-link:hover{color:var(--ink)}

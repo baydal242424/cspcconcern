@@ -1149,9 +1149,26 @@
         </div>
     @endif
 
+    {{-- Docked to the right rather than sitting at the foot of the page.
+
+         It used to be the last block on a long case, under the notes, the
+         timeline and the evidence. A handler who wanted to ask the student
+         for a receipt scrolled past the whole file to reach it, and on a
+         case with a dozen notes did not know it was there at all.
+
+         Open when the server has just refused a message: otherwise the
+         error is inside a closed panel, and the page reads as having
+         swallowed what they typed. --}}
     @if ($canNotifyReporter)
-        <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
-        <div>
+        <details class="dock" id="message-dock" @if ($errors->has('message') || $errors->has('kind') || $errors->has('to')) open @endif>
+            <summary class="dock-tab">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                    <path d="M4 4h16v12H5.17L4 17.17V4z"/>
+                </svg>
+                Write to someone
+            </summary>
+            <div class="dock-panel">
             <h2 class="section-title" style="margin-bottom:.4rem;">Write to someone on this concern</h2>
             <p style="color:var(--muted); font-size:.85rem; margin:0 0 1rem;">
                 They are notified in the app. The student who filed it is emailed as well, and that email
@@ -1265,7 +1282,8 @@
                     followRecipient();
                 })();
             </script>
-        </div>
+            </div>
+        </details>
     @endif
 
     {{-- The student answering with the files.
