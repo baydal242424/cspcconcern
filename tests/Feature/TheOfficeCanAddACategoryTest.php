@@ -305,6 +305,95 @@ class TheOfficeCanAddACategoryTest extends TestCase
         fwrite(STDERR, "  [categories] a retired sub-category keeps its concerns\n");
     }
 
+    /** One nobody has used can be deleted outright. */
+    public function test_an_unused_category_can_be_deleted(): void
+    {
+        $this->actingAs($this->admin())->post('/admin/categories', [
+            'name' => 'Canteen',
+            'label' => 'Canteen & Food Services',
+            'routing_role' => 'General Services',
+        ])->assertRedirect();
+
+        ConcernCategory::forget();
+        $canteen = ConcernCategory::cached()->firstWhere('name', 'Canteen');
+
+        $this->flushSession();
+        $this->actingAs($this->admin())
+            ->delete('/admin/categories/'.$canteen->id)
+            ->assertRedirect();
+
+        ConcernCategory::forget();
+
+        $this->assertNotContains('Canteen', ConcernCategory::names());
+
+        fwrite(STDERR, "  [categories] an unused category can be deleted\n");
+    }
+
+    /**
+     * One with history behind it cannot.
+     *
+     * Every concern matches its category by name. Deleting one with
+     * concerns under it leaves those rows pointing at nothing: no label,
+     * no routing office, and a whole slice of the archive missing from
+     * the staff filter.
+     */
+    public function test_a_category_with_concerns_cannot_be_deleted(): void
+    {
+        $this->actingAs($this->admin())->post('/admin/categories', [
+            'name' => 'Canteen',
+            'label' => 'Canteen & Food Services',
+            'routing_role' => 'General Services',
+        ])->assertRedirect();
+
+        ConcernCategory::forget();
+        $canteen = ConcernCategory::cached()->firstWhere('name', 'Canteen');
+
+        Concern::create([
+            'user_id' => $this->student()->id,
+            'category' => 'Canteen',
+            'department' => 'College of Computer Studies',
+            'description' => 'The rice at the canteen was cold again this morning.',
+            'urgency' => 'Low',
+            'status' => 'submitted',
+            'is_anonymous' => false,
+        ]);
+
+        $this->flushSession();
+        $this->actingAs($this->admin())
+            ->delete('/admin/categories/'.$canteen->id)
+            ->assertRedirect()
+            ->assertSessionHas('error');
+
+        ConcernCategory::forget();
+
+        $this->assertContains('Canteen', ConcernCategory::names());
+
+        fwrite(STDERR, "  [categories] one with concerns behind it cannot be deleted\n");
+    }
+
+    /**
+     * Nor can one the system shipped with.
+     *
+     * The eleven are seeded from PHP constants, so a deleted one comes
+     * back the next time the table is built from scratch. Allowing the
+     * click would promise something the system then quietly undoes.
+     */
+    public function test_a_shipped_category_cannot_be_deleted(): void
+    {
+        $bullying = ConcernCategory::cached()->firstWhere('name', 'Bullying');
+
+        $this->actingAs($this->admin())
+            ->delete('/admin/categories/'.$bullying->id)
+            ->assertRedirect()
+            ->assertSessionHas('error');
+
+        ConcernCategory::forget();
+
+        $this->assertContains('Bullying', ConcernCategory::names());
+
+        fwrite(STDERR, "  [categories] a shipped category cannot be deleted\n");
+    }
+
     /** Two categories cannot share a stored name. */
     public function test_a_name_cannot_be_used_twice(): void
     {

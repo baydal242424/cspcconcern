@@ -194,6 +194,49 @@ class AdminController extends Controller
     }
 
     /**
+     * Remove a category outright, where that is safe.
+     *
+     * Two things make it unsafe, and both refuse rather than warn.
+     *
+     * CONCERNS FILED UNDER IT. Every concern matches its category by name,
+     * so deleting one with history behind it leaves those rows pointing at
+     * nothing: the label falls back to the raw stored value, routing has
+     * no office, and the staff filter loses a whole slice of the archive.
+     * That is what the "On the filing form" tick is for -- it stops a
+     * category being offered while everything already filed keeps working.
+     *
+     * A SHIPPED CATEGORY. The eleven are seeded from PHP constants, so a
+     * deleted one reappears the next time the table is built from scratch
+     * -- on a fresh deployment, or in every test run. Allowing the click
+     * would be promising something the system then quietly undoes.
+     */
+    public function destroyCategory(ConcernCategory $category)
+    {
+        $this->authorizeSystemAdmin();
+
+        if ($category->is_builtin) {
+            return back()->with('error',
+                "\"{$category->name}\" came with the system and cannot be deleted. "
+                .'Untick "On the filing form" to stop offering it.');
+        }
+
+        $filed = Concern::where('category', $category->name)->count();
+
+        if ($filed > 0) {
+            return back()->with('error',
+                "\"{$category->name}\" has {$filed} concern".($filed === 1 ? '' : 's')
+                .' filed under it, so deleting it would leave '.($filed === 1 ? 'that one' : 'them')
+                .' pointing at nothing. Untick "On the filing form" instead: '
+                .'it stops being offered and the '.($filed === 1 ? 'concern stays' : 'concerns stay').' readable.');
+        }
+
+        $name = $category->name;
+        $category->delete();
+
+        return back()->with('success', "\"{$name}\" deleted. Nothing was filed under it.");
+    }
+
+    /**
      * A textarea of one-per-line into a list, or null for none.
      *
      * Null and [] are different: a category with no sub-categories hides

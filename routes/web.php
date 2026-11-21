@@ -140,6 +140,7 @@ Route::middleware(['auth', 'track.last_seen', 'profile.complete', 'policy.accept
     Route::get('/admin/categories', [AdminController::class, 'categories'])->name('admin.categories');
     Route::post('/admin/categories', [AdminController::class, 'storeCategory'])->name('admin.categories.store');
     Route::post('/admin/categories/{category}', [AdminController::class, 'updateCategory'])->name('admin.categories.update');
+    Route::delete('/admin/categories/{category}', [AdminController::class, 'destroyCategory'])->name('admin.categories.destroy');
 
     Route::get('/admin/users', [AdminController::class, 'index'])->name('admin.users');
     Route::post('/admin/users', [AdminController::class, 'storeUser'])->name('admin.users.store');

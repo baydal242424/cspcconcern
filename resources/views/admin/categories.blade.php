@@ -87,22 +87,31 @@
     <h2 class="section-title">The ones you have</h2>
 
     @foreach ($categories as $category)
-        <form method="POST" action="{{ route('admin.categories.update', $category) }}"
-              style="border:1px solid var(--line); border-radius:.75rem; padding:1.1rem; margin-bottom:1rem;">
-            @csrf
+        @php $filed = $counts[$category->name] ?? 0; @endphp
 
-            <div style="display:flex; justify-content:space-between; align-items:baseline; gap:1rem; flex-wrap:wrap;">
-                <div>
-                    <strong style="font-size:1rem;">{{ $category->name }}</strong>
-                    @if ($category->is_builtin)
-                        <span style="font-size:.75rem; color:var(--muted);">&middot; built in</span>
-                    @endif
-                </div>
-                <div style="font-size:.82rem; color:var(--muted);">
-                    {{ $counts[$category->name] ?? 0 }}
-                    concern{{ ($counts[$category->name] ?? 0) === 1 ? '' : 's' }} filed
-                </div>
-            </div>
+        {{-- Collapsed by default, so the page is a list of what exists
+             rather than eleven open forms. Editing is then something you
+             choose to start, which is also what stops a stray keystroke
+             landing in a field nobody meant to be in. --}}
+        <details style="border:1px solid var(--line); border-radius:.75rem; padding:1.1rem; margin-bottom:1rem;">
+            <summary style="cursor:pointer; display:flex; justify-content:space-between; align-items:baseline; gap:1rem; flex-wrap:wrap;">
+                <span>
+                    <strong style="font-size:1rem;">{{ $category->label }}</strong>
+                    <span style="font-size:.8rem; color:var(--muted);">
+                        &middot; stored as {{ $category->name }}
+                        @if ($category->is_builtin) &middot; built in @endif
+                        @unless ($category->is_active)
+                            &middot; <span style="color:var(--danger-ink); font-weight:600;">not offered</span>
+                        @endunless
+                    </span>
+                </span>
+                <span style="font-size:.82rem; color:var(--muted);">
+                    {{ $filed }} concern{{ $filed === 1 ? '' : 's' }} &middot; Edit
+                </span>
+            </summary>
+
+        <form method="POST" action="{{ route('admin.categories.update', $category) }}" style="margin-top:1rem;">
+            @csrf
 
             <div class="form-group" style="margin-top:.9rem;">
                 <label for="label-{{ $category->id }}">What students see</label>
@@ -161,6 +170,17 @@
                 <input type="checkbox" name="is_active" value="1" @checked($category->is_active)>
                 On the filing form
             </label>
+            {{-- Said here because the tick is the one control on this page
+                 whose purpose is not obvious, and it is also the safe
+                 alternative to the delete button below. --}}
+            <p style="color:var(--muted); font-size:.8rem; margin:.4rem 0 0;">
+                Ticked, students can choose this when filing. Unticked, it
+                disappears from the filing form &mdash; but the
+                {{ $filed }} concern{{ $filed === 1 ? '' : 's' }} already filed under it
+                still {{ $filed === 1 ? 'opens' : 'open' }}, still
+                {{ $filed === 1 ? 'appears' : 'appear' }} in the staff filter, and can
+                still be worked on. This is how you retire a category without losing anything.
+            </p>
 
             @if ($category->name === \App\Models\Concern::WEBSITE_FAULT)
                 <p style="color:var(--muted); font-size:.8rem; margin-top:.4rem;">
@@ -171,6 +191,42 @@
 
             <button type="submit" class="btn btn-muted" style="margin-top:.9rem;">Save changes</button>
         </form>
+
+        {{-- Deleting is offered only where it is safe, and the reason it
+             is not shows in its place. A disabled button with no
+             explanation is a worse answer than a sentence. --}}
+        <div style="border-top:1px solid var(--line); margin-top:1.1rem; padding-top:.9rem;">
+            @if ($category->is_builtin)
+                <p style="color:var(--muted); font-size:.8rem; margin:0;">
+                    <strong>Cannot be deleted.</strong> This category came with the
+                    system and is recreated whenever the database is built from
+                    scratch, so deleting it would not last. Untick
+                    <em>On the filing form</em> to stop offering it.
+                </p>
+            @elseif ($filed > 0)
+                <p style="color:var(--muted); font-size:.8rem; margin:0;">
+                    <strong>Cannot be deleted.</strong> {{ $filed }}
+                    concern{{ $filed === 1 ? '' : 's' }}
+                    {{ $filed === 1 ? 'is' : 'are' }} filed under it and
+                    {{ $filed === 1 ? 'matches' : 'match' }} it by name, so deleting it
+                    would leave {{ $filed === 1 ? 'that one' : 'them' }} pointing at
+                    nothing. Untick <em>On the filing form</em> instead.
+                </p>
+            @else
+                <form method="POST" action="{{ route('admin.categories.destroy', $category) }}"
+                      onsubmit="return confirm('Delete &quot;{{ $category->name }}&quot;? Nothing has been filed under it, so nothing is lost — but this cannot be undone.');">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="btn" style="background:var(--danger-bg); color:var(--danger-ink);">
+                        Delete this category
+                    </button>
+                    <span style="color:var(--muted); font-size:.8rem; margin-left:.6rem;">
+                        Nothing has been filed under it.
+                    </span>
+                </form>
+            @endif
+        </div>
+        </details>
     @endforeach
 </div>
 
