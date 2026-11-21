@@ -206,6 +206,105 @@ class TheOfficeCanAddACategoryTest extends TestCase
         fwrite(STDERR, "  [categories] a retired category keeps its concerns readable\n");
     }
 
+    /**
+     * Saving a category cannot wipe its sub-categories.
+     *
+     * They were one textarea holding the whole list. Select-all and a
+     * keystroke took all seven of Academic's in a single action, with no
+     * warning and no undo, and the form looked exactly as it does when
+     * somebody means it. A field that destroys a list by being typed in
+     * carelessly should not exist.
+     */
+    public function test_an_ordinary_save_leaves_the_sub_categories_alone(): void
+    {
+        $academic = ConcernCategory::cached()->firstWhere('name', 'Academic');
+        $before = $academic->subcategories;
+
+        $this->assertNotEmpty($before, 'the fixture needs something to lose');
+
+        // A save that touches only the label -- which is what most saves
+        // are, and what the old form could not distinguish from "and
+        // delete everything".
+        $this->actingAs($this->admin())->post('/admin/categories/'.$academic->id, [
+            'label' => 'Academic matters',
+            'routing_role' => 'Adviser',
+            'is_active' => '1',
+        ])->assertRedirect();
+
+        ConcernCategory::forget();
+
+        $this->assertSame($before, ConcernCategory::subcategoriesFor('Academic'));
+        $this->assertSame('Academic matters', ConcernCategory::labelFor('Academic'));
+
+        fwrite(STDERR, "  [categories] an ordinary save keeps the sub-categories\n");
+    }
+
+    /** Removal happens only when the item is named. */
+    public function test_a_sub_category_goes_only_when_it_is_named(): void
+    {
+        $academic = ConcernCategory::cached()->firstWhere('name', 'Academic');
+        $before = $academic->subcategories;
+        $doomed = $before[0];
+
+        $this->actingAs($this->admin())->post('/admin/categories/'.$academic->id, [
+            'label' => 'Academic',
+            'routing_role' => 'Adviser',
+            'is_active' => '1',
+            'remove' => [$doomed],
+            'add' => "Thesis defence\nClearance",
+        ])->assertRedirect();
+
+        ConcernCategory::forget();
+
+        $now = ConcernCategory::subcategoriesFor('Academic');
+
+        $this->assertNotContains($doomed, $now, 'the one named goes');
+        $this->assertContains('Thesis defence', $now, 'the ones added arrive');
+        $this->assertContains('Clearance', $now);
+
+        // And everything else is exactly as it was.
+        foreach (array_slice($before, 1) as $kept) {
+            $this->assertContains($kept, $now, "{$kept} was not named and must stay");
+        }
+
+        fwrite(STDERR, "  [categories] only the named sub-category is removed\n");
+    }
+
+    /** Removing one does not touch the concerns filed under it. */
+    public function test_removing_a_sub_category_keeps_its_concerns(): void
+    {
+        $academic = ConcernCategory::cached()->firstWhere('name', 'Academic');
+        $doomed = $academic->subcategories[0];
+
+        $filed = Concern::create([
+            'user_id' => $this->student()->id,
+            'category' => 'Academic',
+            'subcategory' => $doomed,
+            'department' => 'College of Computer Studies',
+            'description' => 'A concern filed under a sub-category since retired.',
+            'urgency' => 'Low',
+            'status' => 'submitted',
+            'is_anonymous' => false,
+            'assigned_to' => User::where('email', 'staff@cspc.edu.ph')->firstOrFail()->id,
+        ]);
+
+        $this->actingAs($this->admin())->post('/admin/categories/'.$academic->id, [
+            'label' => 'Academic',
+            'routing_role' => 'Adviser',
+            'is_active' => '1',
+            'remove' => [$doomed],
+        ])->assertRedirect();
+
+        $this->assertSame($doomed, $filed->fresh()->subcategory, 'the stored value is untouched');
+
+        $this->flushSession();
+        $this->actingAs(User::where('email', 'staff@cspc.edu.ph')->firstOrFail())
+            ->get("/concerns/{$filed->id}")->assertOk()
+            ->assertSee($doomed);
+
+        fwrite(STDERR, "  [categories] a retired sub-category keeps its concerns\n");
+    }
+
     /** Two categories cannot share a stored name. */
     public function test_a_name_cannot_be_used_twice(): void
     {

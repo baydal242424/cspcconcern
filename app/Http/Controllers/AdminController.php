@@ -75,6 +75,17 @@ class AdminController extends Controller
             'counts' => Concern::selectRaw('category, COUNT(*) as n')
                 ->groupBy('category')
                 ->pluck('n', 'category'),
+
+            // And per sub-category, so taking one off the form is a
+            // decision made while looking at what is behind it. "Grades"
+            // with 180 concerns under it and "Requirements" with none are
+            // not the same click.
+            'subCounts' => Concern::selectRaw('category, subcategory, COUNT(*) as n')
+                ->whereNotNull('subcategory')
+                ->groupBy('category', 'subcategory')
+                ->get()
+                ->groupBy('category')
+                ->map(fn ($rows) => $rows->pluck('n', 'subcategory')),
         ]);
     }
 
@@ -133,18 +144,53 @@ class AdminController extends Controller
         $validated = $request->validate([
             'label' => ['required', 'string', 'max:80'],
             'routing_role' => ['nullable', 'string', Rule::in(User::EMPLOYEE_ROLES)],
-            'subcategories' => ['nullable', 'string', 'max:2000'],
+            // Sub-categories are changed by naming what to remove and what
+            // to add -- never by submitting the whole list.
+            //
+            // They used to be one textarea holding all seven of Academic's.
+            // Select-all and a keystroke wiped them, in one action, with no
+            // warning and no undo, and the form would have looked exactly
+            // as it does when somebody means it. No field should be able to
+            // destroy a list by being typed in carelessly.
+            'remove' => ['nullable', 'array'],
+            'remove.*' => ['string'],
+            'add' => ['nullable', 'string', 'max:2000'],
             'is_active' => ['nullable', 'boolean'],
         ]);
+
+        $existing = collect($category->subcategories ?? []);
+        $removing = collect($validated['remove'] ?? []);
+
+        $subcategories = $existing
+            ->reject(fn (string $sub) => $removing->contains($sub))
+            ->concat($this->splitLines($validated['add'] ?? null) ?? [])
+            ->map(fn ($sub) => trim($sub))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
 
         $category->update([
             'label' => trim($validated['label']),
             'routing_role' => $validated['routing_role'] ?? null,
-            'subcategories' => $this->splitLines($validated['subcategories'] ?? null),
+            'subcategories' => $subcategories === [] ? null : $subcategories,
             'is_active' => (bool) ($validated['is_active'] ?? false),
         ]);
 
-        return back()->with('success', 'Category updated.');
+        $said = [];
+
+        if ($removing->isNotEmpty()) {
+            $said[] = 'removed '.$removing->count();
+        }
+
+        $added = count($subcategories) - $existing->count() + $removing->count();
+
+        if ($added > 0) {
+            $said[] = 'added '.$added;
+        }
+
+        return back()->with('success', 'Category updated.'
+            .($said ? ' Sub-categories: '.implode(', ', $said).'.' : ''));
     }
 
     /**

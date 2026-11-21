@@ -120,9 +120,41 @@
                 </select>
             </div>
 
+            {{-- Removal is per item and deliberate.
+                 This was one textarea holding the whole list. Select-all
+                 and a keystroke wiped all seven of Academic's in a single
+                 action, with no warning and no undo, and the form looked
+                 exactly as it does when somebody means it. --}}
             <div class="form-group">
-                <label for="subs-{{ $category->id }}">What is it about? &mdash; one per line</label>
-                <textarea name="subcategories" id="subs-{{ $category->id }}" rows="4">{{ implode("\n", $category->subcategories ?? []) }}</textarea>
+                <label style="margin-bottom:.5rem;">What is it about?</label>
+
+                @if (filled($category->subcategories))
+                    <div style="display:flex; flex-direction:column; gap:.35rem; margin-bottom:.8rem;">
+                        @foreach ($category->subcategories as $sub)
+                            <label style="display:flex; align-items:center; gap:.5rem; font-weight:400; font-size:.88rem;">
+                                <input type="checkbox" name="remove[]" value="{{ $sub }}">
+                                <span>{{ $sub }}</span>
+                                @if (($subCounts[$category->name][$sub] ?? 0) > 0)
+                                    <span style="color:var(--muted); font-size:.78rem;">
+                                        &middot; {{ $subCounts[$category->name][$sub] }} filed
+                                    </span>
+                                @endif
+                            </label>
+                        @endforeach
+                    </div>
+                    <p style="color:var(--muted); font-size:.8rem; margin:0 0 .8rem;">
+                        Tick one to take it off the filing form. Concerns already
+                        filed under it keep their value and stay searchable.
+                    </p>
+                @else
+                    <p style="color:var(--muted); font-size:.82rem; margin:0 0 .8rem;">
+                        None yet &mdash; this category has no second dropdown.
+                    </p>
+                @endif
+
+                <label for="add-{{ $category->id }}" style="font-size:.85rem;">Add more &mdash; one per line</label>
+                <textarea name="add" id="add-{{ $category->id }}" rows="3"
+                          placeholder="Anything typed here is ADDED. Nothing above is replaced."></textarea>
             </div>
 
             <label style="display:flex; align-items:center; gap:.5rem; font-weight:500; font-size:.9rem;">
