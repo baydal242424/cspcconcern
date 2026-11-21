@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Concern;
+use App\Models\ConcernNote;
 use App\Models\Notification;
 use App\Models\User;
 use App\Notifications\ConcernAssigned;
@@ -85,6 +86,46 @@ class ConcernNotificationService
      */
     /** The notice sent to somebody a concern names. */
     public const TYPE_NAMED_IN_CONCERN = 'named_in_concern';
+
+    /** A note written on the case, pointing at the note itself. */
+    public const TYPE_NOTE_ADDED = 'note_added';
+
+    /**
+     * Tell the reporter the office has written on their case.
+     *
+     * Nothing told them before. A handler could write six notes in a
+     * morning and the student would learn of it only by opening the page
+     * and reading to the bottom -- which is to say, not at all.
+     *
+     * ONE notice per visit, not one per note. A handler saves review notes
+     * and resolution notes together, so notifying per note would send two
+     * for one piece of work, and a case worked through in an afternoon
+     * would fill the bell with rows that all say the same thing.
+     *
+     * It carries the anchor of the first new note, so opening it lands on
+     * the writing rather than at the top of a long case.
+     *
+     * In the app only. The student is already emailed when the status
+     * changes, and an email for every note would turn a case being worked
+     * properly into a reason to mute the sender.
+     */
+    public function notesAdded(Concern $concern, ConcernNote $firstNew): void
+    {
+        // Their own writing is not news to them. An admin or a counsellor
+        // can be the reporter of a concern they then handle.
+        if ($firstNew->user_id === $concern->user_id) {
+            return;
+        }
+
+        Notification::create([
+            'user_id' => $concern->user_id,
+            'type' => self::TYPE_NOTE_ADDED,
+            'concern_id' => $concern->id,
+            'anchor' => 'note-'.$firstNew->id,
+            'title' => 'New note on your concern',
+            'message' => 'The office handling your concern has written on it.',
+        ]);
+    }
 
     public function statusChanged(Concern $concern, string $status): void
     {

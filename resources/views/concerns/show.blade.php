@@ -489,7 +489,13 @@
                     {{-- Written before the record kept its history. --}}
                     <p class="user-text">{{ $log['latest'] }}</p>
                 @elseif ($log['entries']->count() === 1)
-                    <p class="user-text">{{ $log['entries']->first()->body }}</p>
+                    {{-- The id matters even here. A case with one note is
+                         the common case, and a notice pointing at it had
+                         nowhere to land: this branch renders a bare
+                         paragraph, so the fragment matched nothing and
+                         the reader was dropped at the top of the page by
+                         a notice that had named the note exactly. --}}
+                    <p id="note-{{ $log['entries']->first()->id }}" class="user-text">{{ $log['entries']->first()->body }}</p>
                 @else
                     {{-- The same folding the timeline uses. A case worked
                          over several weeks collects a dozen of these, and
@@ -512,7 +518,10 @@
                          data-total="{{ $log['entries']->count() }}" data-fold="5" data-noun="notes"
                          style="display:flex; flex-direction:column; gap:.9rem;">
                         @foreach ($log['entries'] as $entry)
-                            <div class="fold-entry {{ $loop->index >= 5 ? 'fold-rest' : '' }}" style="border-left:3px solid var(--line,#e7ebf1); padding-left:.9rem;">
+                            {{-- The id is what a notification points at.
+                                 "There is a new note on your concern" has
+                                 to be able to land on the note. --}}
+                            <div id="note-{{ $entry->id }}" class="fold-entry {{ $loop->index >= 5 ? 'fold-rest' : '' }}" style="border-left:3px solid var(--line,#e7ebf1); padding-left:.9rem;">
                                 <p class="user-text" style="margin:0;">{{ $entry->body }}</p>
                                 <p class="fold-meta" style="margin:.35rem 0 0; color:var(--muted,#64748b);">
                                     {{ $entry->created_at->local()->format('M j, Y g:i A') }}

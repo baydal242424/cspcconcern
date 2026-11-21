@@ -10,6 +10,7 @@ class Notification extends Model
         'user_id',
         'type',
         'concern_id',
+        'anchor',
         'title',
         'message',
         'is_read',

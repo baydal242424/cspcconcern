@@ -90,7 +90,21 @@ class NotificationController extends Controller
                 return redirect()->route('concerns.index');
             }
 
-            return redirect()->route('concerns.show', $notification->concern_id);
+            // Straight to the thing the notice is about, where it named
+            // one. "There is a new note on your concern" that drops the
+            // reader at the top of a case with eighteen timeline entries
+            // and a dozen notes has not told them which.
+            //
+            // The fragment is appended rather than passed as a route
+            // parameter: route() would percent-encode the '#' into the
+            // path and produce an address that does not exist.
+            $url = route('concerns.show', $notification->concern_id);
+
+            if ($notification->anchor) {
+                $url .= '#'.$notification->anchor;
+            }
+
+            return redirect($url);
         }
 
         // A reactivation request is about an ACCOUNT, not a concern, so it

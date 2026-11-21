@@ -1803,12 +1803,17 @@ class ConcernController extends Controller
         // save, so a handler changing nothing but the status would
         // otherwise file the same two paragraphs again on each visit and
         // bury the real entries in repeats.
+        // Kept so the reporter's notice can point at the writing itself
+        // rather than at the top of a case with a dozen notes on it.
+        $firstNewNote = null;
+
         if (filled($newReview) && $newReview !== $oldInvestigationNotes) {
-            $concern->addNote(ConcernNote::KIND_REVIEW, $newReview, Auth::id());
+            $firstNewNote = $concern->addNote(ConcernNote::KIND_REVIEW, $newReview, Auth::id());
         }
 
         if (filled($newResolution) && $newResolution !== $oldNotes) {
-            $concern->addNote(ConcernNote::KIND_RESOLUTION, $newResolution, Auth::id());
+            $resolutionNote = $concern->addNote(ConcernNote::KIND_RESOLUTION, $newResolution, Auth::id());
+            $firstNewNote = $firstNewNote ?: $resolutionNote;
         }
 
         // Stored exactly like a student's evidence -- private disk, random
@@ -1908,6 +1913,19 @@ class ConcernController extends Controller
         // Notify the student only when the status actually changed (or the
         // concern was handed off). The wording, the in-app row and the email
         // to their CSPC address are all handled by the notification service.
+        // Writing on a case told the reporter nothing. A handler could add
+        // six notes in a morning and the student would find out only by
+        // opening the page and reading to the bottom -- which is to say,
+        // not at all.
+        //
+        // Sent whether or not the status moved, and separately from the
+        // status notice: a case can be worked for a week without changing
+        // state, and that week is exactly when somebody waiting wants to
+        // know anything is happening.
+        if ($firstNewNote) {
+            $this->notifications->notesAdded($concern, $firstNewNote);
+        }
+
         if ($statusChanged || $isReferral) {
             $this->notifications->statusChanged($concern, $validated['status']);
 

@@ -296,7 +296,38 @@ class User extends Authenticatable
         'Gender and Development',
         'General Services',
         'Faculty/Staff',
+
+        // Three that were missing, and every one is a real post somebody
+        // holds. A staff member whose job is not on this list either picks
+        // the nearest wrong thing -- which decides what they are allowed
+        // to read -- or cannot finish signing up at all.
+        //
+        // The ICT Unit is the clearest case: it was added as a role, given
+        // the Equipment queue and then the website faults, and never put
+        // on the form, so nobody could ask to be in it.
+        'Vice President for Academic Affairs',
+        'Legal Affairs',
+        'ICT Unit',
     ];
+
+    /**
+     * What is deliberately NOT on this list, so nobody adds it later as an
+     * oversight. An administrator can still grant every one of them from
+     * Manage Users, which offers the whole roles table -- the line here is
+     * about what a person may ASK FOR about themselves on a sign-up form.
+     *
+     * SYSTEM ADMIN, STAFF ADMIN and HEAD OF SCHOOL are the keys. Putting
+     * "make me an administrator" on the self-service menu is not made safe
+     * by the approval step behind it: it invites the request, and an
+     * approval queue full of them is how one eventually goes through on a
+     * busy afternoon. StaffSignsThemselvesUpTest holds this line.
+     *
+     * ADVISER is not a role anybody holds. Advising a class comes from the
+     * sections table -- an instructor, a chair or a dean may advise 4A --
+     * and the form asks which class instead, which is the question that
+     * actually has an answer.
+     */
+    public const NOT_REQUESTABLE = ['System Admin', 'Staff Admin', 'Head of School', 'Adviser'];
 
     /**
      * The classes this person advises.

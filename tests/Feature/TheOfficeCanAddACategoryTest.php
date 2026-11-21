@@ -247,13 +247,16 @@ class TheOfficeCanAddACategoryTest extends TestCase
     }
 
     /**
-     * Both admin tiers, not just the System Admin.
+     * The System Admin alone, not both tiers.
      *
-     * Adding a category is housekeeping. The thing guarded on the admin
-     * pages is who may appoint an administrator, which is a different
-     * question with a different answer.
+     * Managing accounts is shared so the office can keep working while the
+     * System Admin is busy. This is not that. A category decides where
+     * every future concern of its kind is routed and which office answers
+     * for it, and it cannot be deleted afterwards -- the concerns filed
+     * under it match on its name. That is a decision for the person who
+     * answers for the system, not for whoever is covering the desk.
      */
-    public function test_a_staff_admin_may_manage_them_too(): void
+    public function test_a_staff_admin_may_not_change_the_categories(): void
     {
         $staffAdmin = User::factory()->create([
             'role_id' => Role::where('name', 'Staff Admin')->value('id'),
@@ -261,8 +264,20 @@ class TheOfficeCanAddACategoryTest extends TestCase
             'department' => 'Academic Affairs',
         ]);
 
-        $this->actingAs($staffAdmin)->get('/admin/categories')->assertOk();
+        $this->actingAs($staffAdmin)->get('/admin/categories')->assertForbidden();
 
-        fwrite(STDERR, "  [categories] a Staff Admin manages them too\n");
+        $this->flushSession();
+        $this->actingAs($staffAdmin)->post('/admin/categories', [
+            'name' => 'Canteen',
+            'label' => 'Canteen',
+        ])->assertForbidden();
+
+        $this->assertNotContains('Canteen', ConcernCategory::names());
+
+        // They keep everything else on the admin pages.
+        $this->flushSession();
+        $this->actingAs($staffAdmin)->get('/admin/users')->assertOk();
+
+        fwrite(STDERR, "  [categories] a Staff Admin may not change them\n");
     }
 }

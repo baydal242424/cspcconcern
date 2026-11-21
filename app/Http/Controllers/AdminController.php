@@ -59,7 +59,7 @@ class AdminController extends Controller
      */
     public function categories()
     {
-        $this->authorizeAdmin();
+        $this->authorizeSystemAdmin();
 
         return view('admin.categories', [
             'categories' => ConcernCategory::cached(),
@@ -88,7 +88,7 @@ class AdminController extends Controller
      */
     public function storeCategory(Request $request)
     {
-        $this->authorizeAdmin();
+        $this->authorizeSystemAdmin();
 
         $validated = $request->validate([
             'name' => [
@@ -128,7 +128,7 @@ class AdminController extends Controller
      */
     public function updateCategory(Request $request, ConcernCategory $category)
     {
-        $this->authorizeAdmin();
+        $this->authorizeSystemAdmin();
 
         $validated = $request->validate([
             'label' => ['required', 'string', 'max:80'],
@@ -1249,6 +1249,26 @@ class AdminController extends Controller
         // manages accounts as surely as anyone.
         if (! $user || ! $user->hasAnyRole(self::ADMIN_ROLES)) {
             abort(403, 'Only an administrator can manage accounts.');
+        }
+    }
+
+    /**
+     * The narrower gate: System Admin alone.
+     *
+     * Managing accounts is shared so the office can keep working while the
+     * System Admin is busy. Adding a kind of concern is not that. A
+     * category decides where every future concern of that kind is routed
+     * and which office is answerable for it, and it cannot be deleted
+     * afterwards -- the concerns filed under it match on its name. That is
+     * a decision for the person who answers for the system, not for
+     * whoever is covering the desk this week.
+     */
+    private function authorizeSystemAdmin(): void
+    {
+        $user = Auth::user();
+
+        if (! $user || ! $user->hasAnyRole(['System Admin'])) {
+            abort(403, 'Only a System Admin can change the concern categories.');
         }
     }
 

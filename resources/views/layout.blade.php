@@ -599,6 +599,22 @@
             .dock-panel{width:100%; max-height:65vh}
         }
 
+        /* What a notification just brought you to.
+           It fades rather than staying lit: the point is to catch the eye
+           on arrival, and a highlight that never goes becomes part of the
+           page and stops meaning anything. */
+        .is-flagged{
+            background:var(--brand50); border-left-color:var(--brand) !important;
+            border-radius:.4rem; padding-right:.6rem;
+        }
+        @media (prefers-reduced-motion:no-preference){
+            .is-flagged{animation:flag-fade 3.5s ease-out forwards}
+            @keyframes flag-fade{
+                0%,55%{background:var(--brand50)}
+                100%{background:transparent}
+            }
+        }
+
         footer{text-align:center; color:var(--muted); padding:2rem 1rem 3rem; font-size:.85rem}
         .footer-link{color:var(--muted); text-decoration:underline; text-underline-offset:3px}
         .footer-link:hover{color:var(--ink)}
@@ -852,6 +868,14 @@
                 @if (Auth::user()->hasAnyRole(['System Admin', 'Staff Admin']))
                     <a href="{{ route('admin.users') }}" class="{{ request()->routeIs('admin.users') ? 'active' : '' }}">Manage Users</a>
                 @endif
+                {{-- The page existed with no way to reach it but typing the
+                     address. System Admin only: adding a kind of concern
+                     decides where every future one of them is routed, and
+                     that is a decision for the person who answers for the
+                     system rather than for whoever is covering the desk. --}}
+                @if (Auth::user()->hasAnyRole(['System Admin']))
+                    <a href="{{ route('admin.categories') }}" class="{{ request()->routeIs('admin.categories') ? 'active' : '' }}">Categories</a>
+                @endif
                 @include('partials.notification-bell')
                 <span>{{ Auth::user()->name }} ({{ optional(Auth::user()->role)->name ?? 'N/A' }})</span>
                 <form action="{{ route('logout') }}" method="POST">
@@ -1023,6 +1047,66 @@
                     var folded = list.classList.toggle('is-folded');
                     toggle.textContent = folded ? more : less;
                     toggle.setAttribute('aria-expanded', folded ? 'false' : 'true');
+                });
+            });
+        })();
+
+        // Arriving from a notification, at the thing it was about.
+        //
+        // The browser's own fragment jump is not enough here for two
+        // reasons. The target may be inside a folded list, where it is
+        // display:none and the jump silently does nothing -- the reader
+        // lands at the top of the page and concludes the notice lied.
+        // And an element scrolled to without being marked is just the
+        // page, somewhere in the middle of it.
+        //
+        // Runs after the fold script above, which is what makes the
+        // unfolding work: by now every list knows whether it is folded.
+        (function () {
+            var hash = window.location.hash;
+            if (!hash || hash.length < 2) return;
+
+            var target;
+
+            // A hash is attacker-supplied text. querySelector on it
+            // throws on anything that is not a valid selector, which
+            // would stop every script after this one.
+            try {
+                target = document.getElementById(decodeURIComponent(hash.slice(1)));
+            } catch (e) { return; }
+
+            if (!target) return;
+
+            // Open anything hiding it: a folded list, or a closed
+            // <details> if one ever wraps it.
+            var node = target;
+
+            while (node && node !== document.body) {
+                if (node.classList && node.classList.contains('foldable')) {
+                    node.classList.remove('is-folded');
+
+                    var toggle = document.querySelector('[data-fold-toggle="' + node.id + '"]');
+                    if (toggle) {
+                        toggle.textContent = 'Show fewer';
+                        toggle.setAttribute('aria-expanded', 'true');
+                    }
+                }
+
+                if (node.tagName === 'DETAILS') node.open = true;
+
+                node = node.parentNode;
+            }
+
+            target.classList.add('is-flagged');
+
+            // After the unfolding, or the browser measures a position that
+            // is about to change.
+            requestAnimationFrame(function () {
+                target.scrollIntoView({
+                    block: 'center',
+                    behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+                        ? 'auto'
+                        : 'smooth',
                 });
             });
         })();

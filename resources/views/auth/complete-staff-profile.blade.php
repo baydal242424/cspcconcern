@@ -145,9 +145,18 @@
                     @endforeach
                 </select>
                 <div style="display:flex; gap:.6rem; margin-top:.6rem;">
-                    <select name="advises_year" id="advises_year" aria-label="Year">
+                    {{-- Years the chosen programme actually runs to, not a
+                         fixed one-to-five. Only Architecture reaches five,
+                         so every other adviser was being offered a class
+                         that cannot exist -- and a section saved against it
+                         would have no students in it, ever.
+
+                         The script below rebuilds this when the programme
+                         changes; this is what the page opens with. --}}
+                    <select name="advises_year" id="advises_year" aria-label="Year"
+                            data-years="{{ json_encode(\App\Models\User::YEARS_BY_COURSE) }}">
                         <option value="">— year —</option>
-                        @foreach (range(1, 5) as $yearOption)
+                        @foreach (\App\Models\User::yearLevelsFor(old('advises_course')) as $yearOption)
                             <option value="{{ $yearOption }}" {{ (string) old('advises_year') === (string) $yearOption ? 'selected' : '' }}>Year {{ $yearOption }}</option>
                         @endforeach
                     </select>
@@ -218,6 +227,51 @@
             role.addEventListener('change', apply);
             dept.addEventListener('change', apply);
             apply();
+        })();
+
+        // The year levels follow the programme being advised.
+        //
+        // Only Architecture runs to five. Every other adviser was offered
+        // a Year 5 class that cannot exist, and a section saved against
+        // one would sit there forever with no students in it.
+        (function () {
+            var course = document.getElementById('advises_course');
+            var year = document.getElementById('advises_year');
+
+            if (!course || !year) return;
+
+            var yearsByCourse = {};
+
+            try {
+                yearsByCourse = JSON.parse(year.dataset.years || '{}');
+            } catch (e) { /* the server default below still applies */ }
+
+            function narrow() {
+                var max = yearsByCourse[course.value] || 4;
+                var chosen = year.value;
+
+                year.textContent = '';
+
+                var blank = document.createElement('option');
+                blank.value = '';
+                blank.textContent = '— year —';
+                year.appendChild(blank);
+
+                for (var y = 1; y <= max; y++) {
+                    var option = document.createElement('option');
+                    option.value = String(y);
+                    option.textContent = 'Year ' + y;
+                    year.appendChild(option);
+                }
+
+                // Keep what they picked only if it still exists. Switching
+                // from Architecture to a four-year programme must not leave
+                // Year 5 selected and submittable.
+                year.value = Number(chosen) <= max ? chosen : '';
+            }
+
+            course.addEventListener('change', narrow);
+            narrow();
         })();
     </script>
 </body>
