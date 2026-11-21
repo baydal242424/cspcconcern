@@ -1035,6 +1035,30 @@ class Concern extends Model
      */
     public function timelineFor(User $viewer)
     {
+        // The reporter reads the same log as the office.
+        //
+        // This was a trimmed view for years, and the trimming was defended
+        // twice: "Investigation notes updated" sixteen times tells a
+        // student nothing, and the urgency a case was graded at is
+        // internal triage. Both true, and both outweighed by what the trim
+        // cost. A case worked on six times in a morning showed the student
+        // two lines, unchanged since the day they filed it, and there is
+        // no way to read that except as nobody caring.
+        //
+        // What is in the log is the handling of THEIR OWN concern. The
+        // notes themselves are already on the page below it; the offices
+        // it passed through are already named; the person holding it is
+        // already named at the top. The trimming was hiding the shape of
+        // the work, not any fact about it -- and the fold added for long
+        // lists is a better answer to sixteen repetitions than silence.
+        if ($viewer->id === $this->user_id) {
+            return $this->auditLogs->sortByDesc('id')->values()->map(fn (AuditLog $log) => [
+                'log' => $log,
+                'label' => self::fullLabel($log),
+                'showActor' => true,
+            ]);
+        }
+
         if ($viewer->isEmployee()) {
             $handover = $this->handoverLogFor($viewer);
 

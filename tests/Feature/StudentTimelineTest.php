@@ -27,7 +27,7 @@ use Tests\TestCase;
  *
  * Staff keep the log in full: it is what makes the handling answerable.
  */
-class StudentTimelinePrivacyTest extends TestCase
+class StudentTimelineTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -132,13 +132,13 @@ class StudentTimelinePrivacyTest extends TestCase
         $resp->assertSee('Referred to Guidance Counselor');
         $resp->assertDontSee('Referred to another office');
 
-        // The staff-only phrasing stays staff-only.
-        $resp->assertDontSee('Assigned to');
-
-        // Triage and working notes are still internal: naming the offices
-        // a case crossed is not the same as opening the whole audit log.
-        $resp->assertDontSee('Urgency auto-assigned');
-        $resp->assertDontSee('Investigation notes updated');
+        // And the rest of the log with it. The trimmed view is gone: the
+        // reporter reads the same entries the office does, because what
+        // is in there is the handling of their own concern and the
+        // trimming was hiding the shape of the work rather than any fact
+        // about it.
+        $resp->assertSee('Urgency auto-assigned');
+        $resp->assertSee('Investigation notes updated');
 
         fwrite(STDERR, "  [timeline] the student is told who holds it and where it has been\n");
     }
@@ -255,7 +255,11 @@ class StudentTimelinePrivacyTest extends TestCase
         // Both hand-offs, each named, with the pick-up between them.
         $this->assertSame(1, substr_count($html, 'Referred to Guidance Counselor'));
         $this->assertSame(1, substr_count($html, 'Referred to Adviser'));
-        $this->assertStringContainsString('Status changed to in progress', $html);
+        // The office's own wording, since the two timelines are one now.
+        // From REFERRED, not from submitted: the case was handed to
+        // Guidance before it was picked up, so that is the state it was
+        // in when the counsellor started work.
+        $this->assertStringContainsString('Status changed from referred to in progress', $html);
 
         fwrite(STDERR, "  [timeline] work between two hand-offs shows between them\n");
     }
@@ -298,32 +302,45 @@ class StudentTimelinePrivacyTest extends TestCase
 
         $html = $this->studentView($concern)->getContent();
 
-        // One line, not four.
-        $this->assertSame(1, substr_count($html, 'The office added to its notes'));
+        // Every spell of work, as its own line. The collapsing that turned
+        // four edits into one is gone with the trimmed view: four pieces
+        // of work on a case are four pieces of work, and a student
+        // checking whether anything is happening is entitled to count
+        // them.
+        $this->assertSame(4, substr_count($html, 'Investigation notes updated'));
 
-        // Carrying the time of the LAST edit, not the first.
+        // Including the most recent, which is the one that answers "is
+        // anybody still on this".
         $this->assertStringContainsString(
             end($written)->fresh()->created_at->local()->format('M d, Y \a\t g:i A'),
             $html
         );
 
-        // And still not the staff wording.
-        $this->assertStringNotContainsString('Investigation notes updated', $html);
-
-        fwrite(STDERR, "  [timeline] the student sees that the office is working on it\n");
+        fwrite(STDERR, "  [timeline] the student sees every spell of work\n");
     }
 
-    /** Triage and the handlers' own raw wording are not the student's business. */
-    public function test_internal_bookkeeping_is_left_out(): void
+    /**
+     * Nothing is held back from the person whose concern it is.
+     *
+     * This test asserted the opposite twice. The trimming was defended on
+     * noise -- "Investigation notes updated" sixteen times says nothing --
+     * and on triage being internal. Both true, and both outweighed: a case
+     * worked on six times in a morning showed the student two lines,
+     * unchanged since the day they filed it, and there is no way to read
+     * that except as nobody caring.
+     *
+     * The noise argument is answered by the fold, not by silence.
+     */
+    public function test_the_whole_log_reaches_the_person_who_filed_it(): void
     {
         $concern = $this->aConcern();
         $this->refer($concern, $this->u('staff@cspc.edu.ph'), 'Guidance Counselor');
 
         $resp = $this->studentView($concern);
 
-        $resp->assertDontSee('Investigation notes updated');
-        $resp->assertDontSee('Urgency auto-assigned');
-        $resp->assertSee('Concern submitted');
+        $resp->assertSee('Investigation notes updated');
+        $resp->assertSee('Urgency auto-assigned');
+        $resp->assertSee('Student submitted a new concern');
 
         fwrite(STDERR, "  [timeline] triage and working notes are left out\n");
     }
