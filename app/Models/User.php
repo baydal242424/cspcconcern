@@ -151,6 +151,12 @@ class User extends Authenticatable
         'Legal Affairs',
         'General Services',
         'ICT Unit',
+        // The college clinic, and the library. Both were departments on
+        // Faculty/Staff accounts before, which meant a concern could reach
+        // "some member of staff in this college" and never the office that
+        // owns the matter.
+        'Clinic',
+        'Library',
     ];
 
     /**
@@ -308,6 +314,8 @@ class User extends Authenticatable
         'Vice President for Academic Affairs',
         'Legal Affairs',
         'ICT Unit',
+        'Clinic',
+        'Library',
     ];
 
     /**

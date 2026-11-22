@@ -46,17 +46,26 @@ class CategorySplitAndOtherDetailTest extends TestCase
         return Concern::latest('id')->firstOrFail();
     }
 
-    /** Both halves reach an instructor, exactly as the combined label did. */
-    public function test_physical_and_safety_route_the_same_way(): void
+    /**
+     * The two halves route to different offices now.
+     *
+     * They shared one destination while the clinic was only a department
+     * on a Faculty/Staff account -- routing matches a ROLE, so there was
+     * nothing to send an injury to. A hurt student needs a nurse; a
+     * blocked fire exit is still Guidance's business.
+     */
+    public function test_physical_goes_to_the_clinic_and_safety_to_guidance(): void
     {
+        $expected = ['Physical' => 'Clinic', 'Safety' => 'Guidance Counselor'];
+
         foreach (['Physical', 'Safety'] as $category) {
             $concern = $this->submit(['category' => $category]);
 
             $this->assertSame($category, $concern->category);
             $this->assertSame(
-                'Guidance Counselor',
+                $expected[$category],
                 optional(optional($concern->assignedUser)->role)->name,
-                "{$category} should reach Guidance"
+                "{$category} should reach {$expected[$category]}"
             );
 
             fwrite(STDERR, "  [route] {$category} -> ".optional($concern->assignedUser)->name.PHP_EOL);

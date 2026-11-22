@@ -60,6 +60,11 @@ class ConcernController extends Controller
         // Computers, printers, projectors. Split from General Services,
         // who keep the building and everything fixed to it.
         'ICT Unit',
+        // The college clinic. Split from Guidance for the same reason the
+        // ICT Unit was split from General Services: a student who has
+        // been hurt needs a nurse, and a counsellor is not one.
+        'Clinic',
+        'Library',
     ];
 
 
@@ -161,6 +166,8 @@ class ConcernController extends Controller
         // Computers, printers, projectors. Split from General Services,
         // who keep the building and everything fixed to it.
         'ICT Unit',
+        'Clinic',
+        'Library',
     ];
 
     /**
@@ -209,7 +216,10 @@ class ConcernController extends Controller
         'Equipment' => ['ICT Unit', 'General Services', 'Faculty/Staff', 'System Admin'],
         // An injury that happened: somebody to sit with the student, and
         // the office that owns whatever caused it.
-        'Physical' => ['Guidance Counselor', 'General Services', 'Legal Affairs'],
+        // The clinic first: a physical injury is treated before it is
+        // counselled, investigated or made anybody's liability.
+        'Physical' => ['Clinic', 'Guidance Counselor', 'General Services', 'Legal Affairs'],
+        'Library' => ['Library', 'Faculty/Staff'],
         // A hazard that has not hurt anybody yet: fix it before it does.
         'Safety' => ['General Services', 'Guidance Counselor', 'Faculty/Staff'],
     ];
@@ -330,6 +340,14 @@ class ConcernController extends Controller
         'Gender and Development' => 'Gender and Development (GAD)',
         'Legal Affairs'          => 'Legal Affairs Office (legal counsel)',
         'General Services'       => 'General Services (Facilities)',
+        // The ICT Unit was added as a destination and never given a line
+        // here, and the comment above this list says exactly what that
+        // means: the view iterates these, so it could not be offered. It
+        // has been a routing target since Equipment moved to it and a
+        // referral destination nobody could pick.
+        'ICT Unit'               => 'ICT Unit (computers & devices)',
+        'Clinic'                 => 'Clinic (injuries & health)',
+        'Library'                => 'Library',
     ];
 
     /**

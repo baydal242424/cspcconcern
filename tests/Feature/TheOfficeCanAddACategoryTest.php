@@ -49,7 +49,14 @@ class TheOfficeCanAddACategoryTest extends TestCase
     /** The eleven arrive from the constants, not retyped. */
     public function test_the_shipped_categories_are_seeded_from_the_constants(): void
     {
-        $this->assertSame(Concern::CATEGORIES, ConcernCategory::names());
+        // Every shipped name is there, in order, at the front. Not an
+        // exact match any more: the table is the live list and the office
+        // has since added to it -- the Library, for one -- which is the
+        // whole point of the table existing.
+        $this->assertSame(
+            Concern::CATEGORIES,
+            array_slice(ConcernCategory::names(), 0, count(Concern::CATEGORIES))
+        );
 
         foreach (Concern::CATEGORIES as $name) {
             $this->assertSame(

@@ -105,7 +105,9 @@ class QaAuditTest extends TestCase
             // Physical and Safety go to Guidance now: an injury that has
             // happened and a hazard that has not hurt anybody yet are not
             // teaching matters.
-            'Physical'                 => 'Guidance Counselor',
+            // The clinic, not Guidance. A student who has been hurt needs
+            // a nurse first; counselling is what comes after, if at all.
+            'Physical'                 => 'Clinic',
             'Safety'                   => 'Guidance Counselor',
             'Others'                   => 'Instructor',
         ];

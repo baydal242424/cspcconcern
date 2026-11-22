@@ -94,10 +94,18 @@ class AdviserRoutingTest extends TestCase
         fwrite(STDERR, "  [adviser] Academic and Others both reach them\n");
     }
 
-    /** And the two that moved reach Guidance instead. */
-    public function test_injury_and_hazard_go_to_guidance(): void
+    /**
+     * And the two that moved reach an office rather than the adviser.
+     *
+     * They went to the same one until the clinic became a role of its
+     * own: a physical injury is treated before it is counselled, and a
+     * counsellor is not a nurse. A safety hazard is still Guidance's.
+     */
+    public function test_injury_goes_to_the_clinic_and_hazard_to_guidance(): void
     {
         $adviser = $this->personIn('Adviser', 'College of Computer Studies', 'adviser.ccs@cspc.edu.ph');
+
+        $expected = ['Physical' => 'Clinic', 'Safety' => 'Guidance Counselor'];
 
         foreach (['Physical', 'Safety'] as $category) {
             $concern = $this->fileAs($this->student(), $category);
@@ -109,9 +117,9 @@ class AdviserRoutingTest extends TestCase
             );
 
             $this->assertSame(
-                'Guidance Counselor',
+                $expected[$category],
                 optional(optional($concern->assignedUser)->role)->name,
-                "{$category} should reach Guidance"
+                "{$category} should reach {$expected[$category]}"
             );
         }
 

@@ -125,6 +125,19 @@ class RoleSeeder extends Seeder
                 'name' => 'General Services',
                 'description' => 'General Services Unit; handles facilities, equipment and maintenance concerns',
             ],
+            [
+                // Both were departments on Faculty/Staff accounts, which
+                // routing cannot see: a category is routed to a ROLE, so
+                // the clinic could be named in a concern and never handed
+                // one. A physical injury went to the Guidance Counselor,
+                // and somebody who has been hurt needs a nurse first.
+                'name' => 'Clinic',
+                'description' => 'The college clinic; handles physical injuries, illness and first aid',
+            ],
+            [
+                'name' => 'Library',
+                'description' => 'The library; handles borrowing, fines, clearance and the reading room',
+            ],
         ];
 
         foreach ($roles as $role) {

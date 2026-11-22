@@ -56,7 +56,15 @@ class TheBugLinkFilesASiteProblemTest extends TestCase
             $page->assertSee('value="'.$category.'"', false);
         }
 
-        $this->assertCount(count(Concern::CATEGORIES) - 1, Concern::pickerCategories());
+        // Exactly one fewer than the table holds -- not than the constant,
+        // which is only the shipped eleven. The office has added
+        // categories since, and counting against the constant turned
+        // "the website fault is not offered" into "nobody has added
+        // anything", which is a different claim and not the one here.
+        $this->assertCount(
+            count(\App\Models\ConcernCategory::names()) - 1,
+            Concern::pickerCategories()
+        );
         $this->assertNotContains(Concern::WEBSITE_FAULT, Concern::pickerCategories());
 
         fwrite(STDERR, "  [bug] the filing form no longer offers a website fault\n");

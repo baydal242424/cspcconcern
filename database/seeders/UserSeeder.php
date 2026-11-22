@@ -25,6 +25,8 @@ class UserSeeder extends Seeder
         $gad_role = Role::where('name', 'Gender and Development')->first();
         $legal_role = Role::where('name', 'Legal Affairs')->first();
         $gsu_role = Role::where('name', 'General Services')->first();
+        $clinic_role = Role::where('name', 'Clinic')->first();
+        $library_role = Role::where('name', 'Library')->first();
         $registrar_role = Role::where('name', 'Registrar')->first();
 
         // ==================================================================
@@ -304,8 +306,21 @@ class UserSeeder extends Seeder
             ['mict@cspc.edu.ph', 'Mr. Rey T. Cortez', $staff_role, 'Information and Communications Technology Unit'],
             ['oprkm@cspc.edu.ph', 'Dr. Noel R. Volante', $staff_role, 'Information and Alumni Affairs Unit'],
             ['registrar@cspc.edu.ph', 'Dr. Arlene O. Malaya', $registrar_role, 'Student Registration and Records'],
-            ['collegeclinic@cspc.edu.ph', 'Mr. Mark Adrian J. Manzano', $staff_role, 'Health Services Unit'],
+            // The clinic holds its own role, like GAD and Legal below and
+            // for the same reason: Physical injuries route to it by ROLE,
+            // and a department cannot be a routing target. He was
+            // Faculty/Staff in the Health Services Unit, which meant the
+            // clinic could be named in a concern and never handed one.
+            //
+            // His own address, not the office mailbox: sign-in is Google
+            // and he signs in as himself.
+            ['mamanzano@cspc.edu.ph', 'Mr. Mark Adrian J. Manzano', $clinic_role, 'Health Services Unit'],
             ['gsu@cspc.edu.ph', 'Mr. Dan Randolf P. Francia', $gsu_role, 'General Services Unit'],
+            // The library, which had no category and now has one. A desk
+            // with nobody at it does not swallow a concern -- routeConcern()
+            // climbs its chain instead -- but it does hand library matters
+            // to somebody who cannot act on them, so the seat is filled.
+            ['library@cspc.edu.ph', 'The Library', $library_role, 'Library'],
             // ---- Gender and Development ----
             // Holds its own role, not Faculty/Staff: GAD is a referral
             // destination, and referred_to stores a ROLE NAME, so it could not
