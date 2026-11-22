@@ -89,7 +89,23 @@ return [
     |
     */
 
-    'max_description' => (int) env('CONCERN_MAX_DESCRIPTION', 6000),
+    /*
+     * The second argument is the DEFAULT: what this is when nothing sets
+     * CONCERN_MAX_DESCRIPTION. It stood at 6,000 while .env said 500,000,
+     * which meant the two disagreed everywhere .env had not been written
+     * by hand -- a fresh clone, a new server, or the day somebody deletes
+     * that line. The system would have dropped to 6,000 silently, and a
+     * student who could not finish a sentence would have had no way to
+     * find out why.
+     *
+     * 6,000 was a ceiling that belonged to the old TEXT column, 65,535
+     * BYTES, where a long report with accented letters came within a few
+     * thousand of silent truncation. The columns are MEDIUMTEXT now, 16
+     * MB, so the only real limit is MySQL's 1 MiB max_allowed_packet --
+     * the whole statement, not just the text. 500,000 leaves half of it
+     * free.
+     */
+    'max_description' => (int) env('CONCERN_MAX_DESCRIPTION', 500000),
 
     /*
     | What a student may attach.
