@@ -135,6 +135,64 @@ class TheClinicAndTheLibraryTest extends TestCase
     }
 
     /**
+     * "Others" stays at the bottom, whatever is added above it.
+     *
+     * It was simply the last one seeded, so the Library landed under it --
+     * and a named category sitting below the bucket for everything that
+     * has no name reads as an afterthought to it.
+     */
+    public function test_others_is_last_on_the_filing_form(): void
+    {
+        $offered = ConcernCategory::offered();
+
+        $this->assertSame('Others', end($offered), 'the catch-all comes last');
+        $this->assertContains('Library', $offered);
+
+        // And it stays last when the office adds another.
+        $admin = User::whereHas('role', fn ($q) => $q->where('name', 'System Admin'))->firstOrFail();
+
+        $this->actingAs($admin)->post('/admin/categories', [
+            'name' => 'Canteen',
+            'label' => 'Canteen & Food Services',
+            'routing_role' => 'General Services',
+        ])->assertRedirect();
+
+        ConcernCategory::forget();
+
+        $after = ConcernCategory::offered();
+
+        $this->assertSame('Others', end($after), 'still last after a category is added');
+        $this->assertContains('Canteen', $after);
+
+        fwrite(STDERR, "  [offices] Others stays at the bottom of the list\n");
+    }
+
+    /** The library asks only what the library can answer for. */
+    public function test_the_library_sub_categories_are_the_ones_it_owns(): void
+    {
+        $subs = ConcernCategory::subcategoriesFor('Library');
+
+        // A disputed charge, an unsigned clearance, and somebody at the
+        // desk: the three where the library is both the subject and the
+        // only office that can settle it.
+        $this->assertContains('Fines and penalties', $subs);
+        $this->assertContains('Clearance', $subs);
+        $this->assertContains('Library staff conduct', $subs);
+
+        // The reading room itself belongs to Facilities, which already
+        // has Rooms, Aircon, Lighting and Furniture. Listing it here
+        // would send a broken chair to a librarian.
+        $this->assertNotContains('Noise or behaviour', $subs);
+        $this->assertNotContains('Opening hours', $subs);
+
+        // And this one pointed the wrong way: a missing or damaged book
+        // is the library's complaint about the student.
+        $this->assertNotContains('Missing or damaged book', $subs);
+
+        fwrite(STDERR, "  [offices] the library asks only what it can answer for\n");
+    }
+
+    /**
      * Both can be referred to.
      *
      * The ICT Unit was added as a destination and never given a line in

@@ -132,7 +132,12 @@ class AdminController extends Controller
                 ->all() ?: null,
             'is_active' => true,
             'is_builtin' => false,
-            'sort_order' => (int) ConcernCategory::max('sort_order') + 10,
+            // Above "Others", which is pinned to the bottom at 9999. A new
+            // category appended after the bucket for everything that has
+            // no name reads as an afterthought to it, and that is where
+            // every added one would land if this counted from the true
+            // maximum.
+            'sort_order' => (int) ConcernCategory::where('name', '!=', 'Others')->max('sort_order') + 10,
         ]);
 
         return back()->with('success', 'Category added. It is now on the filing form.');

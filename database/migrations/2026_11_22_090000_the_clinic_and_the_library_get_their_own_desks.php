@@ -73,9 +73,35 @@ return new class extends Migration
             ->where('name', 'Physical')
             ->update(['routing_role' => 'Clinic', 'updated_at' => $now]);
 
-        // The library, with the things a student actually comes to the desk
-        // about. Each carries no office of its own -- they all belong to
-        // the same desk -- which is what a null route means.
+        // "Others" is pinned to the bottom of the list, for good.
+        //
+        // It was simply the last one seeded, so the Library landed under
+        // it -- and a named category sitting below the bucket for
+        // everything that has no name reads as an afterthought to it.
+        // A number nothing will reach keeps it there however many
+        // categories the office adds.
+        DB::table('concern_categories')
+            ->where('name', 'Others')
+            ->update(['sort_order' => 9999, 'updated_at' => $now]);
+
+        // The library, with the things only the library can answer for.
+        //
+        // Three, not the eight this started with. The test for a
+        // sub-category is not "could it happen in the library" but "is
+        // the library both the subject and the only office that can
+        // settle it". Borrowing and returning is a transaction rather
+        // than a grievance. A missing or damaged book is the library's
+        // complaint about the STUDENT, pointing the wrong way. Opening
+        // hours is a suggestion. And the reading room itself -- hot,
+        // dark, broken chairs -- is already Facilities, which has Rooms,
+        // Aircon, Lighting and Furniture; noisy people in it are either
+        // Bullying or nothing.
+        //
+        // What is left is a disputed charge, an unsigned clearance
+        // holding up an enrolment or a graduation, and the conduct of
+        // somebody at the desk. Each carries no office of its own --
+        // they all belong to the same desk -- which is what a null route
+        // means.
         if (! DB::table('concern_categories')->where('name', 'Library')->exists()) {
             DB::table('concern_categories')->insert([
                 'name' => 'Library',
@@ -84,19 +110,18 @@ return new class extends Migration
                 'subcategories' => json_encode(array_map(
                     fn (string $name) => ['name' => $name, 'route' => null],
                     [
-                        'Borrowing and returns',
                         'Fines and penalties',
-                        'Missing or damaged book',
                         'Clearance',
-                        'Opening hours',
-                        'Noise or behaviour',
                         'Library staff conduct',
                         'Other library concern',
                     ]
                 )),
                 'is_active' => true,
                 'is_builtin' => false,
-                'sort_order' => (int) DB::table('concern_categories')->max('sort_order') + 10,
+                // Above "Others", which is pinned last below. A category
+                // added after the bucket for everything-else reads as
+                // though it were an afterthought to it.
+                'sort_order' => 105,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
