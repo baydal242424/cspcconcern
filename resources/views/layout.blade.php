@@ -914,6 +914,99 @@
         padding:1.4rem 1.5rem 1rem; margin:1.5rem 0}
     .tl-head{display:flex; flex-wrap:wrap; gap:1rem; align-items:flex-start;
         justify-content:space-between; margin-bottom:1.1rem}
+    /* ---------------------------------------------------------- dashboard
+       The band across the top, and the bar under it.
+
+       Both show figures this page already had: the four an administrator
+       opens it to find, and the shape of the queue. Nothing new is
+       counted -- DashboardController is untouched -- and what changed is
+       which numbers come first and how hard they are to read. */
+    .hero{
+        border-radius:var(--radius); padding:1.75rem; margin-bottom:1.5rem; color:#fff;
+        background:linear-gradient(135deg,#4f46e5 0%,var(--brand) 48%,#6d4aff 100%);
+        box-shadow:0 18px 38px -16px rgba(47,91,234,.55), inset 0 1px 0 rgba(255,255,255,.18);
+        position:relative; overflow:hidden;
+    }
+    /* A soft light in the corner, so the gradient has a source rather
+       than being a flat wash of two colours. */
+    .hero::after{
+        content:""; position:absolute; inset:0; pointer-events:none;
+        background:radial-gradient(520px 200px at 88% -40%,rgba(255,255,255,.22),transparent 70%);
+    }
+    .hero-top{
+        position:relative; z-index:1; display:flex; gap:1rem; flex-wrap:wrap;
+        align-items:flex-start; justify-content:space-between; margin-bottom:1.5rem;
+    }
+    .hero-greeting{color:#fff; font-size:1.65rem; font-weight:750; letter-spacing:-.025em}
+    .hero-sub{color:rgba(255,255,255,.8); font-size:.9rem; margin-top:.35rem}
+    .hero-btn{
+        background:rgba(255,255,255,.16); color:#fff; border-color:rgba(255,255,255,.28);
+        box-shadow:inset 0 1px 0 rgba(255,255,255,.2);
+    }
+    .hero-btn:hover{background:rgba(255,255,255,.26); color:#fff}
+
+    .hero-tiles{
+        position:relative; z-index:1;
+        display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:1rem;
+    }
+    /* Translucent rather than solid: the tiles belong to the band, and a
+       row of white cards on a gradient reads as four things dropped on
+       top of it. */
+    .tile{
+        background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.2);
+        border-radius:13px; padding:.9rem 1rem;
+        backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+    }
+    .tile-label{
+        font-size:.74rem; font-weight:650; letter-spacing:.06em; text-transform:uppercase;
+        color:rgba(255,255,255,.72);
+    }
+    .tile-value{
+        font-size:1.85rem; font-weight:750; letter-spacing:-.03em; line-height:1.15;
+        margin-top:.25rem; display:flex; align-items:baseline; gap:.45rem; flex-wrap:wrap;
+    }
+    .tile-unit{font-size:.85rem; font-weight:600; color:rgba(255,255,255,.72)}
+    .tile-foot{font-size:.76rem; color:rgba(255,255,255,.72); margin-top:.3rem; line-height:1.4}
+
+    /* More concerns arriving is not good news, so the arrow up is the
+       warm colour. This is the one tile where the delta is the point. */
+    .tile-delta{font-size:.8rem; font-weight:700; padding:.1rem .4rem; border-radius:999px}
+    .tile-delta.is-up{background:rgba(255,255,255,.2); color:#ffd9dd}
+    .tile-delta.is-down{background:rgba(255,255,255,.2); color:#c7f9d9}
+
+    @media (max-width:640px){
+        .hero{padding:1.25rem}
+        .hero-greeting{font-size:1.35rem}
+        .tile-value{font-size:1.55rem}
+    }
+
+    /* The queue as one bar. The same five figures are listed further
+       down as a column of numbers; this says the SHAPE -- mostly
+       waiting, mostly being worked, mostly done -- which a column of
+       numbers does not. */
+    .statusbar{
+        display:flex; height:12px; border-radius:999px; overflow:hidden;
+        background:var(--line); box-shadow:inset 0 1px 2px rgba(16,30,66,.08);
+    }
+    .statusbar-seg{display:block; height:100%}
+    .statusbar-seg + .statusbar-seg{box-shadow:inset 1px 0 0 rgba(255,255,255,.55)}
+
+    .statusbar-key{
+        display:flex; flex-wrap:wrap; gap:.4rem 1.25rem; margin-top:.9rem;
+        font-size:.83rem; color:var(--muted);
+    }
+    .statusbar-item{display:inline-flex; align-items:center; gap:.4rem}
+    .statusbar-item strong{color:var(--ink)}
+    .statusbar-dot{width:9px; height:9px; border-radius:50%; flex:none}
+
+    /* The same colours the status badges use, so a segment and a badge
+       for the same state are the same thing on sight. */
+    .seg-submitted{background:#e0a106}
+    .seg-in_progress{background:var(--brand)}
+    .seg-referred{background:#7c4dff}
+    .seg-resolved{background:#16a34a}
+    .seg-closed_no_action{background:#94a3b8}
+
     .tl-title{font-size:1.05rem; font-weight:700; letter-spacing:-.01em;
         color:var(--ink,#1f2733); margin:0}
     .tl-range{font-size:.82rem; color:var(--muted,#64748b); margin:.15rem 0 0}

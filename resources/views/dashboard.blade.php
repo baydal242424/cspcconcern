@@ -3,42 +3,150 @@
 @section('title', 'Trending Dashboard')
 
 @section('content')
-<div class="card">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
-        <div>
-            <h1>Trending Dashboard</h1>
-            <p style="color: #666; margin-top: 0.5rem;">Welcome back, {{ Auth::user()->name }}. Institution-wide analytics &mdash; visible to Admin only.</p>
-        </div>
-        <a href="{{ route('concerns.index') }}" class="btn btn-primary">View Concerns</a>
-    </div>
+{{-- The band across the top.
 
-    <div class="grid-2" style="gap: 1.5rem;">
-        <div class="card" style="padding: 1.5rem;">
-            <h3 style="margin-bottom: 1rem;">Total Concerns (All Time)</h3>
-            <div style="font-size: 2.4rem; font-weight: 700;">{{ $totalConcerns }}</div>
-            <p style="color: #666; margin-top: 0.5rem;">Every concern ever recorded, institution-wide.</p>
-        </div>
-        <div class="card" style="padding: 1.5rem;">
-            <h3 style="margin-bottom: 1rem;">Trending in Last 30 Days</h3>
-            <div style="font-size: 2.4rem; font-weight: 700; display:flex; align-items:baseline; gap:0.6rem;">
-                {{ $recentTrendCount }}
-                @if ($trendChangePercent !== null && $trendChangePercent != 0)
-                    <span style="font-size: 1rem; font-weight: 700; color: {{ $trendChangePercent > 0 ? '#b42318' : '#0f6b34' }};">
-                        {{ $trendChangePercent > 0 ? '▲' : '▼' }} {{ abs($trendChangePercent) }}%
-                    </span>
-                @else
-                    <span style="font-size: 1rem; font-weight: 600; color: #94a3b8;">no change</span>
-                @endif
-            </div>
-            <p style="color: #666; margin-top: 0.5rem;">
-                @if ($trendChangePercent === null)
-                    No concerns in the prior 30 days, so there is nothing to compare against yet.
-                @else
-                    vs. {{ $previousTrendCount }} in the prior 30 days.
-                @endif
+     The four numbers an administrator opens this page to find, put
+     where the eye lands first instead of three screens down among
+     twenty others. Every one of them was already on this page and
+     already passed to this view -- nothing new is counted, and the
+     controller is untouched. What changed is which four come first.
+
+     A greeting rather than a title, because "Trending Dashboard" told
+     the reader something they knew (they clicked Dashboard) and the
+     hour of the day is at least true. --}}
+<div class="hero">
+    <div class="hero-top">
+        <div>
+            <h1 class="hero-greeting">
+                @php
+                    $hour = (int) now()->local()->format('G');
+                    $part = $hour < 12 ? 'Good morning' : ($hour < 18 ? 'Good afternoon' : 'Good evening');
+                    $firstName = explode(' ', trim(preg_replace('/^(Mr\.|Ms\.|Mrs\.|Dr\.)\s*/', '', Auth::user()->name)))[0];
+                @endphp
+                {{ $part }}, {{ $firstName }}
+            </h1>
+            <p class="hero-sub">
+                {{ number_format($totalConcerns) }} concerns on record, institution-wide.
             </p>
         </div>
+        <a href="{{ route('concerns.index') }}" class="btn hero-btn">View Concerns</a>
     </div>
+
+    <div class="hero-tiles">
+        {{-- Filed recently, with the direction of travel. The one tile
+             where the delta is the point rather than decoration. --}}
+        <div class="tile">
+            <div class="tile-label">New in 30 days</div>
+            <div class="tile-value">
+                {{ number_format($recentTrendCount) }}
+                @if ($trendChangePercent !== null && $trendChangePercent != 0)
+                    <span class="tile-delta {{ $trendChangePercent > 0 ? 'is-up' : 'is-down' }}">
+                        {{ $trendChangePercent > 0 ? '▲' : '▼' }} {{ abs($trendChangePercent) }}%
+                    </span>
+                @endif
+            </div>
+            <div class="tile-foot">
+                @if ($trendChangePercent === null)
+                    nothing filed in the 30 days before
+                @else
+                    against {{ number_format($previousTrendCount) }} the month before
+                @endif
+            </div>
+        </div>
+
+        {{-- The queue. --}}
+        <div class="tile">
+            <div class="tile-label">Open now</div>
+            <div class="tile-value">{{ number_format($openTotal) }}</div>
+            <div class="tile-foot">
+                @if ($unassignedOpen > 0)
+                    {{ number_format($unassignedOpen) }} with nobody holding {{ $unassignedOpen === 1 ? 'it' : 'them' }}
+                @else
+                    every one of them on somebody's desk
+                @endif
+            </div>
+        </div>
+
+        {{-- The number that says whether the system works. --}}
+        <div class="tile">
+            <div class="tile-label">Typical time to settle</div>
+            <div class="tile-value">
+                @if ($medianResolutionDays === null)
+                    &mdash;
+                @else
+                    {{ $medianResolutionDays }}<span class="tile-unit">{{ $medianResolutionDays === 1 ? 'day' : 'days' }}</span>
+                @endif
+            </div>
+            <div class="tile-foot">
+                @if ($resolutionCount > 0)
+                    across {{ number_format($resolutionCount) }} settled
+                @else
+                    nothing settled yet
+                @endif
+            </div>
+        </div>
+
+        {{-- And the one the students give back. --}}
+        <div class="tile">
+            <div class="tile-label">Student rating</div>
+            <div class="tile-value">
+                @if ($feedbackCount > 0)
+                    {{ $averageRating }}<span class="tile-unit">of 5</span>
+                @else
+                    &mdash;
+                @endif
+            </div>
+            <div class="tile-foot">
+                @if ($feedbackCount > 0)
+                    from {{ number_format($feedbackCount) }} who rated it
+                @else
+                    nobody has rated a case yet
+                @endif
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- Where everything open is standing, in one bar.
+     The same figures are listed further down as a column of numbers;
+     this says the SHAPE of the queue -- mostly waiting, mostly being
+     worked, mostly done -- which a list of five numbers does not. --}}
+@php
+    $barOrder = ['submitted', 'in_progress', 'referred', 'resolved', 'closed_no_action'];
+    $barTotal = array_sum(array_map(fn ($s) => $statusCounts[$s] ?? 0, $barOrder));
+@endphp
+
+@if ($barTotal > 0)
+    <div class="card" style="padding:1.5rem;">
+        <h2 class="section-title" style="margin-bottom:1rem;">Where every concern stands</h2>
+
+        <div class="statusbar">
+            @foreach ($barOrder as $status)
+                @php $n = $statusCounts[$status] ?? 0; @endphp
+                @if ($n > 0)
+                    <span class="statusbar-seg seg-{{ $status }}"
+                          style="width:{{ round($n / $barTotal * 100, 2) }}%"
+                          title="{{ \App\Models\Concern::STATUS_LABELS[$status] ?? $status }}: {{ number_format($n) }}"></span>
+                @endif
+            @endforeach
+        </div>
+
+        <div class="statusbar-key">
+            @foreach ($barOrder as $status)
+                @php $n = $statusCounts[$status] ?? 0; @endphp
+                @if ($n > 0)
+                    <span class="statusbar-item">
+                        <span class="statusbar-dot seg-{{ $status }}"></span>
+                        {{ \App\Models\Concern::STATUS_LABELS[$status] ?? $status }}
+                        <strong>{{ number_format($n) }}</strong>
+                    </span>
+                @endif
+            @endforeach
+        </div>
+    </div>
+@endif
+
+<div class="card">
 
     <div class="grid-2" style="gap: 1.5rem; margin-top: 2rem;">
         <div class="card" style="padding: 1.5rem;">
