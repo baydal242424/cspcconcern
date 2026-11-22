@@ -77,6 +77,42 @@ class TheOfficeCanAddACategoryTest extends TestCase
         fwrite(STDERR, "  [categories] the shipped eleven are seeded from the constants\n");
     }
 
+    /**
+     * The second dropdown is fed plain strings, not stored rows.
+     *
+     * This is the test that was missing. Everything else here checks
+     * subcategoriesFor(), which returns names -- but the filing form's
+     * script is handed subcategoryMap(), and that reached into the column
+     * directly. When a sub-category became {name, route} the map started
+     * handing whole rows to the page, and every option in the second
+     * dropdown read "[object Object]".
+     *
+     * Nothing errored. The page rendered, the JSON was valid, the suite
+     * was green, and the list was unusable for every category and every
+     * student. So this asserts on what actually reaches the browser.
+     */
+    public function test_the_filing_form_is_handed_sub_category_names(): void
+    {
+        $map = Concern::subcategoryMap();
+
+        $this->assertNotEmpty($map);
+
+        foreach ($map as $category => $subs) {
+            foreach ($subs as $sub) {
+                $this->assertIsString($sub, "{$category} must offer names, not rows");
+            }
+        }
+
+        // And in the page itself, as the script receives it.
+        $html = $this->actingAs($this->student())->get('/concerns/create')->assertOk()->getContent();
+
+        $this->assertStringNotContainsString('[object Object]', $html);
+        $this->assertStringContainsString('"Grades"', $html);
+        $this->assertStringNotContainsString('{"name":"Grades"', $html);
+
+        fwrite(STDERR, "  [categories] the filing form is handed names, not rows\n");
+    }
+
     /** The website fault is on file but off the form, as it already was. */
     public function test_the_website_fault_keeps_its_row_but_not_its_place_in_the_picker(): void
     {

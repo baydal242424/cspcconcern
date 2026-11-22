@@ -164,8 +164,22 @@ class Concern extends Model
      */
     public static function subcategoryMap(): array
     {
+        // NAMES, not the stored rows.
+        //
+        // A sub-category is {name, route} now, and this handed the whole
+        // row to the filing form's script -- which writes each one into an
+        // <option>, so every choice in the second dropdown read
+        // "[object Object]". Every category, every student, no error
+        // anywhere: the page rendered, the JSON was valid, and the list
+        // was unusable.
+        //
+        // subcategoriesFor() is the one place that knows how to read
+        // either shape, so this goes through it rather than reaching into
+        // the column.
         return ConcernCategory::cached()
-            ->mapWithKeys(fn (ConcernCategory $c) => [$c->name => $c->subcategories ?? []])
+            ->mapWithKeys(fn (ConcernCategory $c) => [
+                $c->name => ConcernCategory::subcategoriesFor($c->name),
+            ])
             ->filter(fn (array $subs) => $subs !== [])
             ->all();
     }
