@@ -41,10 +41,31 @@
             -webkit-font-smoothing:antialiased;
             background-image:radial-gradient(1200px 400px at 80% -120px,rgba(47,91,234,.07),transparent 60%);
         }
-        h1,h2,h3{letter-spacing:-.02em; color:var(--navy-900); line-height:1.2}
-        h1{font-size:1.6rem; font-weight:700}
+        h1,h2,h3{letter-spacing:-.022em; color:var(--navy-900); line-height:1.2}
+        h1{font-size:1.75rem; font-weight:750}
+        h2{font-size:1.2rem; font-weight:700}
         h3{font-size:1.05rem; font-weight:650}
-        a{color:var(--brand)}
+
+        a{color:var(--brand); text-underline-offset:2px}
+        a:hover{color:var(--brand-600)}
+
+        /* One focus ring for the whole interface.
+           Several controls drew their own and several drew none, so moving
+           through a form by keyboard lost the cursor every few fields.
+           :focus-visible rather than :focus, so a mouse click does not
+           leave a ring behind it. */
+        :focus-visible{outline:3px solid rgba(47,91,234,.45); outline-offset:2px; border-radius:6px}
+
+        /* The rules between sections. They were written inline, one at a
+           time, as #ddd -- a flat grey against a page of blue-greys. These
+           fade at the ends, so a section break reads as a pause rather
+           than a line drawn across the card. */
+        hr{
+            border:0; height:1px; margin:2rem 0;
+            background:linear-gradient(90deg,transparent,var(--line) 12%,var(--line) 88%,transparent);
+        }
+
+        ::selection{background:var(--brand-50); color:var(--navy-900)}
 
         /* Solid, not translucent. A semi-transparent bar with a backdrop blur
            has to recompute what is behind it on every scroll frame, and the
@@ -68,7 +89,19 @@
             padding:.5rem .8rem; border-radius:9px; transition:.18s;
         }
         .navbar-nav a:hover{color:#fff; background:rgba(255,255,255,.08)}
-        .navbar-nav a.active{color:#fff; background:rgba(255,255,255,.14)}
+
+        /* The page you are on, marked twice: lit, and underlined in the
+           brand colour. Against a navy bar a slightly paler panel is a
+           weak signal, and on the dashboard and the concerns list -- the
+           two people move between constantly -- it was easy to lose. */
+        .navbar-nav a.active{
+            color:#fff; background:rgba(255,255,255,.14);
+            position:relative; font-weight:600;
+        }
+        .navbar-nav a.active::after{
+            content:""; position:absolute; left:.8rem; right:.8rem; bottom:.18rem;
+            height:2px; border-radius:2px; background:#8ea9ff;
+        }
         /* The logout button lives in a POST form but must look like a nav link. */
         .navbar-nav form{display:inline; margin:0}
         .navbar-nav button{
@@ -179,24 +212,64 @@
         .card{
             background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
             box-shadow:var(--shadow); padding:2rem; margin-bottom:1.5rem;
+            /* A hairline of white along the top edge. It is what separates
+               a card from a rectangle: the light has to come from
+               somewhere, and without it the border reads as a drawn
+               outline rather than as a raised surface. */
+            box-shadow:inset 0 1px 0 #fff, var(--shadow);
+        }
+
+        @media (max-width:640px){
+            .card{padding:1.35rem; border-radius:14px}
         }
 
         .btn{
             display:inline-flex; align-items:center; justify-content:center; gap:.5rem;
             padding:.7rem 1.25rem; border:1px solid transparent; border-radius:11px; cursor:pointer;
-            text-decoration:none; font-size:.93rem; font-weight:600;
-            transition:transform .12s,box-shadow .18s,background .18s; box-shadow:var(--shadow-sm);
+            text-decoration:none; font-size:.93rem; font-weight:600; line-height:1.2;
+            letter-spacing:-.005em; white-space:nowrap;
+            transition:transform .12s ease, box-shadow .2s ease, background .2s ease, filter .2s ease;
+            box-shadow:var(--shadow-sm);
         }
         .btn:hover{transform:translateY(-1px)}
-        .btn:active{transform:translateY(0)}
-        .btn-primary{background:linear-gradient(180deg,var(--brand),var(--brand-600)); color:#fff}
-        .btn-primary:hover{box-shadow:0 8px 20px -6px rgba(47,91,234,.55)}
-        .btn-success{background:linear-gradient(180deg,#1fb155,#149043); color:#fff}
-        .btn-danger{background:linear-gradient(180deg,#ef4458,#cf2438); color:#fff}
-        .btn-secondary{background:#eef1f6; color:#475569; border-color:#e2e7ef}
-        .btn-secondary:hover{background:#e4e9f2}
-        .btn-muted{background:#eef1f6; color:#475569; border-color:#e2e7ef}
-        .btn-muted:hover{background:#e4e9f2}
+        .btn:active{transform:translateY(0); filter:brightness(.97)}
+
+        /* Nothing lifts or glows while it cannot be pressed. A disabled
+           button that still animates on hover reads as broken rather than
+           as unavailable. */
+        .btn:disabled,.btn[aria-disabled="true"]{
+            opacity:.55; cursor:not-allowed; box-shadow:none;
+        }
+        .btn:disabled:hover,.btn[aria-disabled="true"]:hover{transform:none; filter:none}
+
+        /* An inset highlight along the top edge, which is what gives a
+           gradient button an edge rather than a printed look. */
+        .btn-primary{
+            background:linear-gradient(180deg,var(--brand),var(--brand-600)); color:#fff;
+            box-shadow:inset 0 1px 0 rgba(255,255,255,.22), 0 2px 6px rgba(35,71,196,.28);
+        }
+        .btn-primary:hover{box-shadow:inset 0 1px 0 rgba(255,255,255,.22), 0 8px 20px -6px rgba(47,91,234,.55)}
+
+        .btn-success{
+            background:linear-gradient(180deg,#1fb155,#149043); color:#fff;
+            box-shadow:inset 0 1px 0 rgba(255,255,255,.22), 0 2px 6px rgba(20,144,67,.28);
+        }
+        .btn-success:hover{box-shadow:inset 0 1px 0 rgba(255,255,255,.22), 0 8px 20px -6px rgba(31,177,85,.5)}
+
+        .btn-danger{
+            background:linear-gradient(180deg,#ef4458,#cf2438); color:#fff;
+            box-shadow:inset 0 1px 0 rgba(255,255,255,.22), 0 2px 6px rgba(207,36,56,.28);
+        }
+        .btn-danger:hover{box-shadow:inset 0 1px 0 rgba(255,255,255,.22), 0 8px 20px -6px rgba(239,68,88,.5)}
+
+        /* The quiet pair. A real border rather than a near-invisible one,
+           so a secondary button still reads as a button on a white card
+           instead of as a shaded word. */
+        .btn-secondary,.btn-muted{
+            background:#f1f4f9; color:#44506a; border-color:#dde3ee;
+            box-shadow:inset 0 1px 0 #fff, 0 1px 2px rgba(16,30,66,.05);
+        }
+        .btn-secondary:hover,.btn-muted:hover{background:#e7ecf5; border-color:#ccd5e6; color:var(--navy-900)}
         /* Quiet, text-style destructive action -- keeps delete available without
            making it the loudest control in the row. */
         .btn-ghost-danger{background:transparent; color:#b42318; box-shadow:none; border-color:transparent;
@@ -209,26 +282,65 @@
             width:100%; padding:.8rem .9rem; border:1.5px solid var(--line); border-radius:11px;
             font-size:.95rem; font-family:inherit; background:#fcfdff; color:var(--ink); transition:.18s;
         }
+        /* A field reacts before it is focused. Without a hover state a
+           form is a page of boxes that only come alive once you are
+           already typing in one. */
+        input[type="text"]:hover,input[type="email"]:hover,input[type="password"]:hover,
+        select:hover,textarea:hover{border-color:#cfd8e8; background:#fff}
+
         input:focus,select:focus,textarea:focus{
-            outline:none; border-color:var(--brand); box-shadow:0 0 0 4px var(--brand-50); background:#fff;
+            outline:none; border-color:var(--brand);
+            box-shadow:0 0 0 4px var(--brand-50), inset 0 1px 2px rgba(16,30,66,.04);
+            background:#fff;
         }
-        textarea{resize:vertical; min-height:150px}
+        input::placeholder,textarea::placeholder{color:#9aa6bb}
+        textarea{resize:vertical; min-height:150px; line-height:1.6}
+
+        /* The arrow on a select, drawn rather than left to the platform,
+           so a dropdown looks like the fields above and below it instead
+           of like a Windows control dropped into the page. */
+        select{
+            appearance:none; -webkit-appearance:none;
+            background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2364748b' stroke-width='1.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+            background-repeat:no-repeat; background-position:right .9rem center;
+            padding-right:2.4rem;
+        }
 
         .alert{padding:.9rem 1.1rem; border-radius:12px; margin-bottom:1.4rem; font-weight:500;
-            display:flex; gap:.6rem; align-items:center; border:1px solid transparent}
-        .alert::before{font-size:1.05rem}
+            display:flex; gap:.7rem; align-items:flex-start; border:1px solid transparent;
+            line-height:1.5;
+        }
+        /* The mark in a circle of its own, so a two-line alert does not
+           leave a stray character floating beside a paragraph. */
+        .alert::before{
+            display:flex; align-items:center; justify-content:center; flex:none;
+            width:1.35rem; height:1.35rem; margin-top:.05rem;
+            border-radius:50%; background:rgba(255,255,255,.65);
+            font-size:.82rem; font-weight:700;
+        }
         .alert-success{background:var(--ok-bg); color:var(--ok-ink); border-color:#bfe8cd}
         .alert-success::before{content:"✓"}
         .alert-error{background:var(--danger-bg); color:var(--danger-ink); border-color:#f6c9cf}
         .alert-error::before{content:"!"}
         /* Neither good news nor bad: a standing fact about what is on the
            page, such as "this is your copy of a case you handed on". */
-        .alert-info{background:var(--brand50); color:var(--ink); border-color:#c7d4fb; font-weight:400}
+        .alert-info{background:var(--brand-50); color:var(--ink); border-color:#c7d4fb; font-weight:400}
         .alert-info::before{content:"i"; font-weight:700; color:var(--brand)}
 
         .status-badge,.urgency-badge{
-            display:inline-flex; align-items:center; padding:.32rem .8rem; border-radius:999px;
+            display:inline-flex; align-items:center; gap:.4rem;
+            padding:.32rem .8rem; border-radius:999px;
             font-size:.78rem; font-weight:650; letter-spacing:.01em; border:1px solid transparent;
+        }
+
+        /* A dot in the badge's own colour.
+           Eight states told apart by background tint alone is a lot to ask
+           of a glance, and of anybody who does not separate those tints --
+           roughly one man in twelve. The dot gives the shape of the state
+           a second, stronger reading. */
+        .status-badge::before,.urgency-badge::before{
+            content:""; width:6px; height:6px; border-radius:50%;
+            background:currentColor; flex:none; opacity:.75;
         }
         .urgency-badge{margin-left:.4rem}
         .status-submitted{background:var(--warn-bg); color:var(--warn-ink); border-color:#f3dca0}
@@ -332,7 +444,19 @@
 
         /* Section headings inside cards: h2 for correct document outline,
            sized to match the previous h3 look. */
-        .section-title{font-size:1.05rem; font-weight:650; margin-bottom:1rem}
+        /* A short accent rule before the words.
+           The page is a column of headings that all look alike, so a
+           reader scrolling to the notes has nothing to aim at. This
+           gives each section a mark to find without adding any markup
+           to the pages themselves. */
+        .section-title{
+            font-size:1.05rem; font-weight:650; margin-bottom:1rem;
+            display:flex; align-items:center; gap:.6rem; color:var(--navy-900);
+        }
+        .section-title::before{
+            content:""; width:3px; height:1.05em; border-radius:2px; flex:none;
+            background:linear-gradient(180deg,var(--brand),var(--brand-600));
+        }
 
         /* Label/value rows for detail views. */
         .detail-list{display:grid; grid-template-columns:auto 1fr; gap:.55rem 1rem; align-items:baseline}
@@ -561,7 +685,7 @@
         .dock-tab::-webkit-details-marker{display:none}
         .dock-tab::marker{content:""}
         .dock-tab:hover{background:var(--brand6)}
-        .dock-tab:focus-visible{outline:3px solid var(--brand50); outline-offset:3px}
+        .dock-tab:focus-visible{outline:3px solid var(--brand-50); outline-offset:3px}
         .dock-tab svg{width:21px; height:21px; flex:none}
 
         /* The icon says what the next press does: an envelope to open,
