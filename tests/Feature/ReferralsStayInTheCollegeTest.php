@@ -263,12 +263,18 @@ class ReferralsStayInTheCollegeTest extends TestCase
             'assigned_to' => $dean->id,
         ]);
 
-        // Read by a college office rather than by the Dean. Destinations
-        // are decided by the reader now, and a Dean stands on the ladder:
-        // theirs is the VPAA and Faculty/Staff, chairs included nowhere.
-        // What is under test here is the COLLEGE boundary, which needs
-        // somebody who can be offered a chair at all.
-        $office = $this->person('Office of '.$college, $slug.'.office@cspc.edu.ph', 'Faculty/Staff', $college);
+        // Read by an ADVISER rather than by the Dean or a college office.
+        //
+        // Destinations are decided by the reader, and the ladder now has a
+        // rung for every role: a Dean reaches the VPAA and Faculty/Staff, a
+        // staff member reaches the Dean and other staff. Neither reaches a
+        // chair, and this test is about the COLLEGE boundary -- it needs
+        // somebody who can be offered a chair at all. That is the adviser,
+        // whose rung is Program Chair and Faculty/Staff.
+        //
+        // It was a Faculty/Staff member until staff stopped being able to
+        // send a case back DOWN to the chair it came from.
+        $office = $this->person('Adviser in '.$college, $slug.'.office@cspc.edu.ph', 'Adviser', $college);
         $concern->forceFill(['assigned_to' => $office->id])->save();
 
         $offered = collect(

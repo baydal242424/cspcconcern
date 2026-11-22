@@ -257,6 +257,21 @@ class ConcernController extends Controller
         // is all that is left -- and a case that reaches here and does
         // not belong to an office is one the VPAA decides themselves.
         'Vice President for Academic Affairs' => ['Faculty/Staff'],
+
+        // The rung every other rung sends sideways to, which had none of
+        // its own. Without an entry here a staff member fell through to
+        // the category list and was offered the Program Chair and the
+        // Adviser -- the two desks the case had just come FROM. A chair
+        // who hands a matter to an office could have it handed straight
+        // back down to the adviser, which is not a hand-off but a circle.
+        //
+        // Upward to the Dean, or sideways to another office. Sideways is
+        // a real move: Faculty/Staff names no single office -- it covers
+        // Records, Health Services, the colleges' own staff -- so two of
+        // them are two different desks. The picker never offers the
+        // person themselves, the current holder, or anybody the concern
+        // names, so this cannot become a loop of one.
+        'Faculty/Staff' => ['Dean', 'Faculty/Staff'],
     ];
 
     /** Nothing is offered on every concern any more; the ladder replaced it. */
@@ -1395,11 +1410,22 @@ class ConcernController extends Controller
         // disputed grade could be handed to the Guidance Counselor.
         $fitsCategory = self::referralRolesFor($concern->category, $user);
 
+        // Faculty/Staff is the exception to "never your own office".
+        //
+        // That rule is right for the named desks: offering a Dean "Dean"
+        // reaches another college's dean, a peer with no standing over
+        // this case. Faculty/Staff is not a desk at all -- it covers
+        // Records, Health Services and every college's own staff -- so
+        // one of them passing a case to another is a genuine hand-off
+        // between offices that share nothing but a role name.
+        $sameOfficeIsStillAHandOff = ['Faculty/Staff'];
+
         $referralDestinations = collect(self::REFERRAL_ROLE_LABELS)
             ->filter(fn ($label, $role) => $referralCandidates->has($role)
                 && $referralCandidates->get($role)->isNotEmpty()
                 && in_array($role, $fitsCategory, true)
-                && ! in_array($role, $ownRoles, true));
+                && (! in_array($role, $ownRoles, true)
+                    || in_array($role, $sameOfficeIsStillAHandOff, true)));
 
         // Everything the office has already sent the student. Shown to both
         // sides: the student rereads what was asked of them, and a handler

@@ -268,4 +268,60 @@ class TheAcademicLadderTest extends TestCase
 
         fwrite(STDERR, "  [ladder] the picker is grouped chair, dean, VPAA, staff -- with one chair and no System Admin\n");
     }
+
+    /**
+     * A case does not go back down the ladder it came up.
+     *
+     * Faculty/Staff is the rung every other rung sends sideways to, and it
+     * had no entry of its own -- so a staff member fell through to the
+     * category list and was offered the Program Chair and the Adviser, the
+     * two desks the case had just come FROM. A chair who handed a matter
+     * to an office could have it handed straight back to the adviser,
+     * which is a circle rather than a hand-off.
+     *
+     * Upward to the Dean, or sideways to another office, and nothing else.
+     */
+    public function test_a_staff_member_cannot_send_a_case_back_down(): void
+    {
+        $offered = \App\Http\Controllers\ConcernController::referralRolesFor(
+            'Academic',
+            User::whereHas('role', fn ($q) => $q->where('name', 'Faculty/Staff'))->firstOrFail()
+        );
+
+        $this->assertContains('Dean', $offered, 'upward is open');
+        $this->assertContains('Faculty/Staff', $offered, 'sideways is open');
+
+        $this->assertNotContains('Program Chair', $offered, 'not back down to the chair');
+        $this->assertNotContains('Adviser', $offered, 'not back down to the adviser');
+
+        fwrite(STDERR, "  [ladder] a staff member cannot send a case back down\n");
+    }
+
+    /** Every rung reaches its own two, and no others. */
+    public function test_each_rung_reaches_exactly_what_it_should(): void
+    {
+        $expected = [
+            'Adviser' => ['Program Chair', 'Faculty/Staff'],
+            'Program Chair' => ['Dean', 'Faculty/Staff'],
+            'Dean' => ['Vice President for Academic Affairs', 'Faculty/Staff'],
+            'Faculty/Staff' => ['Dean', 'Faculty/Staff'],
+            'Vice President for Academic Affairs' => ['Faculty/Staff'],
+        ];
+
+        foreach ($expected as $role => $destinations) {
+            $person = User::whereHas('role', fn ($q) => $q->where('name', $role))->first();
+
+            if (! $person) {
+                continue;
+            }
+
+            $this->assertEqualsCanonicalizing(
+                $destinations,
+                \App\Http\Controllers\ConcernController::referralRolesFor('Academic', $person),
+                "{$role} reaches exactly its own rung"
+            );
+        }
+
+        fwrite(STDERR, "  [ladder] every rung reaches exactly its own two\n");
+    }
 }
