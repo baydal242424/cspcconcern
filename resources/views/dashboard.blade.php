@@ -265,7 +265,12 @@
 
             @foreach ($loadByHandler as $handler)
                 <div style="display:flex; align-items:center; gap:0.7rem; margin-bottom:0.6rem;">
-                    <span style="width:13rem; min-width:0; font-size:0.88rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                    {{-- Was a flat 13rem. On a 360px phone that left about
+                         a hundred pixels for the bar beside it, so the
+                         chart this is meant to be stopped being one.
+                         clamp() keeps the column readable on a desktop
+                         and lets it give way on a handset. --}}
+                    <span style="width:clamp(7rem, 38%, 13rem); min-width:0; font-size:0.88rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
                         {{ $handler['name'] }}
                         <span style="color:#94a3b8; font-size:0.78rem;">· {{ $handler['office'] }}</span>
                     </span>
@@ -370,14 +375,10 @@
     </div>
 
     <div class="card" style="padding: 1.5rem; margin-top: 2rem;">
-        <h3 style="margin-bottom: 0.25rem;">Reporter Satisfaction</h3>
-        <p style="color:#94a3b8; font-size:0.8rem; margin-bottom: 1rem;">Average rating left on resolved concerns</p>
-        @if ($feedbackCount > 0)
-            <div style="font-size: 2.4rem; font-weight: 700;">{{ $averageRating }} <span style="font-size:1.1rem; color:#94a3b8; font-weight:600;">/ 5</span></div>
-            <p style="color: #666; margin-top: 0.5rem;">Based on {{ $feedbackCount }} {{ Str::plural('rating', $feedbackCount) }}.</p>
-        @else
-            <p style="color: #666;">No feedback submitted yet.</p>
-        @endif
+        {{-- "Reporter Satisfaction" stood here: the rating, out of five,
+             and the number of ratings behind it. Both are in the band at
+             the top of this page now, word for word, so a whole card was
+             saying a second time what the reader had already passed. --}}
     </div>
 
     {{-- All-time totals for annual analysis. This NEVER shrinks: resolved
@@ -405,18 +406,12 @@
     </div>
 
 
-    <div class="grid-2" style="gap: 1.5rem; margin-top: 2rem;">
-        <div class="card" style="padding: 1.5rem;">
-            <h3 style="margin-bottom: 1rem;">Status Breakdown</h3>
-            <ul style="list-style: none; padding-left: 0;">
-                @foreach (['submitted', 'in_progress', 'referred', 'resolved', 'closed_no_action'] as $status)
-                    <li style="margin-bottom: 0.75rem; display: flex; justify-content: space-between;">
-                        <span>{{ \App\Models\Concern::label($status) }}</span>
-                        <strong>{{ $statusCounts[$status] ?? 0 }}</strong>
-                    </li>
-                @endforeach
-            </ul>
-        </div>
+    {{-- "Status Breakdown" was the other half of this row: the same five
+         figures as a column of numbers. The bar at the top of the page
+         carries all five AND their proportions, which is the question
+         anybody reading them was asking. Urgency has nowhere else to
+         live, so it keeps its card and takes the width. --}}
+    <div style="margin-top: 2rem;">
         <div class="card" style="padding: 1.5rem;">
             <h3 style="margin-bottom: 1rem;">Urgency Breakdown</h3>
             <ul style="list-style: none; padding-left: 0;">

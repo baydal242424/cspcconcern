@@ -67,6 +67,21 @@
 
         ::selection{background:var(--brand-50); color:var(--navy-900)}
 
+        /* Nothing may make the page wider than the phone holding it.
+           The usual culprit is one long unbroken string somebody typed --
+           an email address, a pasted link, a student number run together
+           with a sentence. One of those in a card pushes the whole layout
+           sideways, and the reader gets a horizontal scrollbar on every
+           screen rather than on the one that caused it.
+
+           A ceiling on the <body> rather than overflow-x:hidden, which
+           hides the symptom and takes any legitimately wide thing -- the
+           timeline, a table -- with it. Those scroll inside their own
+           wrappers, which is where a sideways scroll belongs. */
+        body{max-width:100vw; overflow-wrap:break-word}
+        .card{min-width:0}
+        p,li,dd,td,th{overflow-wrap:break-word}
+
         /* Solid, not translucent. A semi-transparent bar with a backdrop blur
            has to recompute what is behind it on every scroll frame, and the
            page content sliding underneath showed through as a shimmer -- worst
