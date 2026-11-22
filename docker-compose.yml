@@ -32,25 +32,30 @@ services:
     environment:
       # Inside this network the database answers to "db". localhost here is
       # the application container itself, which has no database in it.
-      # Written out rather than ${DB_DATABASE:-cspcconcern}. Compose reads
-      # .env for its OWN substitutions, so now that the two files are one
-      # those defaults never applied: the container was handed the XAMPP
-      # database name and the XAMPP user, neither of which exists inside
-      # it. These three describe the container's own database and belong
-      # to the container, not to whoever is running it.
+      # Read from the DOCKER_ block at the bottom of .env, so a port or a
+      # password is changed in one file and this one is never opened.
+      #
+      # The prefix is what makes that safe. Named DB_DATABASE these would
+      # collide with the XAMPP settings in the same file -- Compose
+      # substitutes from .env too -- and the container would be handed the
+      # local database name, which does not exist inside it. That is
+      # exactly the trap this hit the first time.
+      #
+      # DB_HOST stays literal: inside this network the database answers to
+      # "db", and that is a fact about the network rather than a setting.
       DB_CONNECTION: mysql
       DB_HOST: db
       DB_PORT: 3306
-      DB_DATABASE: cspcconcern
-      DB_USERNAME: cspcconcern
-      DB_PASSWORD: secret
+      DB_DATABASE: "${DOCKER_DB_DATABASE:-cspcconcern}"
+      DB_USERNAME: "${DOCKER_DB_USERNAME:-cspcconcern}"
+      DB_PASSWORD: "${DOCKER_DB_PASSWORD:-secret}"
 
       # The address this one answers on, which is not the one artisan serve
       # answers on. Both are needed: APP_URL builds links, APP_PUBLIC_URL
       # is what goes in emails.
-      APP_URL: http://localhost:8002
-      APP_PUBLIC_URL: http://localhost:8002
-      GOOGLE_REDIRECT_URI: http://localhost:8002/auth/google/callback
+      APP_URL: "${DOCKER_APP_URL:-http://localhost:8002}"
+      APP_PUBLIC_URL: "${DOCKER_APP_URL:-http://localhost:8002}"
+      GOOGLE_REDIRECT_URI: "${DOCKER_APP_URL:-http://localhost:8002}/auth/google/callback"
 
       # A deployment shape, not a workbench: no debug screens, logs to the
       # container's stdout where `docker logs` can read them, and the demo
@@ -69,7 +74,7 @@ services:
       QUEUE_CONNECTION: database
 
       # Migrations run on boot. Set to false to start without them.
-      RUN_MIGRATIONS: "true"
+      RUN_MIGRATIONS: "${DOCKER_RUN_MIGRATIONS:-true}"
 
     ports:
       # Host 8002, leaving 8001 to `php artisan serve`.
@@ -85,7 +90,7 @@ services:
       # for trying the deployment shape rather than for signing in. To sign
       # in here instead, add http://localhost:8002/auth/google/callback to
       # the OAuth client's authorised redirect URIs.
-      - "8002:80"
+      - "${DOCKER_APP_PORT:-8002}:80"
 
     volumes:
       # Uploaded evidence. This is the one directory whose contents must
@@ -123,10 +128,10 @@ services:
     # a ${DB_USERNAME:-cspcconcern} here asked this image to create a user
     # called "root" -- which it refuses, because root already exists.
     environment:
-      MYSQL_DATABASE: cspcconcern
-      MYSQL_USER: cspcconcern
-      MYSQL_PASSWORD: secret
-      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: "${DOCKER_DB_DATABASE:-cspcconcern}"
+      MYSQL_USER: "${DOCKER_DB_USERNAME:-cspcconcern}"
+      MYSQL_PASSWORD: "${DOCKER_DB_PASSWORD:-secret}"
+      MYSQL_ROOT_PASSWORD: "${DOCKER_DB_ROOT_PASSWORD:-root}"
 
     # utf8mb4 end to end. The default collation would mangle a name with an
     # ñ in it, and this roster is full of them.
@@ -144,7 +149,7 @@ services:
       # exists anywhere now that .env.docker is gone, and a substitution
       # that silently falls back to its default is a thing that looks
       # configurable and is not.
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-proot"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p${DOCKER_DB_ROOT_PASSWORD:-root}"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -157,7 +162,7 @@ services:
     # while you are working. Remove this block on a real host: a database
     # that answers the internet is a database somebody else is reading.
     ports:
-      - "3307:3306"
+      - "${DOCKER_DB_PORT:-3307}:3306"
 
 volumes:
   concern-storage:

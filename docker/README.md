@@ -10,13 +10,28 @@ project folder.
 
 ## Setting up, once
 
-Nothing to copy. The containers read the same `.env` the rest of the
-project does — the key, the mail password, the Google client — and
-everything the two cannot share is set in `docker-compose.yml` under
-`environment:`, which overrides the file.
+Nothing to copy, and nothing to edit but `.env`.
+
+The containers read the same `.env` the rest of the project does — the
+key, the mail password, the Google client — and everything they do
+differently is in the `DOCKER_` block at the bottom of that same file:
+the port, the database name and password, the address. `docker-compose.yml`
+reads those and should not need opening.
+
+```sh
+# change the port the containers answer on
+DOCKER_APP_PORT=8080
+DOCKER_APP_URL=http://localhost:8080
+```
 
 That is the whole reason it works: `.env` says `DB_HOST=127.0.0.1` for
-XAMPP, the compose file says `db`, and the container gets `db`.
+XAMPP, the compose file says `db`, and the container gets `db` because
+`environment:` overrides `env_file:`.
+
+The `DOCKER_` prefix is not decoration. Named `DB_DATABASE`, those
+settings would collide with the XAMPP ones in the same file — Compose
+substitutes from `.env` too — and the container would be handed the
+local database name, which does not exist inside it.
 
 There used to be a second file, `.env.docker`, and keeping the two in step
 was a job nobody was doing: a Google secret rotated in one and not the
