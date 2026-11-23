@@ -38,12 +38,27 @@ class NotificationController extends Controller
      * the foot is the same idea as "See previous notifications", and it
      * works with the back button, which an endless list does not.
      */
-    public function index()
+    public function index(Request $request)
     {
+        // Ten at a time, matching what the bell opens with, so "see
+        // previous" adds another panel's worth rather than a page's.
         $notifications = Notification::where('user_id', Auth::id())
             ->with('concern')
             ->latest()
-            ->paginate(25);
+            ->paginate(10);
+
+        // Asked for by the bell: just the rows, to be appended to the list
+        // already on screen. No layout, no panel, nothing that would make
+        // the dropdown jump when it arrives.
+        //
+        // The header says whether there is anything after this, so the
+        // script can retire the button instead of offering a click that
+        // returns nothing.
+        if ($request->boolean('partial')) {
+            return response(
+                view('partials.bell-rows', ['rows' => $notifications->getCollection()])->render()
+            )->header('X-Has-More', $notifications->hasMorePages() ? '1' : '0');
+        }
 
         return view('notifications.index', [
             'notifications' => $notifications,

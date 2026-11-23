@@ -777,6 +777,8 @@
             background:#fbfcfe; border-radius:0 0 12px 12px;
         }
         .bell-all:hover{background:var(--brand-50); color:var(--brand-600)}
+        /* Once there is nothing after it, it stops being a control. */
+        .bell-all.is-done{color:var(--muted); cursor:default; background:#fbfcfe}
 
         .notice-row{margin:0; border-bottom:1px solid var(--line)}
         .notice-row:last-of-type{border-bottom:0}

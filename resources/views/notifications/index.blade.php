@@ -55,8 +55,13 @@
     @endforelse
 
     @if ($notifications->hasPages())
+        {{-- The same pager the concerns list and the user admin use.
+             links() with no argument gives Laravel's Tailwind default,
+             and this project carries no Tailwind -- so its chevrons had
+             no size rule and rendered as two arrows the height of the
+             screen. --}}
         <div style="margin-top:1.5rem;">
-            {{ $notifications->links() }}
+            {{ $notifications->onEachSide(1)->links('pagination::bootstrap-4') }}
         </div>
     @endif
 </div>
