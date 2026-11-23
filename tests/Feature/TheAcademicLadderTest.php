@@ -221,7 +221,28 @@ class TheAcademicLadderTest extends TestCase
         // Physical left too: an injury that has already happened is
         // reported so somebody can see to the student, not so somebody can
         // be named for it.
-        $page->assertSee("const NAMEABLE = ['Academic', 'Safety', 'Others']", false);
+        //
+        // And Safety, last of all. The argument for keeping it was that a
+        // hazard is often somebody's to have left there -- true, and still
+        // the wrong box: a student reporting a damaged staircase is
+        // reporting the staircase, and who left it is for the office that
+        // inspects it to establish.
+        //
+        // Read from the model rather than written out here. The list lived
+        // as three names inside a script, where nothing could check it;
+        // asserting on the constant means this test and the form cannot
+        // drift apart.
+        // The constant is the list; @json escapes its quotes for the HTML
+        // context, so matching the raw JSON against the page would be
+        // testing Blade's escaping rather than the list.
+        $this->assertSame(['Academic', 'Others'], \App\Models\Concern::CATEGORIES_ABOUT_A_PERSON);
+
+        // And the page carries it, Safety no longer among them.
+        preg_match('/const NAMEABLE = (.+?);/', $page->getContent(), $m);
+
+        $this->assertNotEmpty($m, 'the form still declares which categories may name somebody');
+        $this->assertStringContainsString('Academic', $m[1]);
+        $this->assertStringNotContainsString('Safety', $m[1]);
 
         // Physical and Safety can still name somebody, but no longer the
         // academic ladder: they reach Guidance, and an injury or a hazard

@@ -1150,9 +1150,22 @@
                     // the box rather than under the broken item.
                     // Physical is absent: an injury that has already happened
                     // is reported so somebody can see to the student, not so
-                    // somebody can be named for it. Safety stays, because a
-                    // hazard is often somebody's to have left there.
-                    const NAMEABLE = ['Academic', 'Safety', 'Others'];
+                    // somebody can be named for it.
+                    //
+                    // Safety came off too. The argument for keeping it was
+                    // that a hazard is often somebody's to have left there
+                    // -- true, and still the wrong box. A student reporting
+                    // a damaged staircase is reporting the staircase; who
+                    // left it is for the office that inspects it to work
+                    // out. Ticking the box routes the case away from the
+                    // named person and tells them a complaint naming them
+                    // exists, which is heavy to hang on a guess about a
+                    // floor.
+                    //
+                    // From the model rather than written here, so the list
+                    // is somewhere a test can read it -- this one was three
+                    // names in a script, and nothing anywhere checked it.
+                    const NAMEABLE = @json(\App\Models\Concern::CATEGORIES_ABOUT_A_PERSON);
 
                     // Who can be named, per category. An Academic concern
                     // climbs one ladder -- the chair of the student's

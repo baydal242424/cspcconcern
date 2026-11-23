@@ -104,6 +104,52 @@ class Concern extends Model
     ];
 
     /**
+     * The categories where a concern can be about a PERSON.
+     *
+     * "This concern is about a particular person" was offered on all of
+     * them, including a blocked fire exit and a dead lab computer. A
+     * checkbox that cannot apply is not harmless: it invites a student to
+     * name somebody on a report about a staircase, and naming somebody
+     * routes the case away from them and tells them a complaint exists.
+     *
+     * The test is whether the complaint can be about what somebody DID.
+     * Conduct, teaching, treatment, an injury somebody caused. Not a
+     * broken thing, a hazard nobody is accused of creating, or a page
+     * that will not load.
+     *
+     * SAFETY came off it. The reasoning for keeping it was that "a hazard
+     * is often somebody's to have left there" -- true, and still the
+     * wrong box. A student reporting a damaged staircase is reporting the
+     * staircase; who left it is for the office that inspects it to
+     * establish, not for the student to accuse somebody of on a form.
+     * Ticking it also routes the case AWAY from the named person and
+     * tells them a complaint naming them exists, which is a heavy thing
+     * to hang on a guess about a floor.
+     *
+     * 'Others' is on the list because it is the bucket for what nobody
+     * anticipated, and withholding the option there would be guessing
+     * about a case we have not seen.
+     *
+     * The counselling categories -- Mental Health, Personal, Bullying,
+     * Harassment -- are deliberately absent and were before this change.
+     * Naming somebody there happens in the description, by typing @ and
+     * their name, which reads as part of an account rather than as a
+     * checkbox on a form about being hurt.
+     *
+     * @var list<string>
+     */
+    public const CATEGORIES_ABOUT_A_PERSON = [
+        'Academic',
+        'Others',
+    ];
+
+    /** Whether the filing form should offer to name somebody. */
+    public static function canBeAboutAPerson(?string $category): bool
+    {
+        return in_array((string) $category, self::CATEGORIES_ABOUT_A_PERSON, true);
+    }
+
+    /**
      * The one category that is not about the college at all.
      *
      * Stored as 'Administrative' -- 48 concerns carry that value, routing

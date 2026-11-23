@@ -1296,6 +1296,19 @@ class ConcernController extends Controller
         $subjectIds = $validated['about_staff_id'] ?? [];
         unset($validated['about_staff_id']);
 
+        // NOT clamped by category here, and that was tried.
+        //
+        // CATEGORIES_ABOUT_A_PERSON decides which categories show the
+        // checkbox on the filing form -- a question of what to offer a
+        // student. Refusing the DATA on every other category is a
+        // different and wrong claim: a concern naming the General
+        // Services staff under Facilities, or the GAD office under
+        // Harassment, is legitimate and is how the conflict-of-interest
+        // wall gets built. Eight tests say so, and they are right.
+        //
+        // The box is a prompt. The subject list is a fact about the case,
+        // and it arrives by more routes than that one checkbox.
+
         // Nor is the draft it was written from. It names a row in another
         // table and is read from the request below, once the concern is
         // safely saved.
