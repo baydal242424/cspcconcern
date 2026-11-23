@@ -25,6 +25,34 @@ class NotificationController extends Controller
      * third-party page must not be able to silently clear someone's unread
      * badge.
      */
+    /**
+     * Everything, not just the last ten.
+     *
+     * The bell holds ten, because that query runs on every page load and
+     * one that grows with the account would be paid for on every screen.
+     * The cost of the cap was that a notice scrolled off the bottom and
+     * was gone -- a student asked for a document on Monday had no way
+     * back to the request on Friday.
+     *
+     * Paged rather than infinite: a page of twenty-five with a link at
+     * the foot is the same idea as "See previous notifications", and it
+     * works with the back button, which an endless list does not.
+     */
+    public function index()
+    {
+        $notifications = Notification::where('user_id', Auth::id())
+            ->with('concern')
+            ->latest()
+            ->paginate(25);
+
+        return view('notifications.index', [
+            'notifications' => $notifications,
+            'unreadTotal' => Notification::where('user_id', Auth::id())
+                ->where('is_read', false)
+                ->count(),
+        ]);
+    }
+
     public function read(Request $request, string $notificationId)
     {
         // Looked up rather than route-bound, so a row that is no longer

@@ -82,6 +82,15 @@
                  nothing unread, so the list never just empties. --}}
             <p class="bell-empty" id="bell-none-unread" hidden>You have read everything.</p>
         </div>
+
+        {{-- The way back to everything older.
+             This panel holds the ten most recent, because that query runs
+             on every page load and one that grows with the account would
+             be paid for on every screen. The cost was that a notice
+             scrolled off the bottom and was simply gone -- a student asked
+             for a document on Monday had no way back to the request on
+             Friday. --}}
+        <a href="{{ route('notifications.index') }}" class="bell-all">See previous notifications</a>
     </div>
 </div>
 

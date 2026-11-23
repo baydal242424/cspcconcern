@@ -129,6 +129,12 @@ Route::middleware(['auth', 'track.last_seen', 'profile.complete', 'policy.accept
     // Navbar notification bell. Both are POST because they change state --
     // a GET would let a link prefetcher silently clear someone's badge.
     // Ownership is checked inside the controller.
+    // Everything the bell could not fit. The dropdown holds the ten most
+    // recent, because that query runs on every page load; the rest live
+    // here, paged.
+    Route::get('/notifications', [NotificationController::class, 'index'])
+        ->name('notifications.index');
+
     Route::post('/notifications/{notificationId}/read', [NotificationController::class, 'read'])
         ->name('notifications.read');
     Route::post('/notifications/read-all', [NotificationController::class, 'readAll'])

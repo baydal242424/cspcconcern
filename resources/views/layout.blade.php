@@ -765,6 +765,43 @@
             }
         }
 
+        /* The full notifications page: everything the bell could not fit.
+           A row is a form with one button filling it, so the whole row is
+           the target rather than a word inside it. */
+        /* The foot of the bell, the way Facebook's has one. Sticky to the
+           panel rather than the end of a scrolling list, so it is reachable
+           without first scrolling past ten rows to find it. */
+        .bell-all{
+            display:block; text-align:center; padding:.75rem; font-size:.86rem; font-weight:600;
+            color:var(--brand); text-decoration:none; border-top:1px solid var(--line);
+            background:#fbfcfe; border-radius:0 0 12px 12px;
+        }
+        .bell-all:hover{background:var(--brand-50); color:var(--brand-600)}
+
+        .notice-row{margin:0; border-bottom:1px solid var(--line)}
+        .notice-row:last-of-type{border-bottom:0}
+        .notice-open{
+            width:100%; display:flex; align-items:flex-start; gap:.9rem; text-align:left;
+            background:none; border:0; cursor:pointer; font:inherit; color:inherit;
+            padding:1rem .75rem; border-radius:10px; transition:background .15s ease;
+        }
+        .notice-open:hover{background:#f6f8fc}
+        .notice-row.is-unread .notice-open{background:var(--brand-50)}
+        .notice-row.is-unread .notice-open:hover{background:#e4ebff}
+
+        .notice-body{display:flex; flex-direction:column; gap:.2rem; min-width:0; flex:1}
+        .notice-title{font-weight:650; font-size:.95rem; color:var(--navy-900)}
+        .notice-row.is-read .notice-title{font-weight:600; color:var(--ink)}
+        .notice-text{font-size:.88rem; color:var(--muted); white-space:pre-line; overflow-wrap:anywhere}
+        .notice-meta{font-size:.78rem; color:var(--muted); margin-top:.15rem}
+
+        /* The same blue dot the bell uses for an unread row, so the two
+           lists mean the same thing by the same mark. */
+        .notice-dot{
+            width:9px; height:9px; border-radius:50%; background:var(--brand);
+            flex:none; margin-top:.45rem;
+        }
+
         footer{text-align:center; color:var(--muted); padding:2rem 1rem 3rem; font-size:.85rem}
         .footer-link{color:var(--muted); text-decoration:underline; text-underline-offset:3px}
         .footer-link:hover{color:var(--ink)}
@@ -1120,7 +1157,7 @@
                     <a href="{{ route('admin.categories') }}" class="{{ request()->routeIs('admin.categories') ? 'active' : '' }}">Categories</a>
                 @endif
                 @include('partials.notification-bell')
-                <span>{{ Auth::user()->name }} ({{ optional(Auth::user()->role)->name ?? 'N/A' }})</span>
+                <span>{{ Auth::user()->name }} ({{ Auth::user()->role ? \App\Models\Role::label(Auth::user()->role->name) : 'N/A' }})</span>
                 <form action="{{ route('logout') }}" method="POST">
                     @csrf
                     <button type="submit">Logout</button>

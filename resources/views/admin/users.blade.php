@@ -313,7 +313,11 @@
                 <select id="new-role" name="role_id" required>
                     <option value="">— choose —</option>
                     @foreach ($roles as $role)
-                        <option value="{{ $role->id }}" {{ (string) old('role_id') === (string) $role->id ? 'selected' : '' }}>{{ $role->name }}</option>
+                        {{-- The label, not the stored name: "System Admin"
+                             is matched by name in three dozen places and
+                             is a contract, while "Super Admin" is what
+                             the person reading this page should see. --}}
+                        <option value="{{ $role->id }}" {{ (string) old('role_id') === (string) $role->id ? 'selected' : '' }}>{{ \App\Models\Role::label($role->name) }}</option>
                     @endforeach
                 </select>
             </div>
@@ -492,7 +496,7 @@
                         <span class="user-name">{{ $user->name }}</span>
                         <span class="user-email">{{ $user->email }}</span>
                         <span class="user-meta">
-                            <span class="badge-role status-badge status-approved">{{ $roleName }}</span>
+                            <span class="badge-role status-badge status-approved">{{ \App\Models\Role::label($roleName) }}</span>
                             <span class="status-badge status-{{ $user->status }}">{{ ucfirst($user->status) }}</span>
                             @if ($user->is_online)
                                 <span class="status-badge status-approved">● Online</span>
@@ -561,9 +565,15 @@
                                 <label for="role-{{ $user->id }}">Role</label>
                                 <select name="role_id" id="role-{{ $user->id }}" class="js-role">
                                     @foreach ($roles as $role)
+                                        {{-- data-role-name keeps the STORED
+                                             name: the script beside this
+                                             matches on it, and swapping
+                                             that for the label would break
+                                             every rule written against
+                                             'System Admin'. --}}
                                         <option value="{{ $role->id }}" data-role-name="{{ $role->name }}"
                                                 {{ $user->role_id === $role->id ? 'selected' : '' }}>
-                                            {{ $role->name }}
+                                            {{ \App\Models\Role::label($role->name) }}
                                         </option>
                                     @endforeach
                                 </select>
@@ -710,7 +720,7 @@
                                         <label class="extra-role">
                                             <input type="checkbox" name="role_ids[]" value="{{ $role->id }}"
                                                    {{ in_array($role->id, $heldExtra, true) ? 'checked' : '' }}>
-                                            <span>{{ $role->name }}</span>
+                                            <span>{{ \App\Models\Role::label($role->name) }}</span>
                                         </label>
                                     @endforeach
                                 </div>
