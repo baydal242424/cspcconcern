@@ -102,8 +102,21 @@ class AdminController extends Controller
         $this->authorizeSystemAdmin();
 
         $validated = $request->validate([
+            // Optional, and no longer on the form.
+            //
+            // It asked an administrator to type the same thing twice --
+            // "Canteen" and "Canteen & Food Services" -- and to remember
+            // which of the two could be changed afterwards. That split is
+            // real, but it is the system's problem: the stored value is
+            // matched by name on every concern and can never move, while
+            // the label is words on a screen.
+            //
+            // So it is derived from the label below. Still accepted here
+            // because a caller that knows what it wants should be able to
+            // say so, and because the rules it has to satisfy are worth
+            // keeping in one place.
             'name' => [
-                'required', 'string', 'max:60',
+                'nullable', 'string', 'max:60',
                 // Letters, digits, spaces, ampersands and hyphens. The
                 // value ends up in URLs, query strings and a LIKE, and a
                 // category called "100% Done" or "A/B" would be a small
@@ -118,7 +131,9 @@ class AdminController extends Controller
         ]);
 
         ConcernCategory::create([
-            'name' => trim($validated['name']),
+            'name' => filled($validated['name'] ?? null)
+                ? trim($validated['name'])
+                : $this->storedNameFrom($validated['label']),
             'label' => trim($validated['label']),
             'routing_role' => $validated['routing_role'] ?? null,
             // Stored in the shape a sub-category has now: a name and an
@@ -292,6 +307,51 @@ class AdminController extends Controller
         $category->delete();
 
         return back()->with('success', "\"{$name}\" deleted. Nothing was filed under it.");
+    }
+
+    /**
+     * The permanent stored name, worked out from what the label says.
+     *
+     * The two differ in what they are FOR, not in what they say: the
+     * stored value is matched by name on every concern filed under it and
+     * can never move; the label is words on a screen. An administrator
+     * should not have to hold that distinction in their head, or type
+     * "Canteen" and then "Canteen & Food Services".
+     *
+     * Three things to get right.
+     *
+     * The CHARACTER SET. This value reaches URLs, query strings and a
+     * LIKE, so anything outside letters, digits, spaces, ampersands and
+     * hyphens comes out -- "Canteen (New Building)" stores as "Canteen
+     * New Building".
+     *
+     * UNIQUENESS. Two labels can reduce to one stored name, and the
+     * column will not have it twice. A number is appended rather than the
+     * save refused, because the administrator did not choose this value
+     * and cannot be asked to resolve a collision in it.
+     *
+     * NOT EMPTY. A label of nothing but punctuation would reduce to an
+     * empty string, which no concern could ever match. Such a thing has
+     * to be called something, so it is called Category.
+     */
+    private function storedNameFrom(string $label): string
+    {
+        $name = trim(preg_replace('/\s+/', ' ', preg_replace('/[^A-Za-z0-9 &\-]/', '', $label)));
+
+        if ($name === '') {
+            $name = 'Category';
+        }
+
+        $name = mb_substr($name, 0, 60);
+        $base = $name;
+        $n = 2;
+
+        while (ConcernCategory::where('name', $name)->exists()) {
+            $suffix = ' '.$n++;
+            $name = mb_substr($base, 0, 60 - mb_strlen($suffix)).$suffix;
+        }
+
+        return $name;
     }
 
     /**

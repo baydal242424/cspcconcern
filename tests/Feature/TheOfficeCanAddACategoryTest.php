@@ -533,6 +533,77 @@ class TheOfficeCanAddACategoryTest extends TestCase
         fwrite(STDERR, "  [categories] a shipped category cannot be deleted\n");
     }
 
+    /**
+     * The stored name is worked out from the label, not typed twice.
+     *
+     * The form asked for both -- "Canteen", then "Canteen & Food
+     * Services" -- and for the administrator to remember which of the two
+     * could be changed afterwards. The distinction is real and it is the
+     * system's to keep.
+     */
+    public function test_the_stored_name_comes_from_the_label(): void
+    {
+        $this->actingAs($this->admin())->post('/admin/categories', [
+            'label' => 'Canteen & Food Services',
+            'routing_role' => 'General Services',
+        ])->assertRedirect();
+
+        ConcernCategory::forget();
+
+        $this->assertContains('Canteen & Food Services', ConcernCategory::names());
+
+        fwrite(STDERR, "  [categories] the stored name comes from the label\n");
+    }
+
+    /** Characters that would misbehave in a URL or a LIKE are stripped out. */
+    public function test_an_awkward_label_still_produces_a_safe_stored_name(): void
+    {
+        $this->actingAs($this->admin())->post('/admin/categories', [
+            'label' => 'Canteen (New Building) 100%',
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        ConcernCategory::forget();
+
+        $stored = collect(ConcernCategory::names())->first(fn ($n) => str_contains($n, 'Canteen'));
+
+        $this->assertNotNull($stored);
+        $this->assertMatchesRegularExpression('/^[A-Za-z0-9 &\-]+$/', $stored);
+        $this->assertStringNotContainsString('%', $stored);
+        $this->assertStringNotContainsString('(', $stored);
+
+        // The label keeps what the student should read.
+        $this->assertSame('Canteen (New Building) 100%', ConcernCategory::labelFor($stored));
+
+        fwrite(STDERR, "  [categories] an awkward label still stores safely\n");
+    }
+
+    /**
+     * Two labels reducing to one stored name do not collide.
+     *
+     * A number is appended rather than the save refused: the
+     * administrator did not choose this value and cannot be asked to
+     * resolve a clash inside it.
+     */
+    public function test_two_labels_that_reduce_to_one_name_both_save(): void
+    {
+        foreach (['Canteen!', 'Canteen?'] as $label) {
+            $this->actingAs($this->admin())
+                ->post('/admin/categories', ['label' => $label])
+                ->assertRedirect()
+                ->assertSessionHasNoErrors();
+
+            ConcernCategory::forget();
+            $this->flushSession();
+        }
+
+        $stored = collect(ConcernCategory::names())->filter(fn ($n) => str_starts_with($n, 'Canteen'));
+
+        $this->assertCount(2, $stored, 'both saved');
+        $this->assertCount(2, $stored->unique(), 'under different stored names');
+
+        fwrite(STDERR, "  [categories] two labels reducing to one name both save\n");
+    }
+
     /** Two categories cannot share a stored name. */
     public function test_a_name_cannot_be_used_twice(): void
     {

@@ -32,23 +32,25 @@
     <form method="POST" action="{{ route('admin.categories.store') }}" style="max-width:40rem;">
         @csrf
 
-        <div class="form-group">
-            <label for="name">Stored name <span class="req">*</span></label>
-            <input type="text" name="name" id="name" required maxlength="60"
-                   value="{{ old('name') }}" placeholder="Canteen">
-            <p style="color:var(--muted); font-size:.8rem; margin-top:.3rem;">
-                Written once and never again. Letters, numbers, spaces, &amp; and - only.
-            </p>
-            @error('name')
-                <div style="color:var(--danger-ink); font-size:.85rem; margin-top:.25rem;">{{ $message }}</div>
-            @enderror
-        </div>
-
+        {{-- "Stored name" was a field here, asking for the same thing a
+             second time: "Canteen", then "Canteen & Food Services". The
+             split between the two is real -- the stored value is matched
+             by name on every concern and can never move, while the label
+             is words on a screen -- but it is the system's problem, not
+             something to make an administrator hold in their head. It is
+             worked out from the label now. --}}
         <div class="form-group">
             <label for="label">What students see <span class="req">*</span></label>
             <input type="text" name="label" id="label" required maxlength="80"
                    value="{{ old('label') }}" placeholder="Canteen &amp; Food Services">
+            <p style="color:var(--muted); font-size:.8rem; margin-top:.3rem;">
+                You can change this later. The permanent value stored on each
+                concern is taken from it, and that one never moves.
+            </p>
             @error('label')
+                <div style="color:var(--danger-ink); font-size:.85rem; margin-top:.25rem;">{{ $message }}</div>
+            @enderror
+            @error('name')
                 <div style="color:var(--danger-ink); font-size:.85rem; margin-top:.25rem;">{{ $message }}</div>
             @enderror
         </div>
