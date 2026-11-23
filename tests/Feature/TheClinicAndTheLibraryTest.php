@@ -135,6 +135,63 @@ class TheClinicAndTheLibraryTest extends TestCase
     }
 
     /**
+     * The records office has a category, and it reaches Dr. Malaya's desk.
+     *
+     * The Registrar became a role and had nothing routed to it: nameable,
+     * referrable, never the first desk a concern reached. A student whose
+     * transcript had not been released filed under "Others" and it went to
+     * their class adviser.
+     */
+    public function test_a_registrar_concern_reaches_the_records_office(): void
+    {
+        $this->assertContains('Registrar', ConcernCategory::offered());
+        $this->assertSame('Registrar', ConcernCategory::routingFor('Registrar'));
+
+        $subs = ConcernCategory::subcategoriesFor('Registrar');
+
+        $this->assertGreaterThanOrEqual(5, count($subs), 'at least five, as asked');
+        $this->assertContains('Transcript of Records', $subs);
+
+        $this->actingAs($this->student())->post('/concerns', [
+            'category' => 'Registrar',
+            'subcategory' => 'Transcript of Records',
+            'description' => 'I requested my transcript three weeks ago and have heard nothing since.',
+        ])->assertRedirect();
+
+        $concern = Concern::latest('id')->firstOrFail();
+
+        $this->assertSame('Registrar', optional(optional($concern->assignedUser)->role)->name);
+
+        fwrite(STDERR, "  [offices] a registrar concern reaches the records office\n");
+    }
+
+    /**
+     * It does not repeat what Academic already asks.
+     *
+     * Academic carries Enrollment, Requirements and Deadlines, and those
+     * are arguably this office's work too -- but students have been filing
+     * under them, so moving them would recategorise real concerns and
+     * leave two forms asking one question. The line drawn instead:
+     * Academic is about STUDYING, the Registrar about the RECORD of it.
+     */
+    public function test_the_registrar_does_not_duplicate_academic(): void
+    {
+        $registrar = ConcernCategory::subcategoriesFor('Registrar');
+        $academic = ConcernCategory::subcategoriesFor('Academic');
+
+        $this->assertSame([], array_intersect($registrar, $academic),
+            'no sub-category appears under both');
+
+        // A wrong grade is the instructor's. A grade that is right but
+        // missing from the record is this office's. Both exist, and they
+        // are not the same words.
+        $this->assertContains('Grades', $academic);
+        $this->assertContains('Grade missing from my record', $registrar);
+
+        fwrite(STDERR, "  [offices] the registrar does not repeat Academic\n");
+    }
+
+    /**
      * "Others" stays at the bottom, whatever is added above it.
      *
      * It was simply the last one seeded, so the Library landed under it --
