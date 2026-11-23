@@ -157,6 +157,11 @@ class User extends Authenticatable
         // owns the matter.
         'Clinic',
         'Library',
+        // Records, enrolment documents, transcripts. Dr. Malaya held this
+        // post as Faculty/Staff, which routing cannot see -- a category is
+        // routed to a ROLE, so the office could be named in a concern and
+        // never handed one.
+        'Registrar',
     ];
 
     /**
@@ -316,6 +321,11 @@ class User extends Authenticatable
         'ICT Unit',
         'Clinic',
         'Library',
+        // Records, enrolment documents, transcripts. Dr. Malaya held this
+        // post as Faculty/Staff, which routing cannot see -- a category is
+        // routed to a ROLE, so the office could be named in a concern and
+        // never handed one.
+        'Registrar',
     ];
 
     /**

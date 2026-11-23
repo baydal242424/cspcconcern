@@ -65,6 +65,11 @@ class ConcernController extends Controller
         // been hurt needs a nurse, and a counsellor is not one.
         'Clinic',
         'Library',
+        // Records, enrolment documents, transcripts. Dr. Malaya held this
+        // post as Faculty/Staff, which routing cannot see -- a category is
+        // routed to a ROLE, so the office could be named in a concern and
+        // never handed one.
+        'Registrar',
     ];
 
 
@@ -168,6 +173,11 @@ class ConcernController extends Controller
         'ICT Unit',
         'Clinic',
         'Library',
+        // Records, enrolment documents, transcripts. Dr. Malaya held this
+        // post as Faculty/Staff, which routing cannot see -- a category is
+        // routed to a ROLE, so the office could be named in a concern and
+        // never handed one.
+        'Registrar',
     ];
 
     /**
@@ -199,7 +209,13 @@ class ConcernController extends Controller
         // Grades, enrolment, schedules, how somebody teaches. Academic
         // work, handled in the academic line: the adviser and the chair
         // of the programme.
-        'Academic' => ['Adviser', 'Program Chair', 'Faculty/Staff'],
+        // The Registrar is here because Enrollment, Requirements and
+        // Deadlines are Academic sub-categories and are that office's
+        // work. Without a category naming it, referralRolesFor() counts
+        // the Registrar among the offices reachable only by CLIMBING --
+        // which is true of a Dean and the VPAA and of nobody else. A
+        // student does not climb to the records office.
+        'Academic' => ['Adviser', 'Program Chair', 'Registrar', 'Faculty/Staff'],
         // The counselling cases. General Services and System Admin have no
         // part in any of them.
         'Mental Health' => ['Guidance Counselor', 'Adviser'],
@@ -282,6 +298,23 @@ class ConcernController extends Controller
         // person themselves, the current holder, or anybody the concern
         // names, so this cannot become a loop of one.
         'Faculty/Staff' => ['Dean', 'Faculty/Staff'],
+
+        // GAD handles harassment now, and a harassment case often needs
+        // counselling alongside whatever GAD does about it. Guidance is
+        // the one place they have to be able to reach.
+        'Gender and Development' => ['Guidance Counselor', 'Legal Affairs', 'Faculty/Staff'],
+
+        // The ICT Unit reaches a Dean.
+        //
+        // Put here rather than in Equipment's category list, which was the
+        // first attempt. The Dean and the VPAA are reachable by CLIMBING
+        // and not from a category -- a list that names a Dean is a way
+        // round whoever stands between, and a test holds that line.
+        //
+        // Two cases need it: a complaint that names a Dean, and laboratory
+        // equipment belonging to a college rather than to the institution,
+        // where the lab in-charge answers to their Dean and not to ICT.
+        'ICT Unit' => ['Dean', 'Faculty/Staff'],
     ];
 
     /** Nothing is offered on every concern any more; the ladder replaced it. */
@@ -348,6 +381,7 @@ class ConcernController extends Controller
         'ICT Unit'               => 'ICT Unit (computers & devices)',
         'Clinic'                 => 'Clinic (injuries & health)',
         'Library'                => 'Library',
+        'Registrar'              => 'Registrar (records & enrolment)',
     ];
 
     /**

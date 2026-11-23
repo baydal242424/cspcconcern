@@ -320,7 +320,12 @@ class UserSeeder extends Seeder
             // with nobody at it does not swallow a concern -- routeConcern()
             // climbs its chain instead -- but it does hand library matters
             // to somebody who cannot act on them, so the seat is filled.
-            ['library@cspc.edu.ph', 'The Library', $library_role, 'Library'],
+            // The librarian by name. It was a placeholder called "The
+            // Library" while the role had nobody in it; a desk with a
+            // person on it is what makes a category routable, and a
+            // placeholder beside a real account would mean a concern
+            // reaching whichever the routing happened to pick.
+            ['lrds@cspc.edu.ph', 'Mr. Yves Aristeo A. Febres', $library_role, 'Library and Resource Development Services'],
             // ---- Gender and Development ----
             // Holds its own role, not Faculty/Staff: GAD is a referral
             // destination, and referred_to stores a ROLE NAME, so it could not

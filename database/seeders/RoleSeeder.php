@@ -138,6 +138,13 @@ class RoleSeeder extends Seeder
                 'name' => 'Library',
                 'description' => 'The library; handles borrowing, fines, clearance and the reading room',
             ],
+            [
+                // Dr. Malaya held this post as Faculty/Staff in the
+                // Student Registration and Records department -- a
+                // department, which routing cannot see.
+                'name' => 'Registrar',
+                'description' => 'Student Registration and Records; handles records, enrolment documents and transcripts',
+            ],
         ];
 
         foreach ($roles as $role) {
