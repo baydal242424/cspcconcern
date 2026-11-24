@@ -74,6 +74,44 @@ class ConcernController extends Controller
 
 
     /**
+     * The offices a category or sub-category may be pointed at.
+     *
+     * The admin page offered every employee role -- seventeen of them --
+     * and nine could not be a first desk at all:
+     *
+     *  - INSTRUCTOR is a person, not an office. Pointing a category there
+     *    picks whichever instructor the handler search returns first.
+     *  - DEAN, PROGRAM CHAIR, VPAA and HEAD OF SCHOOL are rungs on the
+     *    ladder, reached by climbing from below. A category naming one is
+     *    a way past whoever stands between, which is the thing the ladder
+     *    exists to prevent.
+     *  - SYSTEM ADMIN and STAFF ADMIN are the administration, and the
+     *    System Admin is routeConcern()'s last resort -- the desk that
+     *    catches anything no office would take. Choosing it as a first
+     *    desk puts ordinary traffic on the safety net.
+     *
+     * What is left is the offices: somewhere with a queue, a door and
+     * staff behind it. Every one of them has at least one person in it.
+     *
+     * @var list<string>
+     */
+    public const ROUTABLE_ROLES = [
+        'Adviser',
+        'Guidance Counselor',
+        'Gender and Development',
+        'Legal Affairs',
+        'General Services',
+        'ICT Unit',
+        'Clinic',
+        'Library',
+        'Registrar',
+        // The catch-all office. Not a desk so much as a dozen of them --
+        // Records, Health Services, every college's own staff -- which is
+        // why it stays offered where none of the named ones fit.
+        'Faculty/Staff',
+    ];
+
+    /**
      * Which ROLE handles each category. Step one of routeConcern(); step two
      * picks which person in that role.
      *

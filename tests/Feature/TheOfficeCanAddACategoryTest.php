@@ -364,12 +364,12 @@ class TheOfficeCanAddACategoryTest extends TestCase
             'label' => 'Academic',
             'routing_role' => 'Adviser',
             'is_active' => '1',
-            'route' => ['Instructor conduct' => 'Dean'],
+            'route' => ['Enrollment' => 'Registrar'],
         ])->assertRedirect();
 
         ConcernCategory::forget();
 
-        $this->assertSame('Dean', ConcernCategory::routeForSubcategory('Academic', 'Instructor conduct'));
+        $this->assertSame('Registrar', ConcernCategory::routeForSubcategory('Academic', 'Enrollment'));
         $this->assertNull(ConcernCategory::routeForSubcategory('Academic', 'Grades'),
             'the ones left alone still follow the category');
 
@@ -377,13 +377,13 @@ class TheOfficeCanAddACategoryTest extends TestCase
         $this->flushSession();
         $this->actingAs($this->student())->post('/concerns', [
             'category' => 'Academic',
-            'subcategory' => 'Instructor conduct',
-            'description' => 'My instructor said something I want to report properly.',
+            'subcategory' => 'Enrollment',
+            'description' => 'My enrolment did not go through and nobody can tell me why.',
         ])->assertRedirect();
 
         $concern = Concern::latest('id')->firstOrFail();
 
-        $this->assertSame('Dean', optional(optional($concern->assignedUser)->role)->name);
+        $this->assertSame('Registrar', optional(optional($concern->assignedUser)->role)->name);
 
         // While an ordinary Academic one still goes where it always did.
         $this->flushSession();
@@ -602,6 +602,65 @@ class TheOfficeCanAddACategoryTest extends TestCase
         $this->assertCount(2, $stored->unique(), 'under different stored names');
 
         fwrite(STDERR, "  [categories] two labels reducing to one name both save\n");
+    }
+
+    /**
+     * The office picker offers offices, not everybody with a role.
+     *
+     * It listed all seventeen employee roles, and nine of them cannot be
+     * a first desk: an Instructor is a person rather than an office; the
+     * Dean, Program Chair, VPAA and Head of School are rungs reached by
+     * climbing, so naming one is a way past whoever stands between; and
+     * the two admin roles are the administration, with the System Admin
+     * being routeConcern()'s last resort -- the desk that catches what no
+     * office would take.
+     */
+    public function test_only_offices_can_be_chosen_as_a_destination(): void
+    {
+        $offered = \App\Http\Controllers\ConcernController::ROUTABLE_ROLES;
+
+        foreach (['Guidance Counselor', 'Clinic', 'Library', 'Registrar',
+                  'Gender and Development', 'General Services', 'ICT Unit'] as $office) {
+            $this->assertContains($office, $offered, "{$office} is an office");
+        }
+
+        foreach (['Instructor', 'Dean', 'Program Chair',
+                  'Vice President for Academic Affairs', 'Head of School',
+                  'System Admin', 'Staff Admin'] as $notAnOffice) {
+            $this->assertNotContains($notAnOffice, $offered, "{$notAnOffice} is not a first desk");
+        }
+
+        // And the server refuses one, rather than merely leaving it out
+        // of the list: the form can be posted by hand.
+        $this->actingAs($this->admin())->post('/admin/categories', [
+            'label' => 'Something',
+            'routing_role' => 'Instructor',
+        ])->assertSessionHasErrors('routing_role');
+
+        fwrite(STDERR, "  [categories] only offices can be chosen as a destination\n");
+    }
+
+    /**
+     * Everything already pointed somewhere is still pointed somewhere.
+     *
+     * Narrowing a list of destinations can orphan what was chosen from
+     * the wider one. Nothing was: all eight offices in use are offices.
+     */
+    public function test_nothing_in_use_was_narrowed_away(): void
+    {
+        foreach (ConcernCategory::cached() as $category) {
+            if (! $category->routing_role) {
+                continue;
+            }
+
+            $this->assertContains(
+                $category->routing_role,
+                \App\Http\Controllers\ConcernController::ROUTABLE_ROLES,
+                "{$category->name} routes to {$category->routing_role}, which must still be choosable"
+            );
+        }
+
+        fwrite(STDERR, "  [categories] nothing in use was narrowed away\n");
     }
 
     /** Two categories cannot share a stored name. */

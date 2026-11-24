@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\ConcernController;
 use App\Models\AuditLog;
 use App\Models\Concern;
 use App\Models\ConcernCategory;
@@ -66,7 +67,7 @@ class AdminController extends Controller
             // What a new category may be routed to. The same list the
             // referral picker uses, so a category cannot be pointed at an
             // office the rest of the system does not believe in.
-            'roles' => Role::whereIn('name', User::EMPLOYEE_ROLES)
+            'roles' => Role::whereIn('name', ConcernController::ROUTABLE_ROLES)
                 ->orderBy('name')
                 ->pluck('name'),
             // How many concerns each one is carrying. A category with
@@ -125,7 +126,7 @@ class AdminController extends Controller
                 'unique:concern_categories,name',
             ],
             'label' => ['required', 'string', 'max:80'],
-            'routing_role' => ['nullable', 'string', Rule::in(User::EMPLOYEE_ROLES)],
+            'routing_role' => ['nullable', 'string', Rule::in(ConcernController::ROUTABLE_ROLES)],
             // One per line in the textarea.
             'subcategories' => ['nullable', 'string', 'max:2000'],
         ]);
@@ -171,7 +172,7 @@ class AdminController extends Controller
 
         $validated = $request->validate([
             'label' => ['required', 'string', 'max:80'],
-            'routing_role' => ['nullable', 'string', Rule::in(User::EMPLOYEE_ROLES)],
+            'routing_role' => ['nullable', 'string', Rule::in(ConcernController::ROUTABLE_ROLES)],
             // Sub-categories are changed by naming what to remove and what
             // to add -- never by submitting the whole list.
             //
@@ -191,7 +192,7 @@ class AdminController extends Controller
             // means "whatever the category says", which is what they all
             // said before any of them could say anything.
             'route' => ['nullable', 'array'],
-            'route.*' => ['nullable', 'string', Rule::in(User::EMPLOYEE_ROLES)],
+            'route.*' => ['nullable', 'string', Rule::in(ConcernController::ROUTABLE_ROLES)],
             'add' => ['nullable', 'string', 'max:2000'],
             'is_active' => ['nullable', 'boolean'],
         ]);
