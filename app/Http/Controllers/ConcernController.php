@@ -8,6 +8,7 @@ use App\Models\ConcernDraft;
 use App\Models\ConcernNote;
 use App\Models\ConcernSummons;
 use App\Models\AuditLog;
+use App\Models\Setting;
 use App\Models\User;
 use App\Models\Attachment;
 use App\Models\Feedback;
@@ -3238,11 +3239,49 @@ class ConcernController extends Controller
      * the people or the student. Returning nobody lets the caller go up to the
      * dean, who does.
      */
+    /**
+     * Whether a concern should land on a DEMO desk rather than the real one.
+     *
+     * A demonstration is given as the offices, and an office you cannot
+     * sign in to cannot answer. The real holders are the right desks on a
+     * working site and the wrong ones on a stage, so this moves the
+     * landing place while it is on and changes nothing while it is off --
+     * which is how it is left, by default, on every deploy.
+     *
+     * Deliberately NOT the sign-in switch. Letting somebody sign in and
+     * re-routing every student's report are two decisions, and one of
+     * them should never be made by accident while making the other.
+     */
+    public static function demoDesksPreferred(): bool
+    {
+        return Setting::flag(Setting::DEMO_ROUTING, false);
+    }
+
+    /**
+     * The demo desk for a role, or null when there is none or this is off.
+     *
+     * `demo.` only. The participants command also marks REAL accounts so
+     * they can be signed into, and those are exactly the desks this is
+     * meant to step past.
+     */
+    private function demoDeskFor($candidates): ?User
+    {
+        if (! self::demoDesksPreferred()) {
+            return null;
+        }
+
+        return (clone $candidates)->where('email', 'like', 'demo.%')->first();
+    }
+
     private function findHandlerInCollege(string $roleName, Concern $concern): ?User
     {
         $candidates = User::whereHas('role', fn ($q) => $q->where('name', $roleName))
             ->whereNotIn('id', $concern->subjectIds())
             ->where('id', '!=', $concern->user_id);
+
+        if ($demo = $this->demoDeskFor($candidates)) {
+            return $demo;
+        }
 
         if ($concern->course) {
             $sameCourse = (clone $candidates)->where('course', $concern->course)->first();
@@ -3276,6 +3315,11 @@ class ConcernController extends Controller
         // and close it. Excluding about_staff_id alone left that open on the
         // reporter's side of the wall.
         $candidates->where('id', '!=', $concern->user_id);
+
+        // The demo desk first while a demonstration is running.
+        if ($demo = $this->demoDeskFor($candidates)) {
+            return $demo;
+        }
 
         // Narrowest match first. A Program Chair chairs a single programme, so
         // a BSIS student's concern should reach the BSIS chair rather than

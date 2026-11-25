@@ -3,6 +3,8 @@
 namespace App\Console\Commands;
 
 use App\Models\Role;
+use App\Models\Section;
+use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
@@ -99,6 +101,11 @@ class DemoParticipants extends Command
             $n = User::where('demo_signin', true)->update(['demo_signin' => false]);
             $this->info("Unmarked {$n} account".($n === 1 ? '' : 's').'.');
 
+            Setting::putFlag(Setting::DEMO_ROUTING, false);
+            $this->line('Concerns go to the real desks again.');
+
+            $this->restoreAdviser();
+
             return self::SUCCESS;
         }
 
@@ -180,6 +187,13 @@ class DemoParticipants extends Command
             $this->line('They sign in with CSPC Mail themselves, as they already have.');
         }
 
+        // Concerns land on the demo desks from here.
+        Setting::putFlag(Setting::DEMO_ROUTING, true);
+        $this->newLine();
+        $this->info('Concerns now land on the demo desks.');
+
+        $this->handTheClassToTheDemoAdviser();
+
         $this->newLine();
         $this->line('The sign-in dropdown still has to be switched on, in Manage Users or with:');
         $this->line("  php artisan tinker --execute=\"App\\Models\\Setting::putFlag('demo_login', true);\"");
@@ -238,6 +252,100 @@ class DemoParticipants extends Command
 
         return self::SUCCESS;
     }
+
+    /**
+     * Academic reaches the ADVISER OF THE SECTION, not whoever holds the
+     * role, so demoDeskFor() never sees it: Section::adviserFor() has
+     * already named a person by the time routing asks.
+     *
+     * The demo instructor takes the class for the demonstration, and the
+     * adviser who had it is remembered so --clear can hand it straight
+     * back. Without this one step, every Academic concern lands on a real
+     * adviser nobody at the demonstration can sign in as.
+     */
+    private function handTheClassToTheDemoAdviser(): void
+    {
+        $demo = User::where('email', 'demo.instructor@cspc.edu.ph')->first();
+
+        if (! $demo) {
+            $this->warn('No demo instructor, so Academic still goes to the real adviser.');
+            $this->line("  php artisan db:seed --class='Database\\Seeders\\DemoRoleSeeder' --force");
+
+            return;
+        }
+
+        $section = Section::where('course', self::COURSE)
+            ->where('section', self::SECTION)
+            ->orderByDesc('school_year')
+            ->orderByDesc('semester')
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $section) {
+            $section = Section::create([
+                'course' => self::COURSE,
+                'section' => self::SECTION,
+                'adviser_id' => $demo->id,
+            ]);
+
+            $this->line(self::COURSE.' '.self::SECTION.' had no row; created one advised by '.$demo->name.'.');
+
+            return;
+        }
+
+        if ((int) $section->adviser_id === (int) $demo->id) {
+            $this->line('Academic already reaches '.$demo->name.'.');
+
+            return;
+        }
+
+        // Remembered so it can be given back, and only the FIRST time, so
+        // running this twice cannot record the demo adviser as the one to
+        // restore.
+        if (Setting::flag(self::PRIOR, false) === false
+            && ! Setting::where('key', self::PRIOR_ID)->exists()) {
+            Setting::updateOrCreate(
+                ['key' => self::PRIOR_ID],
+                ['value' => $section->id.':'.($section->adviser_id ?? '')]
+            );
+            Setting::forget();
+        }
+
+        $was = User::find($section->adviser_id);
+
+        $section->forceFill(['adviser_id' => $demo->id])->save();
+
+        $this->line('Academic for '.self::COURSE.' '.self::SECTION.' now reaches '.$demo->name
+            .($was ? ' (was '.$was->name.')' : '').'.');
+    }
+
+    /** Give the class back to whoever was advising it. */
+    private function restoreAdviser(): void
+    {
+        $row = Setting::where('key', self::PRIOR_ID)->first();
+
+        if (! $row || ! $row->value) {
+            return;
+        }
+
+        [$sectionId, $adviserId] = array_pad(explode(':', $row->value, 2), 2, '');
+
+        $section = Section::find($sectionId);
+
+        if ($section) {
+            $section->forceFill(['adviser_id' => $adviserId === '' ? null : (int) $adviserId])->save();
+            $was = User::find($adviserId);
+            $this->line('Academic goes back to '.($was->name ?? 'nobody').'.');
+        }
+
+        $row->delete();
+        Setting::forget();
+    }
+
+    /** Where the adviser who had the class is remembered. */
+    private const PRIOR = 'demo_prior_adviser_done';
+
+    private const PRIOR_ID = 'demo_prior_adviser';
 
     /** A readable name from an address, for an account nobody has filled in. */
     private function nameFrom(string $email): string

@@ -19,6 +19,15 @@ class Setting extends Model
     /** The test-account sign-in dropdown on the login page. */
     public const DEMO_LOGIN = 'demo_login';
 
+    /**
+     * Whether a concern lands on a DEMO desk rather than the real one.
+     *
+     * Separate from the sign-in switch on purpose. Turning the dropdown
+     * on lets somebody sign in; it should not also, silently, change
+     * where a student's report goes. Two decisions, two rows.
+     */
+    public const DEMO_ROUTING = 'demo_routing';
+
     protected $primaryKey = 'key';
 
     public $incrementing = false;
