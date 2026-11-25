@@ -115,6 +115,8 @@ class DemoParticipants extends Command
             $n = User::where('demo_signin', true)->update(['demo_signin' => false]);
             $this->info("Unmarked {$n} account".($n === 1 ? '' : 's').'.');
 
+            $this->restoreTheRealHolders();
+
             Setting::putFlag(Setting::DEMO_ROUTING, false);
             $this->line('Concerns go to the real desks again.');
 
@@ -163,6 +165,9 @@ class DemoParticipants extends Command
                 $signedIn[] = $user->email;
             }
         }
+
+        // The real holders step aside first, so every desk below is a demo one.
+        $this->parkTheRealHolders();
 
         // The offices.
         foreach (self::OFFICES as $role) {
@@ -376,6 +381,148 @@ class DemoParticipants extends Command
         Setting::forget();
 
         $this->line('Academic for '.self::COURSE.' '.self::SECTION.' reaches '.$adviser->name.' <'.$adviser->email.'>.');
+    }
+    /**
+     * Roles taken off the real people holding them while a demonstration
+     * runs, so the only holder of each is a demo account.
+     *
+     * Every desk a category lands on or a case can be referred to. NOT the
+     * System Admin, Staff Admin or Head of School -- the people running the
+     * demonstration sign in as those -- and NOT the Adviser, because the
+     * class adviser is Glaiza Pocaan on purpose.
+     */
+    private const PARKED_ROLES = [
+        'Guidance Counselor',
+        'Gender and Development',
+        'General Services',
+        'ICT Unit',
+        'Clinic',
+        'Library',
+        'Registrar',
+        'Student Affairs and Services',
+        'Legal Affairs',
+        'Program Chair',
+        'Dean',
+        'Vice President for Academic Affairs',
+        'Faculty/Staff',
+    ];
+
+    /** Where each parked person's own role is kept, so --clear can give it back. */
+    private const PARKED_KEY = 'demo_parked_roles';
+
+    /**
+     * Take the real holders out of each office, remembering who they were.
+     *
+     * Their role is set to nothing rather than to some other role. Any other
+     * role is a desk of its own -- Faculty/Staff is a referral destination,
+     * Instructor is the fallback below a refused adviser -- and parking
+     * sixty people in one would hand them a queue they never had. With no
+     * role they are in no picker, no dropdown and no routing pool, and the
+     * "No role" filter in Manage Users finds every one of them.
+     *
+     * A role is only cleared where a demo account already holds it. Taking
+     * the last holder out of an office leaves its concerns landing on
+     * nobody, which is the one outcome worse than landing on the wrong
+     * person.
+     */
+    private function parkTheRealHolders(): void
+    {
+        $parked = json_decode((string) Setting::where('key', self::PARKED_KEY)->value('value'), true) ?: [];
+        $moved = 0;
+        $kept = [];
+
+        foreach (self::PARKED_ROLES as $roleName) {
+            $roleId = Role::where('name', $roleName)->value('id');
+
+            if (! $roleId) {
+                continue;
+            }
+
+            $hasDemo = User::where('role_id', $roleId)
+                ->where(fn ($q) => $q->where('email', 'like', 'demo.%')->orWhere('email', 'like', 'test.%'))
+                ->exists();
+
+            if (! $hasDemo) {
+                $kept[] = $roleName;
+
+                continue;
+            }
+
+            $real = User::where('role_id', $roleId)
+                ->where('email', 'not like', 'demo.%')
+                ->where('email', 'not like', 'test.%')
+                ->get();
+
+            foreach ($real as $person) {
+                // The FIRST role recorded is the one given back, so running
+                // this twice cannot record "no role" as somebody's own.
+                $parked[(string) $person->id] ??= (int) $person->role_id;
+                $person->forceFill(['role_id' => null, 'demo_signin' => false])->save();
+                $moved++;
+            }
+        }
+
+        Setting::updateOrCreate(['key' => self::PARKED_KEY], ['value' => json_encode($parked)]);
+        Setting::forget();
+
+        $this->line("Stepped {$moved} real holder".($moved === 1 ? '' : 's').' aside; demo accounts hold those desks now.');
+
+        if ($kept !== []) {
+            $this->warn('Left with their real holders, because no demo account holds them yet: '.implode(', ', $kept));
+            $this->line("  php artisan db:seed --class='Database\\Seeders\\DemoRoleSeeder' --force");
+        }
+    }
+
+    /** Give every parked person their own role back. */
+    private function restoreTheRealHolders(): void
+    {
+        $row = Setting::where('key', self::PARKED_KEY)->first();
+        $parked = $row ? (json_decode((string) $row->value, true) ?: []) : [];
+
+        $n = 0;
+
+        foreach ($parked as $userId => $roleId) {
+            $n += User::where('id', $userId)->whereNull('role_id')->update(['role_id' => $roleId]);
+        }
+
+        $row?->delete();
+        Setting::forget();
+
+        $this->line("Gave {$n} real holder".($n === 1 ? '' : 's').' their own role back.');
+    }
+    /**
+     * Take the old demo instructor out of the dropdown.
+     *
+     * The `demo.` prefix offers an account whether it is marked or not, so
+     * unmarking is not enough to remove this one. It is a fixture rather
+     * than a person, but it is NOT deleted while anything points at it: a
+     * concern whose handler row is gone is a concern nobody holds, which is
+     * worse than one held by the wrong desk.
+     *
+     * (This method was lost once, cut out with the code around it when the
+     * class adviser changed, and the command died on its last line. A test
+     * now runs the command end to end so that cannot happen quietly again.)
+     */
+    private function retireTheDemoInstructor(): void
+    {
+        $old = User::where('email', 'demo.instructor@cspc.edu.ph')->first();
+
+        if (! $old) {
+            return;
+        }
+
+        $holds = Concern::where('assigned_to', $old->id)->count();
+        $advises = Section::where('adviser_id', $old->id)->count();
+
+        if ($holds > 0 || $advises > 0) {
+            $this->warn('The old Demo Instructor still holds '.$holds.' concern'.($holds === 1 ? '' : 's')
+                .' and advises '.$advises.' section'.($advises === 1 ? '' : 's').', so it stays.');
+
+            return;
+        }
+
+        $old->forceDelete();
+        $this->line('Retired the old Demo Instructor; teaching staff are out of the dropdown.');
     }
     /** A readable name from an address, for an account nobody has filled in. */
     private function nameFrom(string $email): string
