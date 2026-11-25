@@ -18,6 +18,13 @@
         </include>
     </source>
     <php>
+        <!-- The suite builds up across 800-odd tests and ran out of the
+             128M default partway through, which reads as a crash rather
+             than a failure: "Premature end of PHP process". Each test
+             passes; they simply do not all fit at once. This is the
+             child process the runner starts, so a -d flag on the command
+             line never reached it. -->
+        <ini name="memory_limit" value="1G"/>
         <env name="APP_ENV" value="testing"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
