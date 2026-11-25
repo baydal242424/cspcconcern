@@ -148,6 +148,10 @@ Route::middleware(['auth', 'track.last_seen', 'profile.complete', 'policy.accept
     Route::post('/admin/categories/{category}', [AdminController::class, 'updateCategory'])->name('admin.categories.update');
     Route::delete('/admin/categories/{category}', [AdminController::class, 'destroyCategory'])->name('admin.categories.destroy');
 
+    // The test-account sign-in switch. A System Admin alone, checked in
+    // the controller like every other admin action here.
+    Route::post('/admin/demo-login', [AdminController::class, 'updateDemoLogin'])->name('admin.demoLogin');
+
     Route::get('/admin/users', [AdminController::class, 'index'])->name('admin.users');
     Route::post('/admin/users', [AdminController::class, 'storeUser'])->name('admin.users.store');
     Route::post('/admin/users/{user}/ban', [AdminController::class, 'ban'])->name('admin.users.ban');

@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\Concern;
 use App\Models\Notification;
 use App\Models\Role;
+use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
@@ -127,9 +128,19 @@ class AuthController extends Controller
     /**
      * Whether sign-in-as-anyone is available.
      *
-     * DEMO_LOGIN_ENABLED turns on a dropdown that signs a visitor in as a
-     * seeded account without a password. It defaults to false, so a deploy
-     * is safe by omission.
+     * A dropdown that signs a visitor in as a seeded account without a
+     * password. It is off unless somebody turns it on, and there are two
+     * ways to do that.
+     *
+     * THE SWITCH IN MANAGE USERS is the one that gets used. A System Admin
+     * flicks it and the dropdown appears, on whatever the site is deployed
+     * to, with no hosting-panel edit and no redeploy. Turning a
+     * demonstration on used to be work only the person who set the site up
+     * could do, at the moment they were least able to -- the morning of it.
+     *
+     * DEMO_LOGIN_ENABLED is now the DEFAULT rather than the answer: it says
+     * what the site does before anybody has decided. It stays false by
+     * omission, so a fresh deploy is still shut.
      *
      * IT USED TO BE REFUSED OUTRIGHT ON PRODUCTION whatever the flag said,
      * for one reason written down at the time: on the deployed app it would
@@ -146,7 +157,7 @@ class AuthController extends Controller
      */
     private static function demoLoginEnabled(): bool
     {
-        return (bool) config('auth.demo_login');
+        return Setting::flag(Setting::DEMO_LOGIN, (bool) config('auth.demo_login'));
     }
 
     /**

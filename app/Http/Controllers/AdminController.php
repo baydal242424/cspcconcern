@@ -10,6 +10,7 @@ use App\Models\Notification;
 use App\Models\Referral;
 use App\Models\Role;
 use App\Models\Section;
+use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -17,6 +18,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -474,7 +476,51 @@ class AdminController extends Controller
             'roleOptions' => $roleOptions,
             'collegeOptions' => $collegeOptions,
             'statusOptions' => $statusOptions,
+            // The test-account sign-in switch. Only a System Admin sees
+            // it, because only a System Admin may move it.
+            'demoLoginOn' => Setting::flag(Setting::DEMO_LOGIN, (bool) config('auth.demo_login')),
+            'maySwitchDemoLogin' => (bool) Auth::user()?->hasAnyRole(['System Admin']),
         ]);
+    }
+
+    /**
+     * Turn the test-account sign-in dropdown on or off.
+     *
+     * This is an authentication bypass, so the switch is a System Admin's
+     * alone -- authorizeAdmin() would hand it to a Staff Admin, who
+     * manages the roster and could otherwise open a door and walk
+     * through it.
+     *
+     * What it opens is narrow by then. On a deployed site the dropdown
+     * offers only `test.` and `demo.` addresses -- no real member of
+     * staff -- and never a System Admin, Staff Admin or Head of School.
+     * AuthController::offerableDemoAccounts() is where that is enforced,
+     * for the list and for the sign-in alike.
+     */
+    public function updateDemoLogin(Request $request)
+    {
+        $this->authorizeSystemAdmin();
+
+        $validated = $request->validate([
+            'enabled' => ['required', 'boolean'],
+        ]);
+
+        $on = (bool) $validated['enabled'];
+
+        Setting::putFlag(Setting::DEMO_LOGIN, $on);
+
+        // audit_logs requires a concern_id, so this cannot go there. The
+        // application log is where opening a sign-in bypass belongs in any
+        // case: who opened it, and from where.
+        Log::warning($on ? 'Test-account sign-in switched ON' : 'Test-account sign-in switched OFF', [
+            'user_id' => Auth::id(),
+            'email' => Auth::user()?->email,
+            'ip_address' => $request->ip(),
+        ]);
+
+        return back()->with('success', $on
+            ? 'Test-account sign-in is ON. The sign-in page now offers the demo accounts. Switch it off when the demonstration is over.'
+            : 'Test-account sign-in is OFF. The sign-in page offers CSPC Mail only.');
     }
 
     /**

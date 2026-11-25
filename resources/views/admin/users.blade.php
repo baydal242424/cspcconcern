@@ -136,6 +136,29 @@
         background:var(--brand-50);
     }
     .promote-copy{flex:1 1 420px; min-width:0}
+
+    /* The test-account sign-in switch. Shaped like the promotion panel
+       above it, because both act on the whole system rather than on a
+       row -- but in the warning colour, because this one opens a way in
+       that does not go through CSPC Mail. */
+    .demo-panel{
+        display:flex; gap:1.5rem; align-items:flex-start; flex-wrap:wrap;
+        justify-content:space-between;
+        border:1px solid var(--line); border-left:3px solid var(--warn-ink);
+        border-radius:10px; padding:1.1rem 1.25rem; margin-bottom:1.5rem;
+        background:var(--warn-bg);
+    }
+    .demo-copy{flex:1 1 420px; min-width:0}
+    .demo-panel h2{font-size:1.02rem; margin:0 0 .3rem; display:flex; align-items:center; gap:.5rem; flex-wrap:wrap}
+    .demo-panel p{margin:0; color:var(--muted); font-size:.88rem}
+    .demo-panel code{font-size:.85em}
+    .demo-state{
+        font-family:ui-monospace,'Cascadia Code',monospace;
+        font-size:.68rem; letter-spacing:.08em; font-weight:700;
+        padding:.12rem .45rem; border-radius:999px;
+        background:var(--warn-ink); color:#fff;
+    }
+    .demo-panel.is-off .demo-state{background:var(--muted)}
     .promote-panel h2{font-size:1.02rem; margin:0 0 .3rem}
     .promote-panel p{margin:0; color:var(--muted); font-size:.88rem}
     .promote-counts{margin:.6rem 0 0; padding-left:1.1rem; font-size:.88rem; color:var(--ink)}
@@ -191,6 +214,53 @@
          nothing changed and nothing said. --}}
     @if ($errors->any())
         <div class="alert alert-error" role="alert">{{ implode(' ', $errors->all()) }}</div>
+    @endif
+
+    {{-- The test-account sign-in switch.
+
+         A System Admin's alone. It lets somebody into the system without
+         CSPC Mail, which is the one door everything else here is built
+         behind, so it is shown with what it opens rather than as a tidy
+         toggle with no explanation.
+
+         It used to live in the hosting panel, which meant turning it on
+         for a demonstration needed a redeploy and the person who set the
+         site up. --}}
+    @if ($maySwitchDemoLogin)
+        <div class="demo-panel {{ $demoLoginOn ? 'is-on' : 'is-off' }}">
+            <div class="demo-copy">
+                <h2>
+                    Test-account sign-in
+                    <span class="demo-state">{{ $demoLoginOn ? 'ON' : 'OFF' }}</span>
+                </h2>
+                <p>
+                    @if ($demoLoginOn)
+                        The sign-in page is offering the demo accounts, so anybody who knows
+                        this site's address can sign in as one without a password. Switch it
+                        off when the demonstration is over.
+                    @else
+                        The sign-in page offers CSPC Mail only. Switch it on to show the system
+                        from each office's side without a Google account for every one of them.
+                    @endif
+                </p>
+                <p style="margin-top:.45rem;">
+                    Only addresses beginning <code>test.</code> or <code>demo.</code> are ever offered,
+                    and never a System Admin, Staff Admin or Head of School. No real member of staff
+                    can be signed in as, and nobody reached this way can unmask a reporter.
+                </p>
+            </div>
+
+            <form method="POST" action="{{ route('admin.demoLogin') }}"
+                  onsubmit="return confirm(@js($demoLoginOn
+                      ? 'Switch test-account sign-in OFF? The sign-in page will offer CSPC Mail only.'
+                      : 'Switch test-account sign-in ON? Anybody who knows this address will be able to sign in as a demo account without a password.'))">
+                @csrf
+                <input type="hidden" name="enabled" value="{{ $demoLoginOn ? 0 : 1 }}">
+                <button type="submit" class="btn {{ $demoLoginOn ? 'btn-secondary' : 'btn-primary' }}">
+                    {{ $demoLoginOn ? 'Switch off' : 'Switch on' }}
+                </button>
+            </form>
+        </div>
     @endif
 
     {{-- Start of the school year. Editing a digit on 500-odd accounts by hand
