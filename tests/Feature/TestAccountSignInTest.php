@@ -261,4 +261,114 @@ class TestAccountSignInTest extends TestCase
 
         fwrite(STDERR, "  [test sign-in] anyone who has used Google is out of reach of this dropdown\n");
     }
+
+    /**
+     * A real account can be named for a demonstration, one at a time.
+     *
+     * The prefix rule keeps the whole roster out of the dropdown on a
+     * deployed site. A demonstration reads better as the people who hold
+     * the posts, though -- the counsellor the students would really write
+     * to -- so an account can be marked, by name, and offered.
+     *
+     * Nothing else moves: the marking does not reach the three privileged
+     * roles, and it does not touch google_id, which is tested below.
+     */
+    public function test_a_named_account_is_offered_on_a_deployed_site(): void
+    {
+        $this->enable();
+
+        $counsellor = User::whereHas('role', fn ($q) => $q->where('name', 'Guidance Counselor'))
+            ->whereNull('google_id')
+            ->firstOrFail();
+
+        app()['env'] = 'production';
+
+        // Unmarked, they are a real person like any other: not offered.
+        $this->asGuestHere()->get('/login')->assertOk()->assertDontSee($counsellor->name, false);
+
+        $counsellor->forceFill(['demo_signin' => true])->save();
+
+        $this->asGuestHere()->get('/login')->assertOk()->assertSee($counsellor->name, false);
+
+        $this->withSession(['_token' => 't'])
+            ->post('/auth/demo', ['user_id' => $counsellor->id, '_token' => 't'])
+            ->assertRedirect();
+
+        $this->assertTrue(Auth::check());
+        $this->assertSame($counsellor->id, Auth::id());
+
+        fwrite(STDERR, "  [test sign-in] {$counsellor->name} is offered once named, and not before\n");
+    }
+
+    /**
+     * Marking somebody does NOT override the Google fence.
+     *
+     * That fence is the one with no way round it: the moment a real person
+     * signs in, the dropdown stops offering them for good. A flag somebody
+     * set in a console must not undo a decision their own sign-in made.
+     */
+    public function test_marking_does_not_override_a_google_sign_in(): void
+    {
+        $this->enable();
+
+        $person = User::whereHas('role', fn ($q) => $q->where('name', 'Guidance Counselor'))
+            ->whereNull('google_id')
+            ->firstOrFail();
+
+        $person->forceFill([
+            'demo_signin' => true,
+            'google_id' => 'a-real-google-identity',
+        ])->save();
+
+        app()['env'] = 'production';
+
+        $this->asGuestHere()->get('/login')->assertOk()->assertDontSee($person->name, false);
+
+        $this->withSession(['_token' => 't'])
+            ->post('/auth/demo', ['user_id' => $person->id, '_token' => 't'])
+            ->assertRedirect();
+
+        $this->assertFalse(Auth::check(), 'A Google sign-in outranks any marking');
+
+        fwrite(STDERR, "  [test sign-in] marking never outranks a Google sign-in\n");
+    }
+
+    /** Nor does it reach the three roles a deployed site always refuses. */
+    public function test_marking_does_not_reach_the_privileged_roles(): void
+    {
+        $this->enable();
+
+        foreach (['System Admin', 'Staff Admin', 'Head of School'] as $roleName) {
+            $person = User::whereHas('role', fn ($q) => $q->where('name', $roleName))
+                ->whereNull('google_id')
+                ->first();
+
+            if (! $person) {
+                continue;
+            }
+
+            $person->forceFill(['demo_signin' => true])->save();
+
+            app()['env'] = 'production';
+            $this->asGuestHere()->get('/login')->assertOk()->assertDontSee($person->name, false);
+
+            $this->withSession(['_token' => 't'])
+                ->post('/auth/demo', ['user_id' => $person->id, '_token' => 't'])
+                ->assertRedirect();
+
+            $this->assertFalse(Auth::check(), "{$roleName} must stay shut however it is marked");
+
+            app()['env'] = 'testing';
+        }
+
+        fwrite(STDERR, "  [test sign-in] marking never reaches System Admin, Staff Admin or Head of School\n");
+    }
+
+    /** actingAs() and a successful sign-in both persist; /login redirects them. */
+    private function asGuestHere(): static
+    {
+        Auth::logout();
+
+        return $this;
+    }
 }

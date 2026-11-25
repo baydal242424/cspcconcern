@@ -184,10 +184,21 @@ class AuthController extends Controller
      * cannot drift apart: a hand-crafted post naming somebody the dropdown
      * would not show is refused by the same conditions that hid them.
      *
-     * On production two more conditions apply. The address must carry a
-     * `test.` or `demo.` prefix -- anybody reading it can tell what it is,
-     * and no real member of staff has one -- and the role must not be one
-     * of the three above.
+     * On production two more conditions apply.
+     *
+     * The account must be one somebody MEANT to offer: an address carrying
+     * a `test.` or `demo.` prefix, which anybody reading it can place and
+     * which no real member of staff has -- or a real account named one at a
+     * time with `php artisan demo:participants`, so a demonstration can be
+     * given as the people who hold the posts and the students taking part
+     * can use their own addresses, which is where the system's mail goes.
+     *
+     * And the role must not be one of the three above, marked or not.
+     *
+     * google_id sits outside all of it, in the base query: anybody who has
+     * signed in with Google is gone from here permanently, whatever is
+     * marked. That is the fence that keeps this from being a way to sign in
+     * as a real person who never agreed to it.
      */
     public static function offerableDemoAccounts()
     {
@@ -202,7 +213,8 @@ class AuthController extends Controller
 
         return $accounts
             ->where(fn ($q) => $q->where('email', 'like', 'test.%')
-                ->orWhere('email', 'like', 'demo.%'))
+                ->orWhere('email', 'like', 'demo.%')
+                ->orWhere('demo_signin', true))
             ->whereHas('role', fn ($q) => $q->whereNotIn('name', self::NOT_OFFERED_ON_A_DEPLOYED_SITE));
     }
 
