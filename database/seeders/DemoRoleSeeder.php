@@ -75,6 +75,24 @@ class DemoRoleSeeder extends Seeder
         // Faculty/Staff with NO department: the state a brand-new employee is
         // in, which is what makes the staff sign-up form appear.
         ['Faculty/Staff', 'Demo New Staff', null, null],
+
+        // THE SIX OFFICES THAT ARRIVED AFTER THIS LIST WAS WRITTEN.
+        //
+        // Each was added as a role, given a queue, and never given a demo
+        // account -- so a demonstration could file a broken projector, an
+        // injury, a library fine or a missing transcript and then have
+        // nobody to answer it as. On a deployed site that is the whole
+        // story, because only `demo.` and `test.` addresses are offered
+        // there: without these, the offices cannot be played at all.
+        //
+        // The department is the one its real holder uses, because that is
+        // what a student reads on the concern.
+        ['Legal Affairs', 'Demo Legal Officer', 'Legal Affairs Office', null],
+        ['ICT Unit', 'Demo ICT Staff', 'Information and Communications Technology Unit', null],
+        ['Clinic', 'Demo Nurse', 'Health Services Unit', null],
+        ['Library', 'Demo Librarian', 'Library and Resource Development Services', null],
+        ['Registrar', 'Demo Registrar Staff', 'Student Registration and Records', null],
+        ['Student Affairs and Services', 'Demo SAS Officer', 'Student Affairs and Services', null],
     ];
 
     /** The section the demo student sits in, and the demo instructor advises. */

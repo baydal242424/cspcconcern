@@ -127,19 +127,72 @@ class AuthController extends Controller
     /**
      * Whether sign-in-as-anyone is available.
      *
-     * Two conditions, and the second is not configurable. DEMO_LOGIN_ENABLED
-     * turns on a dropdown that signs a visitor in as any seeded account
-     * without a password -- on the deployed app that would hand anyone the
-     * Head of School's login, which reads every concern in the college.
+     * DEMO_LOGIN_ENABLED turns on a dropdown that signs a visitor in as a
+     * seeded account without a password. It defaults to false, so a deploy
+     * is safe by omission.
      *
-     * The environment variable defaults to false, so a deploy is safe by
-     * omission. This makes it safe by construction: one stray value in a
-     * hosting panel cannot switch it on in production, and nobody has to
-     * remember to check.
+     * IT USED TO BE REFUSED OUTRIGHT ON PRODUCTION whatever the flag said,
+     * for one reason written down at the time: on the deployed app it would
+     * hand anyone the Head of School's login, which reads every concern in
+     * the college.
+     *
+     * The deployed site is now also where this is demonstrated, so the fence
+     * MOVED rather than came down. The flag works anywhere; what the
+     * dropdown may OFFER narrows on production instead -- see
+     * offerableDemoAccounts(), which keeps it to addresses nobody could
+     * mistake for a person and never to the three roles that read
+     * everything or decide who is who. The reason the fence existed is
+     * still enforced; what is gone is the blanket.
      */
     private static function demoLoginEnabled(): bool
     {
-        return (bool) config('auth.demo_login') && ! app()->isProduction();
+        return (bool) config('auth.demo_login');
+    }
+
+    /**
+     * Roles the dropdown will not offer on a deployed site, however the
+     * flag is set.
+     *
+     * System Admin edits the categories every concern is routed by. Staff
+     * Admin manages the roster, which is a way to become any of the others.
+     * Head of School is the one role that can unmask a pseudonymous
+     * reporter. Not one of the three is needed to act out a concern, and
+     * all three are still offered on a developer's machine.
+     */
+    private const NOT_OFFERED_ON_A_DEPLOYED_SITE = [
+        'System Admin',
+        'Staff Admin',
+        'Head of School',
+    ];
+
+    /**
+     * Every account the dropdown may offer, and the only ones demoLogin()
+     * will sign in as.
+     *
+     * ONE query, used by both, so the form and the authority behind it
+     * cannot drift apart: a hand-crafted post naming somebody the dropdown
+     * would not show is refused by the same conditions that hid them.
+     *
+     * On production two more conditions apply. The address must carry a
+     * `test.` or `demo.` prefix -- anybody reading it can tell what it is,
+     * and no real member of staff has one -- and the role must not be one
+     * of the three above.
+     */
+    private static function offerableDemoAccounts()
+    {
+        $accounts = User::query()
+            ->whereNull('google_id')
+            ->where('status', 'approved')
+            ->whereHas('role');
+
+        if (! app()->isProduction()) {
+            return $accounts;
+        }
+
+        return $accounts
+            ->where(fn ($q) => $q->where('email', 'like', 'test.%')
+                ->orWhere('email', 'like', 'demo.%'))
+            ->whereHas('role', fn ($q) => $q->whereNotIn('name', self::NOT_OFFERED_ON_A_DEPLOYED_SITE));
     }
 
     /**
@@ -170,10 +223,7 @@ class AuthController extends Controller
             return collect();
         }
 
-        return User::query()
-            ->whereNull('google_id')
-            ->where('status', 'approved')
-            ->whereHas('role')
+        return self::offerableDemoAccounts()
             ->with('role')
             ->orderBy('name')
             ->get()
@@ -209,10 +259,8 @@ class AuthController extends Controller
             'user_id' => 'required|integer',
         ]);
 
-        $user = User::whereKey($validated['user_id'])
-            ->whereNull('google_id')
-            ->where('status', 'approved')
-            ->whereHas('role')
+        $user = self::offerableDemoAccounts()
+            ->whereKey($validated['user_id'])
             ->with('role')
             ->first();
 
