@@ -63,7 +63,18 @@ class DemoRoleSeeder extends Seeder
      */
     private const ACCOUNTS = [
         ['Student', 'Demo Student', self::COLLEGE, 'BS Information Systems'],
-        ['Instructor', 'Demo Instructor', self::COLLEGE, null],
+        // An ADVISER, not an instructor.
+        //
+        // Academic reaches the adviser of the student's section, and the
+        // demonstration used an Instructor account for it because advising
+        // is a row in `sections` rather than a role -- so the right desk
+        // received it under the wrong word, and every screen said
+        // "Instructor" about the person holding an academic case.
+        //
+        // Teaching staff are not a destination in this system at all:
+        // REFERRAL_ROLES says so in its own comment, because the panel took
+        // them off the list of places a case can be sent.
+        ['Adviser', 'Demo Adviser', self::COLLEGE, 'BS Information Systems'],
         ['Program Chair', 'Demo Program Chair', self::COLLEGE, 'BS Information Systems'],
         ['Dean', 'Demo Dean', self::COLLEGE, null],
         ['Guidance Counselor', 'Demo Counselor', 'Guidance Office', null],
@@ -143,7 +154,7 @@ class DemoRoleSeeder extends Seeder
         // Advising is a relationship, not a role: give the demo instructor the
         // demo student's class, so filing as the student demonstrates the whole
         // student -> section -> adviser chain rather than a fallback.
-        if (isset($made['Instructor'])) {
+        if (isset($made['Adviser'])) {
             $term = Section::currentTerm();
 
             Section::updateOrCreate(
@@ -153,12 +164,12 @@ class DemoRoleSeeder extends Seeder
                     'school_year' => $term['school_year'],
                     'semester' => $term['semester'],
                 ],
-                ['adviser_id' => $made['Instructor']->id]
+                ['adviser_id' => $made['Adviser']->id]
             );
         }
 
         $this->command?->info(count($made).' demo accounts ready. They appear in one group at the top of the sign-in dropdown.');
-        $this->command?->info('Demo Instructor advises BS Information Systems '.self::SECTION.', which Demo Student is in.');
+        $this->command?->info('Demo Adviser advises BS Information Systems '.self::SECTION.', which Demo Student is in.');
         $this->command?->warn('Demo STAFF can be assigned live concerns and cannot sign in to act on them. Remove them after the demonstration: '
             ."App\\Models\\User::where('email','like','demo.%')->delete();");
     }

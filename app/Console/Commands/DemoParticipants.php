@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Concern;
 use App\Models\Role;
 use App\Models\Section;
 use App\Models\Setting;
@@ -182,16 +183,22 @@ class DemoParticipants extends Command
             );
         }
 
-        // Instructors, a couple per college, so each college has somebody
-        // without the lane running to several hundred names.
-        foreach (User::select('department')->whereHas('role', fn ($q) => $q->where('name', 'Instructor'))
-            ->whereNotNull('department')->distinct()->pluck('department') as $college) {
-            $marked += $this->mark(
-                User::whereHas('role', fn ($q) => $q->where('name', 'Instructor'))
-                    ->where('department', $college),
-                $signedIn,
-                self::INSTRUCTORS_PER_COLLEGE
-            );
+        // NO INSTRUCTORS. They were marked here once, two per college, and
+        // they do not belong: teaching staff are not a destination in this
+        // system -- REFERRAL_ROLES says so in its own comment, because the
+        // panel took them off the list of places a case can be sent. An
+        // instructor in the sign-in list is an office that cannot receive
+        // anything, and on the screen it reads as the one holding an
+        // academic case.
+        //
+        // Unmarked rather than left, so a list written before this is
+        // corrected by running the command again.
+        $unmarked = User::whereHas('role', fn ($q) => $q->where('name', 'Instructor'))
+            ->where('demo_signin', true)
+            ->update(['demo_signin' => false]);
+
+        if ($unmarked > 0) {
+            $this->line("Unmarked {$unmarked} instructor".($unmarked === 1 ? '' : 's').': teaching staff receive nothing here.');
         }
 
         $this->info("Marked {$marked} account".($marked === 1 ? '' : 's').'.');
@@ -216,6 +223,8 @@ class DemoParticipants extends Command
         $this->info('Concerns now land on the demo desks.');
 
         $this->handTheClassToTheDemoAdviser();
+
+        $this->retireTheDemoInstructor();
 
         $this->newLine();
         $this->line('The sign-in dropdown still has to be switched on, in Manage Users or with:');
@@ -298,10 +307,10 @@ class DemoParticipants extends Command
      */
     private function handTheClassToTheDemoAdviser(): void
     {
-        $demo = User::where('email', 'demo.instructor@cspc.edu.ph')->first();
+        $demo = User::where('email', 'demo.adviser@cspc.edu.ph')->first();
 
         if (! $demo) {
-            $this->warn('No demo instructor, so Academic still goes to the real adviser.');
+            $this->warn('No demo adviser, so Academic still goes to the real one.');
             $this->line("  php artisan db:seed --class='Database\\Seeders\\DemoRoleSeeder' --force");
 
             return;
@@ -352,6 +361,37 @@ class DemoParticipants extends Command
             .($was ? ' (was '.$was->name.')' : '').'.');
     }
 
+    /**
+     * Take the old demo instructor out of the dropdown.
+     *
+     * The `demo.` prefix offers an account whether it is marked or not, so
+     * unmarking is not enough to remove this one. It is a fixture rather
+     * than a person, but it is NOT deleted while anything points at it: a
+     * concern whose handler row is gone is a concern nobody holds, which is
+     * worse than one held by the wrong desk.
+     */
+    private function retireTheDemoInstructor(): void
+    {
+        $old = User::where('email', 'demo.instructor@cspc.edu.ph')->first();
+
+        if (! $old) {
+            return;
+        }
+
+        $holds = Concern::where('assigned_to', $old->id)->count();
+        $advises = Section::where('adviser_id', $old->id)->count();
+
+        if ($holds > 0 || $advises > 0) {
+            $this->warn('The old Demo Instructor still holds '.$holds.' concern'.($holds === 1 ? '' : 's')
+                .' and advises '.$advises.' section'.($advises === 1 ? '' : 's').', so it stays.');
+            $this->line('  Re-file those concerns, or hand them on, and run this again.');
+
+            return;
+        }
+
+        $old->forceDelete();
+        $this->line('Retired the old Demo Instructor; teaching staff are out of the dropdown.');
+    }
     /** Give the class back to whoever was advising it. */
     private function restoreAdviser(): void
     {
