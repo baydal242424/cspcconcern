@@ -69,13 +69,26 @@ class DemoParticipants extends Command
     ];
 
     /**
-     * The academic line, narrowed to the one programme.
+     * The academic posts, EVERY holder of them.
      *
-     * Marking every dean, chair and instructor would be most of the roster
-     * and none of them would be the right one: a concern reaches the chair
-     * of the student's programme and the adviser of their section.
+     * This was narrowed to one programme at first, on the reasoning that a
+     * concern reaches the chair of the student's own programme and nobody
+     * else -- which is true of ROUTING and wrong for a DEMONSTRATION. A
+     * panel asks about a college the marking left out, and the answer is a
+     * dropdown with one dean in it.
+     *
+     * There are seven deans and twenty-eight chairs across the institution.
+     * A list that long is still a list somebody can read.
      */
-    private const ACADEMIC = ['Dean', 'Program Chair', 'Adviser', 'Instructor'];
+    private const ACADEMIC = ['Dean', 'Program Chair', 'Adviser'];
+
+    /**
+     * Instructors are the exception, and stay narrow.
+     *
+     * There are several hundred. All of them would bury every other lane in
+     * the dropdown, and one instructor demonstrates what any of them does.
+     */
+    private const INSTRUCTORS_PER_COLLEGE = 2;
 
     /** The students taking part, by the address the system will write to. */
     private const STUDENTS = [
@@ -160,14 +173,24 @@ class DemoParticipants extends Command
             );
         }
 
-        // The academic line for this one programme.
+        // Every dean, every chair, every adviser, whatever the college.
         foreach (self::ACADEMIC as $role) {
             $marked += $this->mark(
-                User::whereHas('role', fn ($q) => $q->where('name', $role))
-                    ->where(fn ($q) => $q->where('course', self::COURSE)
-                        ->orWhere('department', 'College of Computer Studies')),
+                User::whereHas('role', fn ($q) => $q->where('name', $role)),
                 $signedIn,
-                $role === 'Instructor' ? 3 : null
+                500
+            );
+        }
+
+        // Instructors, a couple per college, so each college has somebody
+        // without the lane running to several hundred names.
+        foreach (User::select('department')->whereHas('role', fn ($q) => $q->where('name', 'Instructor'))
+            ->whereNotNull('department')->distinct()->pluck('department') as $college) {
+            $marked += $this->mark(
+                User::whereHas('role', fn ($q) => $q->where('name', 'Instructor'))
+                    ->where('department', $college),
+                $signedIn,
+                self::INSTRUCTORS_PER_COLLEGE
             );
         }
 
@@ -207,7 +230,17 @@ class DemoParticipants extends Command
      */
     private function mark($query, array &$signedIn, ?int $limit = null): int
     {
-        $people = $query->whereNull('deleted_at')->where('status', 'approved')->limit($limit ?? 50)->get();
+        // No default cap. It used to be 50, which quietly stopped at the
+        // fiftieth dean of a list that is seven long and the fiftieth
+        // chair of a list that is twenty-eight long -- harmless there,
+        // and a silent truncation waiting for the roster to grow.
+        $people = $query->whereNull('deleted_at')->where('status', 'approved');
+
+        if ($limit !== null) {
+            $people->limit($limit);
+        }
+
+        $people = $people->get();
 
         $n = 0;
 
