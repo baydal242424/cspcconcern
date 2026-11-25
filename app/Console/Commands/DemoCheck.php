@@ -84,7 +84,9 @@ class DemoCheck extends Command
                 $missing++;
                 $who = '<error>NOBODY</error>';
             } else {
-                $isDemo = str_starts_with($handler->email, 'demo.');
+                // Academic and Others go to the class adviser by design: the
+                // real adviser of the section, not a demo desk.
+                $isDemo = str_starts_with($handler->email, 'demo.') || $role === 'Adviser';
 
                 if (! $isDemo) {
                     $real++;

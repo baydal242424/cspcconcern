@@ -118,8 +118,6 @@ class DemoParticipants extends Command
             Setting::putFlag(Setting::DEMO_ROUTING, false);
             $this->line('Concerns go to the real desks again.');
 
-            $this->restoreAdviser();
-
             return self::SUCCESS;
         }
 
@@ -222,7 +220,7 @@ class DemoParticipants extends Command
         $this->newLine();
         $this->info('Concerns now land on the demo desks.');
 
-        $this->handTheClassToTheDemoAdviser();
+        $this->assignTheClassAdviser();
 
         $this->retireTheDemoInstructor();
 
@@ -296,24 +294,60 @@ class DemoParticipants extends Command
     }
 
     /**
-     * Academic reaches the ADVISER OF THE SECTION, not whoever holds the
-     * role, so demoDeskFor() never sees it: Section::adviserFor() has
-     * already named a person by the time routing asks.
+     * The class adviser of the students taking part: Glaiza Pocaan.
      *
-     * The demo instructor takes the class for the demonstration, and the
-     * adviser who had it is remembered so --clear can hand it straight
-     * back. Without this one step, every Academic concern lands on a real
-     * adviser nobody at the demonstration can sign in as.
+     * Academic reaches the adviser OF THE SECTION, named by
+     * Section::adviserFor() before routing is asked, so the demo-desk
+     * preference never applies to it. This used to hand the class to a demo
+     * account for the demonstration. It is the real adviser now, because she
+     * is the one who would answer, and the mail about the case goes to her
+     * own address.
+     *
+     * She is in no seeder: her account was made the first time she signed in
+     * with Google, and promoted by hand. On a freshly deployed site she is
+     * therefore either absent or a Student. Both are put right here.
      */
-    private function handTheClassToTheDemoAdviser(): void
-    {
-        $demo = User::where('email', 'demo.adviser@cspc.edu.ph')->first();
+    private const CLASS_ADVISER_EMAIL = 'glpocaan@my.cspc.edu.ph';
 
-        if (! $demo) {
-            $this->warn('No demo adviser, so Academic still goes to the real one.');
-            $this->line("  php artisan db:seed --class='Database\\Seeders\\DemoRoleSeeder' --force");
+    private const CLASS_ADVISER_NAME = 'Glaiza Pocaan';
+
+    private function assignTheClassAdviser(): void
+    {
+        $adviserRole = Role::where('name', 'Adviser')->value('id');
+
+        if (! $adviserRole) {
+            $this->warn('There is no Adviser role here, so the class adviser cannot be set.');
 
             return;
+        }
+
+        $adviser = User::withTrashed()->where('email', self::CLASS_ADVISER_EMAIL)->first();
+
+        if (! $adviser) {
+            $adviser = User::create([
+                'name' => self::CLASS_ADVISER_NAME,
+                'email' => self::CLASS_ADVISER_EMAIL,
+                'password' => bcrypt(Str::random(32)),
+                'role_id' => $adviserRole,
+                'department' => 'College of Computer Studies',
+                'course' => self::COURSE,
+                'status' => 'approved',
+                'email_verified_at' => now(),
+            ]);
+            $this->line('Created '.$adviser->name.' as an Adviser.');
+        } else {
+            if ($adviser->trashed()) {
+                $adviser->restore();
+            }
+
+            if ((int) $adviser->role_id !== (int) $adviserRole) {
+                $adviser->forceFill(['role_id' => $adviserRole])->save();
+                $this->line($adviser->name.' is an Adviser now.');
+            }
+
+            if ($adviser->status !== 'approved') {
+                $adviser->forceFill(['status' => 'approved'])->save();
+            }
         }
 
         $section = Section::where('course', self::COURSE)
@@ -324,102 +358,25 @@ class DemoParticipants extends Command
             ->first();
 
         if (! $section) {
-            $section = Section::create([
+            $term = Section::currentTerm();
+            Section::create([
                 'course' => self::COURSE,
                 'section' => self::SECTION,
-                'adviser_id' => $demo->id,
+                'school_year' => $term['school_year'],
+                'semester' => $term['semester'],
+                'adviser_id' => $adviser->id,
             ]);
-
-            $this->line(self::COURSE.' '.self::SECTION.' had no row; created one advised by '.$demo->name.'.');
-
-            return;
+        } elseif ((int) $section->adviser_id !== (int) $adviser->id) {
+            $section->forceFill(['adviser_id' => $adviser->id])->save();
         }
 
-        if ((int) $section->adviser_id === (int) $demo->id) {
-            $this->line('Academic already reaches '.$demo->name.'.');
-
-            return;
-        }
-
-        // Remembered so it can be given back, and only the FIRST time, so
-        // running this twice cannot record the demo adviser as the one to
-        // restore.
-        if (Setting::flag(self::PRIOR, false) === false
-            && ! Setting::where('key', self::PRIOR_ID)->exists()) {
-            Setting::updateOrCreate(
-                ['key' => self::PRIOR_ID],
-                ['value' => $section->id.':'.($section->adviser_id ?? '')]
-            );
-            Setting::forget();
-        }
-
-        $was = User::find($section->adviser_id);
-
-        $section->forceFill(['adviser_id' => $demo->id])->save();
-
-        $this->line('Academic for '.self::COURSE.' '.self::SECTION.' now reaches '.$demo->name
-            .($was ? ' (was '.$was->name.')' : '').'.');
-    }
-
-    /**
-     * Take the old demo instructor out of the dropdown.
-     *
-     * The `demo.` prefix offers an account whether it is marked or not, so
-     * unmarking is not enough to remove this one. It is a fixture rather
-     * than a person, but it is NOT deleted while anything points at it: a
-     * concern whose handler row is gone is a concern nobody holds, which is
-     * worse than one held by the wrong desk.
-     */
-    private function retireTheDemoInstructor(): void
-    {
-        $old = User::where('email', 'demo.instructor@cspc.edu.ph')->first();
-
-        if (! $old) {
-            return;
-        }
-
-        $holds = Concern::where('assigned_to', $old->id)->count();
-        $advises = Section::where('adviser_id', $old->id)->count();
-
-        if ($holds > 0 || $advises > 0) {
-            $this->warn('The old Demo Instructor still holds '.$holds.' concern'.($holds === 1 ? '' : 's')
-                .' and advises '.$advises.' section'.($advises === 1 ? '' : 's').', so it stays.');
-            $this->line('  Re-file those concerns, or hand them on, and run this again.');
-
-            return;
-        }
-
-        $old->forceDelete();
-        $this->line('Retired the old Demo Instructor; teaching staff are out of the dropdown.');
-    }
-    /** Give the class back to whoever was advising it. */
-    private function restoreAdviser(): void
-    {
-        $row = Setting::where('key', self::PRIOR_ID)->first();
-
-        if (! $row || ! $row->value) {
-            return;
-        }
-
-        [$sectionId, $adviserId] = array_pad(explode(':', $row->value, 2), 2, '');
-
-        $section = Section::find($sectionId);
-
-        if ($section) {
-            $section->forceFill(['adviser_id' => $adviserId === '' ? null : (int) $adviserId])->save();
-            $was = User::find($adviserId);
-            $this->line('Academic goes back to '.($was->name ?? 'nobody').'.');
-        }
-
-        $row->delete();
+        // The remembered "adviser before the demonstration" from the old
+        // hand-over has nothing left to restore.
+        Setting::where('key', 'demo_prior_adviser')->delete();
         Setting::forget();
+
+        $this->line('Academic for '.self::COURSE.' '.self::SECTION.' reaches '.$adviser->name.' <'.$adviser->email.'>.');
     }
-
-    /** Where the adviser who had the class is remembered. */
-    private const PRIOR = 'demo_prior_adviser_done';
-
-    private const PRIOR_ID = 'demo_prior_adviser';
-
     /** A readable name from an address, for an account nobody has filled in. */
     private function nameFrom(string $email): string
     {
