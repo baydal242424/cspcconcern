@@ -175,4 +175,43 @@ class TheOfficeCanSwitchOnTestSignInTest extends TestCase
 
         fwrite(STDERR, "  [switch] on, and a deployed site still offers no real person: {$real->name}\n");
     }
+
+    /**
+     * A switch with nothing behind it says so.
+     *
+     * The database the site is deployed to is not the one it was built on.
+     * Turning the switch on there, against a database nobody has seeded,
+     * renders a sign-in page that looks exactly as it did before -- so the
+     * switch reads as broken when it is working perfectly. The panel counts
+     * what it would offer, and names the command when the answer is none.
+     */
+    public function test_the_panel_says_when_there_is_nothing_to_offer(): void
+    {
+        $admin = $this->personIn('System Admin');
+
+        // On a DEPLOYED site, which is the only place the question arises.
+        // On a developer's machine the dropdown offers the whole roster, so
+        // the count is never zero there and the warning never applies.
+        app()['env'] = 'production';
+
+        // A database with no test or demo addresses, which is what a fresh
+        // deployment has until somebody seeds one.
+        $this->assertSame(0, User::where('email', 'like', 'demo.%')
+            ->orWhere('email', 'like', 'test.%')
+            ->count());
+
+        $this->actingAs($admin)->get('/admin/users')->assertOk()
+            ->assertSee('No accounts would be offered', false)
+            ->assertSee('DemoRoleSeeder', false);
+
+        app()['env'] = 'testing';
+        Artisan::call('testing:accounts');
+        app()['env'] = 'production';
+
+        $this->actingAs($admin)->get('/admin/users')->assertOk()
+            ->assertDontSee('No accounts would be offered', false)
+            ->assertSee('would be offered here', false);
+
+        fwrite(STDERR, "  [switch] an empty database is named as empty, not left looking broken\n");
+    }
 }

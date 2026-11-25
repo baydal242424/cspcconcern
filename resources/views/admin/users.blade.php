@@ -248,6 +248,17 @@
                     and never a System Admin, Staff Admin or Head of School. No real member of staff
                     can be signed in as, and nobody reached this way can unmask a reporter.
                 </p>
+                <p style="margin-top:.45rem;">
+                    @if ($demoAccountCount > 0)
+                        <strong>{{ number_format($demoAccountCount) }}</strong>
+                        account{{ $demoAccountCount === 1 ? '' : 's' }} would be offered here.
+                    @else
+                        <strong>No accounts would be offered.</strong> This database has none whose
+                        address begins <code>test.</code> or <code>demo.</code>, so switching this on
+                        would change nothing you can see. Seed them first:
+                        <code>php artisan db:seed --class='Database\Seeders\DemoRoleSeeder' --force</code>
+                    @endif
+                </p>
             </div>
 
             <form method="POST" action="{{ route('admin.demoLogin') }}"

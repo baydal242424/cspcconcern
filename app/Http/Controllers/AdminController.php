@@ -480,6 +480,11 @@ class AdminController extends Controller
             // it, because only a System Admin may move it.
             'demoLoginOn' => Setting::flag(Setting::DEMO_LOGIN, (bool) config('auth.demo_login')),
             'maySwitchDemoLogin' => (bool) Auth::user()?->hasAnyRole(['System Admin']),
+            // How many the switch would actually offer. A switch turned ON
+            // with nothing behind it renders an empty sign-in page and
+            // reads as broken -- which is exactly what a database with no
+            // demo accounts in it looks like.
+            'demoAccountCount' => AuthController::offerableDemoAccounts()->count(),
         ]);
     }
 

@@ -189,7 +189,7 @@ class AuthController extends Controller
      * and no real member of staff has one -- and the role must not be one
      * of the three above.
      */
-    private static function offerableDemoAccounts()
+    public static function offerableDemoAccounts()
     {
         $accounts = User::query()
             ->whereNull('google_id')
