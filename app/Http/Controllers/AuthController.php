@@ -177,6 +177,22 @@ class AuthController extends Controller
     ];
 
     /**
+     * Roles left out of the dropdown on a deployed site because they
+     * RECEIVE nothing, rather than because they could do harm.
+     *
+     * Teaching staff are not a destination in this system --
+     * ConcernController::REFERRAL_ROLES says so, since the panel took
+     * them off the list of places a case can be sent. An instructor in
+     * a demonstration is a desk with nothing on it, and on the concern
+     * screen it reads as the person holding an academic case.
+     *
+     * Applied by role, not by address or marking: a `demo.` instructor
+     * that still holds an old concern cannot be deleted, and the prefix
+     * alone would keep offering it.
+     */
+    private const NOT_A_DESTINATION = ['Instructor'];
+
+    /**
      * Every account the dropdown may offer, and the only ones demoLogin()
      * will sign in as.
      *
@@ -215,7 +231,10 @@ class AuthController extends Controller
             ->where(fn ($q) => $q->where('email', 'like', 'test.%')
                 ->orWhere('email', 'like', 'demo.%')
                 ->orWhere('demo_signin', true))
-            ->whereHas('role', fn ($q) => $q->whereNotIn('name', self::NOT_OFFERED_ON_A_DEPLOYED_SITE));
+            ->whereHas('role', fn ($q) => $q->whereNotIn('name', [
+                ...self::NOT_OFFERED_ON_A_DEPLOYED_SITE,
+                ...self::NOT_A_DESTINATION,
+            ]));
     }
 
     /**

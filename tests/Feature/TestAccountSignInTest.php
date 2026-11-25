@@ -364,6 +364,36 @@ class TestAccountSignInTest extends TestCase
         fwrite(STDERR, "  [test sign-in] marking never reaches System Admin, Staff Admin or Head of School\n");
     }
 
+    /**
+     * Instructors are never offered on a deployed site -- not a demo one,
+     * not a marked one. Teaching staff receive nothing here.
+     */
+    public function test_instructors_are_not_offered_on_a_deployed_site(): void
+    {
+        $this->enable();
+
+        $instructorRole = \App\Models\Role::where('name', 'Instructor')->firstOrFail();
+
+        $demo = User::create([
+            'name' => 'Demo Instructor',
+            'email' => 'demo.instructor@cspc.edu.ph',
+            'password' => bcrypt(Str::random(32)),
+            'role_id' => $instructorRole->id,
+            'status' => 'approved',
+        ]);
+
+        app()['env'] = 'production';
+
+        $this->asGuestHere()->get('/login')->assertOk()->assertDontSee('Demo Instructor', false);
+
+        $this->withSession(['_token' => 't'])
+            ->post('/auth/demo', ['user_id' => $demo->id, '_token' => 't'])
+            ->assertRedirect();
+
+        $this->assertFalse(Auth::check(), 'An instructor must not be offered on a deployed site');
+
+        fwrite(STDERR, "  [test sign-in] no instructor is offered on a deployed site, even a demo one\n");
+    }
     /** actingAs() and a successful sign-in both persist; /login redirects them. */
     private function asGuestHere(): static
     {
