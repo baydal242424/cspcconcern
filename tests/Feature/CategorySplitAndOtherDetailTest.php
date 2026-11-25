@@ -56,7 +56,7 @@ class CategorySplitAndOtherDetailTest extends TestCase
      */
     public function test_physical_goes_to_the_clinic_and_safety_to_guidance(): void
     {
-        $expected = ['Physical' => 'Clinic', 'Safety' => 'Guidance Counselor'];
+        $expected = ['Physical' => 'Clinic', 'Safety' => 'General Services'];
 
         foreach (['Physical', 'Safety'] as $category) {
             $concern = $this->submit(['category' => $category]);

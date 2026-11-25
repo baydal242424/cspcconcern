@@ -102,13 +102,14 @@ class QaAuditTest extends TestCase
             // PC and a blocked fire exit are different work, and one person
             // was receiving both queues.
             'Equipment'                => 'ICT Unit',
-            // Physical and Safety go to Guidance now: an injury that has
-            // happened and a hazard that has not hurt anybody yet are not
-            // teaching matters.
+            // Neither is a teaching matter, and neither is Guidance's.
             // The clinic, not Guidance. A student who has been hurt needs
             // a nurse first; counselling is what comes after, if at all.
             'Physical'                 => 'Clinic',
-            'Safety'                   => 'Guidance Counselor',
+            // General Services, not Guidance. Every hazard sub-category is
+            // a repair -- stairs, wiring, exits, floors, fire -- and the
+            // office that repairs them should not hear it second-hand.
+            'Safety'                   => 'General Services',
             'Others'                   => 'Instructor',
         ];
         // submit each with a DELIBERATELY mismatched department to prove dept can't hijack routing

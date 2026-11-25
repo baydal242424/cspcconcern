@@ -70,6 +70,12 @@ class ConcernController extends Controller
         // routed to a ROLE, so the office could be named in a concern and
         // never handed one.
         'Registrar',
+        // Student Affairs and Services. Student welfare, discipline and
+        // the student body's own affairs. A referral destination rather
+        // than a first desk, so it owns no category -- but it belongs
+        // here all the same, because this list is every role a concern
+        // can be filed ABOUT, not only the ones that hold a queue.
+        'Student Affairs and Services',
     ];
 
 
@@ -165,13 +171,26 @@ class ConcernController extends Controller
         // exit are different work, and one person was receiving both.
         'Equipment' => 'ICT Unit',
         // Not the class adviser. An injury that has already happened and
-        // a hazard that has not hurt anybody yet are not teaching
-        // matters: the first needs somebody trained to sit with the
-        // student, the second needs passing to whoever can make the
-        // place safe. Guidance is the office that does both and
-        // refers onward.
+        // a hazard that has not hurt anybody yet are not teaching matters.
+        //
+        // Both have since moved to the office that can act, each by its
+        // own migration. This list only SEEDS a fresh database --
+        // ConcernCategory::routingFor() reads the row, and the row is what
+        // routing follows -- so the two are kept in step here as well.
+        //
+        // THE HAZARD GOES TO GENERAL SERVICES. Every sub-category under it
+        // is their work: a damaged stair, exposed wiring, a blocked exit, a
+        // slippery floor, a fire risk. Not one is counselling, and the
+        // category no longer even asks who the concern is about, so the one
+        // thing a counsellor was there for is gone.
+        //
+        // It had sat with Guidance, who passed not one of sixty-six on --
+        // while Building & Facilities, the same work less urgently, went
+        // straight to General Services. The more dangerous queue was taking
+        // the longer road. Guidance stays reachable by referral for the
+        // student who was frightened by what they saw.
         'Physical' => 'Guidance Counselor',
-        'Safety' => 'Guidance Counselor',
+        'Safety' => 'General Services',
         'Others' => 'Adviser',
     ];
 
@@ -216,6 +235,10 @@ class ConcernController extends Controller
         // routed to a ROLE, so the office could be named in a concern and
         // never handed one.
         'Registrar',
+        // Student Affairs and Services, reachable from the three
+        // welfare categories below. It is NOT routed to: no category
+        // names it as a first desk, so nothing arrives there unasked.
+        'Student Affairs and Services',
     ];
 
     /**
@@ -256,11 +279,11 @@ class ConcernController extends Controller
         'Academic' => ['Adviser', 'Program Chair', 'Registrar', 'Faculty/Staff'],
         // The counselling cases. General Services and System Admin have no
         // part in any of them.
-        'Mental Health' => ['Guidance Counselor', 'Adviser'],
-        'Personal' => ['Guidance Counselor', 'Adviser'],
+        'Mental Health' => ['Guidance Counselor', 'Adviser', 'Student Affairs and Services'],
+        'Personal' => ['Guidance Counselor', 'Adviser', 'Student Affairs and Services'],
         // Bullying and harassment can need the GAD office or Legal, and
         // bullying between classmates often starts with the adviser.
-        'Bullying' => ['Guidance Counselor', 'Adviser', 'Program Chair', 'Gender and Development', 'Legal Affairs'],
+        'Bullying' => ['Guidance Counselor', 'Adviser', 'Program Chair', 'Gender and Development', 'Legal Affairs', 'Student Affairs and Services'],
         'Harassment' => ['Guidance Counselor', 'Gender and Development', 'Legal Affairs'],
         // This category means the website is broken.
         'Administrative' => ['System Admin', 'Faculty/Staff'],
@@ -353,6 +376,12 @@ class ConcernController extends Controller
         // equipment belonging to a college rather than to the institution,
         // where the lab in-charge answers to their Dean and not to ICT.
         'ICT Unit' => ['Dean', 'Faculty/Staff'],
+
+        // Student Affairs and Services: a counselling route, and one
+        // step up the ladder. A welfare case that turns out to need a
+        // counsellor goes to Guidance; one that outgrows the office
+        // goes to the Dean who runs the college it came from.
+        'Student Affairs and Services' => ['Guidance Counselor', 'Dean'],
     ];
 
     /** Nothing is offered on every concern any more; the ladder replaced it. */
@@ -420,6 +449,7 @@ class ConcernController extends Controller
         'Clinic'                 => 'Clinic (injuries & health)',
         'Library'                => 'Library',
         'Registrar'              => 'Registrar (records & enrolment)',
+        'Student Affairs and Services' => 'Student Affairs & Services (SAS)',
     ];
 
     /**

@@ -162,6 +162,9 @@ class User extends Authenticatable
         // routed to a ROLE, so the office could be named in a concern and
         // never handed one.
         'Registrar',
+        // Student Affairs and Services. Kept in step with
+        // ConcernController::STAFF_ROLES, as the comment above says.
+        'Student Affairs and Services',
     ];
 
     /**
@@ -326,6 +329,7 @@ class User extends Authenticatable
         // routed to a ROLE, so the office could be named in a concern and
         // never handed one.
         'Registrar',
+        'Student Affairs and Services',
     ];
 
     /**

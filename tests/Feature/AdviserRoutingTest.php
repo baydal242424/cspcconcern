@@ -99,13 +99,14 @@ class AdviserRoutingTest extends TestCase
      *
      * They went to the same one until the clinic became a role of its
      * own: a physical injury is treated before it is counselled, and a
-     * counsellor is not a nurse. A safety hazard is still Guidance's.
+     * counsellor is not a nurse. A safety hazard is General Services':
+     * a damaged stair is repaired, not counselled.
      */
-    public function test_injury_goes_to_the_clinic_and_hazard_to_guidance(): void
+    public function test_injury_goes_to_the_clinic_and_hazard_to_general_services(): void
     {
         $adviser = $this->personIn('Adviser', 'College of Computer Studies', 'adviser.ccs@cspc.edu.ph');
 
-        $expected = ['Physical' => 'Clinic', 'Safety' => 'Guidance Counselor'];
+        $expected = ['Physical' => 'Clinic', 'Safety' => 'General Services'];
 
         foreach (['Physical', 'Safety'] as $category) {
             $concern = $this->fileAs($this->student(), $category);
