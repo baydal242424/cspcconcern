@@ -949,6 +949,14 @@
         font-size:1.05rem; line-height:1; color:var(--muted,#64748b)}
     .file-remove:hover{background:var(--danger-bg,#fde7ea); color:var(--danger-ink,#a31726);
         border-color:#f6c9cf}
+    /* A picture in the file list, and in a concern's attachments: the
+       image itself, so the student can see WHICH screenshot it is. */
+    .file-thumb{flex:0 0 auto; display:block; width:40px; height:40px; border-radius:6px;
+        overflow:hidden; border:1px solid var(--line,#e7ebf1); background:#f3f5f9}
+    .file-thumb img{width:100%; height:100%; object-fit:cover; display:block}
+    .file-thumb:focus-visible{outline:2px solid var(--brand,#2f5bea); outline-offset:2px}
+    .attachment-thumb{width:44px; height:44px; border-radius:6px; object-fit:cover;
+        border:1px solid var(--line,#e7ebf1); background:#f3f5f9; display:block}
     .file-note{margin:.55rem 0 0; font-size:.82rem; color:var(--danger-ink,#a31726)}
 
     /* ---- "This happened again" ---- */

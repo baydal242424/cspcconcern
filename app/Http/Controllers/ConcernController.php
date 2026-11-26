@@ -2747,6 +2747,21 @@ class ConcernController extends Controller
             abort(404);
         }
 
+        // A picture can be VIEWED rather than saved: the student checking
+        // which screenshot they sent, the handler reading it in the page.
+        // Only JPEG and PNG, through Attachment::isImage(). An SVG opened
+        // in the browser is a document that can run script under this
+        // site's name, so anything outside that list still downloads,
+        // whatever the link asked for. Same authorization either way --
+        // it is checked above, before this choice is made.
+        if (request()->boolean('inline') && $attachment->isImage()) {
+            return $disk->response(
+                $attachment->stored_path,
+                $attachment->original_name,
+                ['Content-Type' => $attachment->mime_type, 'X-Content-Type-Options' => 'nosniff']
+            );
+        }
+
         return $disk->download(
             $attachment->stored_path,
             $attachment->original_name

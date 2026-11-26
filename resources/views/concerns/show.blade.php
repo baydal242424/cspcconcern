@@ -322,11 +322,16 @@
             <p style="color:var(--muted); font-size:.85rem; margin:-.4rem 0 .9rem;">{{ $blurb }}</p>
             <div style="display:flex; flex-direction:column; gap:0.6rem;">
                 @foreach ($files as $attachment)
-                    <a href="{{ route('concerns.attachment', [$concern, $attachment]) }}"
+                    <a href="{{ route('concerns.attachment', [$concern, $attachment]) }}{{ $attachment->isImage() ? '?inline=1' : '' }}"
+                       @if ($attachment->isImage()) target="_blank" rel="noopener" @endif
                        style="display:flex; align-items:center; gap:0.7rem; padding:0.7rem 0.9rem; border:1px solid #e2e8f0; border-radius:10px; text-decoration:none; color:#1f2733;">
                         <span style="flex-shrink:0; color:#64748b; display:inline-flex;" aria-hidden="true">
                             @if ($attachment->isImage())
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-3.9-3.9a2 2 0 0 0-2.8 0L6 19"/></svg>
+                                {{-- The picture itself rather than an icon of one,
+                                     so a student can tell which screenshot they
+                                     sent without opening it. --}}
+                                <img src="{{ route('concerns.attachment', [$concern, $attachment]) }}?inline=1"
+                                     alt="" loading="lazy" class="attachment-thumb">
                             @else
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>
                             @endif
@@ -335,7 +340,7 @@
                             <span style="display:block; font-weight:600; font-size:0.9rem; overflow-wrap:anywhere; word-break:break-word;">{{ $attachment->original_name }}</span>
                             <span style="color:#64748b; font-size:0.8rem;">{{ strtoupper(str_replace(['image/','application/'],'',$attachment->mime_type)) }} · {{ $attachment->humanSize() }}</span>
                         </span>
-                        <span style="color:#2f5bea; font-size:0.85rem; font-weight:600; flex-shrink:0;">Download</span>
+                        <span style="color:#2f5bea; font-size:0.85rem; font-weight:600; flex-shrink:0;">{{ $attachment->isImage() ? 'View' : 'Download' }}</span>
                     </a>
                 @endforeach
             </div>
@@ -1328,13 +1333,21 @@
 
                 <div class="form-group">
                     <label for="documents">Choose your files</label>
-                    <input type="file" name="documents[]" id="documents" multiple required>
-                    @error('documents')
-                        <div style="color:#dc3545; font-size:.85rem; margin-top:.25rem;">{{ $message }}</div>
-                    @enderror
-                    @error('documents.*')
-                        <div style="color:#dc3545; font-size:.85rem; margin-top:.25rem;">{{ $message }}</div>
-                    @enderror
+
+                    {{-- The same picker as the filing form. This was the bare
+                         browser control: a student could not see which
+                         screenshot they had picked, nor take one back out
+                         without starting over. The server still refuses an
+                         empty send, with a message saying so. --}}
+                    @include('partials.file-picker', [
+                        'name' => 'documents[]',
+                        'inputId' => 'documents',
+                        'zoneId' => 'documents-dropzone',
+                        'browseId' => 'documents-browse',
+                        'listId' => 'documents-file-list',
+                        'noteId' => 'documents-file-note',
+                        'errorKey' => 'documents',
+                    ])
                 </div>
 
                 <button type="submit" class="btn btn-primary">Send to the handler</button>
